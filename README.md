@@ -98,7 +98,8 @@ The app will be available at:
 
 ## Demo
 Dashboard
-<img width="1440" height="900" alt="Screenshot 2025-07-14 at 10 39 26 PM" src="https://github.com/user-attachments/assets/65aa5001-e153-4f91-bd22-fc98a4d270a2" />
+<img width="1440" height="900" alt="Screenshot 2025-07-14 at 10 42 14 PM" src="https://github.com/user-attachments/assets/ce736fc7-5339-4342-84da-c424b63a37ab" />
+
 Vocabulary 
 <img width="1440" height="900" alt="Screenshot 2025-07-14 at 10 39 03 PM" src="https://github.com/user-attachments/assets/cc4d82e1-01eb-40bc-a015-1e6c6b783ba0" />
 Quiz
