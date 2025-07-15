@@ -96,6 +96,14 @@ The app will be available at:
 - `GET /api/analytics/progress` - Get learning progress
 - `GET /api/analytics/recommendations` - Get AI recommendations
 
+## Demo
+Dashboard
+<img width="1440" height="900" alt="Screenshot 2025-07-14 at 10 39 26 PM" src="https://github.com/user-attachments/assets/65aa5001-e153-4f91-bd22-fc98a4d270a2" />
+Vocabulary 
+<img width="1440" height="900" alt="Screenshot 2025-07-14 at 10 39 03 PM" src="https://github.com/user-attachments/assets/cc4d82e1-01eb-40bc-a015-1e6c6b783ba0" />
+Quiz
+<img width="1440" height="900" alt="Screenshot 2025-07-14 at 10 39 14 PM" src="https://github.com/user-attachments/assets/6deee814-1e3f-4ec7-a8de-829b1ca3d34b" />
+
 ## Contributing
 
 1. Fork the repository
