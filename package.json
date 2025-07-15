@@ -6,9 +6,13 @@
     "server"
   ],
   "scripts": {
-    "postinstall": "cd client && npm install && cd ../server && npm install",
-    "build": "cd client && npm run build && cd ../server && npm run build",
-    "start": "cd server && npm start",
-    "heroku-postbuild": "cd client && npm install && npm run build"
+    "postinstall": "npm run install:all",
+    "install:all": "cd client && npm install && cd ../server && npm install",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "cd client && npm run build",
+    "build:server": "cd server && npm run build",
+    "start": "npm run start:client && npm run start:server",
+    "start:client": "cd client && npm start",
+    "start:server": "cd server && npm start"
   }
 } 
