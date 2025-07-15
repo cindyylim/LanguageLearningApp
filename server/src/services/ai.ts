@@ -343,4 +343,44 @@ Consider:
       };
     }
   }
+
+  /**
+   * Generate a vocabulary list using Gemini based on a prompt/keywords
+   */
+  static async generateVocabularyList(
+    prompt: string,
+    targetLanguage: string,
+    nativeLanguage: string,
+    wordCount: number = 10
+  ): Promise<{ word: string; translation: string; partOfSpeech?: string; difficulty?: string }[]> {
+    try {
+      const aiPrompt = `
+Generate a list of ${wordCount} useful vocabulary words for language learners based on the following topic or keywords: "${prompt}".
+Target language: ${targetLanguage}
+Native language: ${nativeLanguage}
+
+For each word, provide:
+- The word in the target language
+- Its translation in the native language
+- Part of speech (if possible)
+- Difficulty (easy, medium, or hard)
+
+Return the result as a JSON array with this structure:
+[
+  { "word": "...", "translation": "...", "partOfSpeech": "...", "difficulty": "easy|medium|hard" },
+  ...
+]
+`;
+      const model = gemini.getGenerativeModel({ model: "gemini-2.0-flash" });
+      const result = await model.generateContent(aiPrompt);
+      const response = await result.response;
+      const responseText = response.text();
+      // Remove Markdown code block if present
+      const cleaned = responseText.replace(/```[a-z]*\n?|```/gi, '').trim();
+      return JSON.parse(cleaned);
+    } catch (error) {
+      console.error('Error generating vocabulary list:', error);
+      throw new Error('Failed to generate vocabulary list');
+    }
+  }
 } 

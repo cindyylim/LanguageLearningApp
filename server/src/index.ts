@@ -28,10 +28,24 @@ const limiter = rateLimit({
 
 // Middleware
 app.use(helmet());
-app.use(cors({
-  origin: 'https://languagelearningapp-z0ca.onrender.com',
-  credentials: true
-}));
+
+const allowedOrigins = [
+    'https://languagelearningapp-z0ca.onrender.com',
+    'http://localhost:3000'
+  ];
+  
+  app.use(cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, etc.)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        return callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true
+  }));
 app.use(compression());
 app.use(limiter);
 app.use(express.json({ limit: '10mb' }));

@@ -271,6 +271,55 @@ router.post('/analyze-complexity', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// Generate vocabulary list using AI
+router.post('/generate-ai-list', async (req: AuthRequest, res: Response) => {
+  try {
+    const { name, description, targetLanguage, nativeLanguage, prompt, wordCount } = req.body;
+    if (!name || !targetLanguage || !nativeLanguage || !prompt) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    const db = await connectToDatabase();
+    // Generate vocabulary words using AIService
+    const aiWords = await AIService.generateVocabularyList(
+      prompt,
+      targetLanguage,
+      nativeLanguage,
+      wordCount || 10
+    );
+    // Create the vocabulary list
+    const now = new Date();
+    const result = await db.collection('VocabularyList').insertOne({
+      name,
+      description,
+      isPublic: false,
+      targetLanguage,
+      nativeLanguage,
+      userId: req.user!.id,
+      createdAt: now,
+      updatedAt: now
+    });
+    const listId = result.insertedId;
+    // Insert words
+    const wordDocs = aiWords.map((w: any) => ({
+      word: w.word,
+      translation: w.translation,
+      partOfSpeech: w.partOfSpeech || null,
+      difficulty: w.difficulty || 'medium',
+      vocabularyListId: listId,
+      createdAt: now,
+      updatedAt: now
+    }));
+    await db.collection('Word').insertMany(wordDocs);
+    // Fetch the new list with words
+    const list = await db.collection('VocabularyList').findOne({ _id: listId });
+    const words = await db.collection('Word').find({ vocabularyListId: listId }).toArray();
+    return res.status(201).json({ vocabularyList: { ...list, words } });
+  } catch (error) {
+    console.error('Error generating AI vocabulary list:', error);
+    return res.status(500).json({ error: 'Failed to generate AI vocabulary list' });
+  }
+});
+
 // Update word progress manually
 router.post('/words/:wordId/progress', async (req: AuthRequest, res: Response) => {
   try {

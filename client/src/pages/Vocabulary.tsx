@@ -18,6 +18,16 @@ const Vocabulary: React.FC = () => {
   });
   const [wordForm, setWordForm] = useState({ word: '', translation: '', partOfSpeech: '', difficulty: 'medium' });
   const [saving, setSaving] = useState(false);
+  const [showAIModal, setShowAIModal] = useState(false);
+  const [aiForm, setAIForm] = useState({
+    name: '',
+    description: '',
+    targetLanguage: user?.targetLanguage || 'es',
+    nativeLanguage: user?.nativeLanguage || 'en',
+    prompt: '',
+    wordCount: 10
+  });
+  const [aiLoading, setAILoading] = useState(false);
 
   useEffect(() => {
     fetchLists();
@@ -85,6 +95,28 @@ const Vocabulary: React.FC = () => {
     }
   };
 
+  const handleAIGenerate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAILoading(true);
+    try {
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/vocabulary/generate-ai-list`, aiForm);
+      setShowAIModal(false);
+      setAIForm({
+        name: '',
+        description: '',
+        targetLanguage: user?.targetLanguage || 'es',
+        nativeLanguage: user?.nativeLanguage || 'en',
+        prompt: '',
+        wordCount: 10
+      });
+      fetchLists();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to generate vocabulary list');
+    } finally {
+      setAILoading(false);
+    }
+  };
+
   const updateWordProgress = async (wordId: string, status: 'learning' | 'learned' | 'mastered') => {
     try {
       await axios.post(`${process.env.REACT_APP_API_URL}/api/vocabulary/words/${wordId}/progress`, { status });
@@ -116,7 +148,10 @@ const Vocabulary: React.FC = () => {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Vocabulary</h1>
-        <button className="btn-primary" onClick={() => setShowListModal(true)}>+ Add New List</button>
+        <div className="flex gap-2">
+          <button className="btn-primary" onClick={() => setShowListModal(true)}>+ Add New List</button>
+          <button className="btn-secondary" onClick={() => setShowAIModal(true)}>✨ Generate with AI</button>
+        </div>
       </div>
       {showListModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
@@ -168,6 +203,41 @@ const Vocabulary: React.FC = () => {
                 </select>
               </div>
               <button type="submit" className="btn-primary w-full" disabled={saving}>{saving ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div> : 'Add Word'}</button>
+            </form>
+          </div>
+        </div>
+      )}
+      {showAIModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative">
+            <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setShowAIModal(false)}>&times;</button>
+            <h2 className="text-lg font-bold mb-4">Generate Vocabulary List with AI</h2>
+            <form onSubmit={handleAIGenerate} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">List Name</label>
+                <input className="input-field" required value={aiForm.name} onChange={e => setAIForm(f => ({ ...f, name: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Description</label>
+                <input className="input-field" value={aiForm.description} onChange={e => setAIForm(f => ({ ...f, description: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Target Language</label>
+                <input className="input-field" required value={aiForm.targetLanguage} onChange={e => setAIForm(f => ({ ...f, targetLanguage: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Native Language</label>
+                <input className="input-field" required value={aiForm.nativeLanguage} onChange={e => setAIForm(f => ({ ...f, nativeLanguage: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Topic / Keywords</label>
+                <input className="input-field" required value={aiForm.prompt} onChange={e => setAIForm(f => ({ ...f, prompt: e.target.value }))} placeholder="e.g. travel, food, business" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Number of Words</label>
+                <input className="input-field" type="number" min={5} max={50} value={aiForm.wordCount} onChange={e => setAIForm(f => ({ ...f, wordCount: Number(e.target.value) }))} />
+              </div>
+              <button type="submit" className="btn-primary w-full" disabled={aiLoading}>{aiLoading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div> : 'Generate List'}</button>
             </form>
           </div>
         </div>
