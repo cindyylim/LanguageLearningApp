@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const Vocabulary: React.FC = () => {
   const { user } = useAuth();
@@ -28,6 +29,8 @@ const Vocabulary: React.FC = () => {
     wordCount: 10
   });
   const [aiLoading, setAILoading] = useState(false);
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchLists();
@@ -251,7 +254,15 @@ const Vocabulary: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {lists.map((list: any) => (
-            <div key={list._id} className="card">
+            <div
+              key={list._id}
+              className="card cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={e => {
+                // Prevent click if add word button is clicked
+                if ((e.target as HTMLElement).closest('button')) return;
+                navigate(`/vocabulary/${list._id}`);
+              }}
+            >
               <div className="flex justify-between items-center mb-2">
                 <div className="font-semibold text-lg">{list.name}</div>
                 <span className="badge badge-primary">{list._count.words} words</span>
@@ -273,9 +284,7 @@ const Vocabulary: React.FC = () => {
                               style={{ width: `${mastery * 100}%` }}
                             ></div>
                           </div>
-                          <span className={`text-xs font-medium ${getProgressColor(mastery)}`}>
-                            {getProgressText(mastery)}
-                          </span>
+                          <span className={`text-xs font-medium ${getProgressColor(mastery)}`}>{getProgressText(mastery)}</span>
                         </div>
                       </div>
                       <div className="flex gap-1 ml-2">
@@ -304,7 +313,7 @@ const Vocabulary: React.FC = () => {
                 {list.words && list.words.length > 8 && (
                   <span className="badge badge-warning">+{list.words.length - 8} more</span>
                 )}
-                <button className="btn-secondary text-xs ml-2" onClick={() => setShowWordModal(list._id.toString())}>+ Add Word</button>
+                <button className="btn-secondary text-xs ml-2" onClick={e => { e.stopPropagation(); setShowWordModal(list._id.toString()); }}>+ Add Word</button>
               </div>
             </div>
           ))}

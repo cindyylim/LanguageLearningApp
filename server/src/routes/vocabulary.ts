@@ -479,4 +479,53 @@ router.get('/words/:wordId/progress', async (req: AuthRequest, res: Response) =>
   }
 });
 
+// Edit a word in a vocabulary list
+router.put('/:listId/words/:wordId', async (req: AuthRequest, res: Response) => {
+  try {
+    const { listId, wordId } = req.params;
+    const { word, translation, partOfSpeech, difficulty } = req.body;
+    const db = await connectToDatabase();
+    // Check list ownership
+    const list = await db.collection('VocabularyList').findOne({ _id: new ObjectId(listId), userId: req.user!.id });
+    if (!list) {
+      return res.status(404).json({ error: 'Vocabulary list not found' });
+    }
+    // Update word
+    const result = await db.collection('Word').updateOne(
+      { _id: new ObjectId(wordId), vocabularyListId: new ObjectId(listId) },
+      { $set: { word, translation, partOfSpeech, difficulty, updatedAt: new Date() } }
+    );
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: 'Word not found' });
+    }
+    const updatedWord = await db.collection('Word').findOne({ _id: new ObjectId(wordId) });
+    return res.json({ word: updatedWord });
+  } catch (error) {
+    console.error('Error updating word:', error);
+    return res.status(500).json({ error: 'Failed to update word' });
+  }
+});
+
+// Delete a word in a vocabulary list
+router.delete('/:listId/words/:wordId', async (req: AuthRequest, res: Response) => {
+  try {
+    const { listId, wordId } = req.params;
+    const db = await connectToDatabase();
+    // Check list ownership
+    const list = await db.collection('VocabularyList').findOne({ _id: new ObjectId(listId), userId: req.user!.id });
+    if (!list) {
+      return res.status(404).json({ error: 'Vocabulary list not found' });
+    }
+    // Delete word
+    const result = await db.collection('Word').deleteOne({ _id: new ObjectId(wordId), vocabularyListId: new ObjectId(listId) });
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: 'Word not found' });
+    }
+    return res.json({ message: 'Word deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting word:', error);
+    return res.status(500).json({ error: 'Failed to delete word' });
+  }
+});
+
 export default router; 
