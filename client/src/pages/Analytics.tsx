@@ -13,8 +13,8 @@ const Analytics: React.FC = () => {
       setError(null);
       try {
         const [progressRes, recRes] = await Promise.all([
-          axios.get('/api/analytics/progress'),
-          axios.get('/api/analytics/recommendations'),
+          axios.get(`${process.env.REACT_APP_API_URL}/api/analytics/progress`),
+          axios.get(`${process.env.REACT_APP_API_URL}/api/analytics/recommendations`),
         ]);
         setProgress(progressRes.data);
         setRecommendations(recRes.data);

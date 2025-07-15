@@ -27,7 +27,7 @@ const Quiz: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await axios.get(`/api/quizzes/${id}`);
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/quizzes/${id}`);
         setQuiz(res.data.quiz);
       } catch (err: any) {
         setError('Failed to load quiz');
@@ -53,7 +53,7 @@ const Quiz: React.FC = () => {
           timeSpent: 10, // Placeholder, could track per-question time
         })),
       };
-      const res = await axios.post(`/api/quizzes/${id}/submit`, payload);
+      const res = await axios.post(`${process.env.REACT_APP_API_URL}/api/quizzes/${id}/submit`, payload);
       setResult(res.data.attempt);
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to submit quiz');
