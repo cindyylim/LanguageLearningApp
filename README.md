@@ -33,16 +33,18 @@ An AI-powered language learning application that generates personalized quizzes 
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd language-learning-app
+cd client
 ```
 
 2. Install dependencies:
 ```bash
-npm run install-all
+npm install
 ```
 
 3. Set up environment variables:
 ```bash
+cd server 
+npm install
 cp .env.example .env
 ```
 
@@ -50,17 +52,14 @@ cp .env.example .env
 ```
 GOOGLE_AI_API_KEY=your_google_gemini_api_key
 JWT_SECRET=your_jwt_secret
-MONGODB_URI=file:./dev.db
+MONGODB_URI=
 ```
 
-5. Initialize the database:
-```bash
-cd server && npm run db:generate && npm run db:push
-```
-
-6. Start the development servers:
+5. Start the development servers:
 ```bash
 npm run dev
+cd client
+npm start
 ```
 
 The app will be available at:
@@ -104,7 +103,3 @@ The app will be available at:
 3. Make your changes
 4. Add tests if applicable
 5. Submit a pull request
-
-## License
-
-MIT License - see LICENSE file for details 
