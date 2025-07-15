@@ -12,6 +12,7 @@ Deployed with Render. Link: https://languagelearningapp-z0ca.onrender.com/login
 - 🎯 **Multiple Question Types**: Multiple choice, fill-in-the-blank, sentence completion
 - 📈 **Progress Tracking**: Detailed analytics and learning insights
 - 🌍 **Multi-language Support**: Support for various target languages
+- ✨ **AI-Powered Vocabulary List Generation**: Instantly generate themed vocabulary lists using Google Gemini based on your chosen topic or keywords
 
 ## Tech Stack
 
@@ -69,10 +70,11 @@ The app will be available at:
 ## Usage
 
 1. **Create Vocabulary Lists**: Add words and phrases you want to learn
-2. **Generate Quizzes**: Use AI to create contextual questions
-3. **Practice**: Take quizzes with adaptive difficulty
-4. **Track Progress**: Monitor your learning journey with detailed analytics
-5. **Review**: Use spaced repetition to optimize retention
+2. **Generate Vocabulary Lists with AI**: Instantly create a new vocabulary list by providing a topic or keywords and letting AI generate relevant words for you
+3. **Generate Quizzes**: Use AI to create contextual questions
+4. **Practice**: Take quizzes with adaptive difficulty
+5. **Track Progress**: Monitor your learning journey with detailed analytics
+6. **Review**: Use spaced repetition to optimize retention
 
 ## API Endpoints
 
@@ -85,6 +87,7 @@ The app will be available at:
 - `POST /api/vocabulary` - Create new vocabulary list
 - `PUT /api/vocabulary/:id` - Update vocabulary list
 - `DELETE /api/vocabulary/:id` - Delete vocabulary list
+- `POST /api/vocabulary/generate-ai-list` - Generate a new vocabulary list using AI (provide name, description, targetLanguage, nativeLanguage, prompt, and wordCount)
 
 ### Quizzes
 - `POST /api/quizzes/generate` - Generate AI-powered quiz
@@ -100,8 +103,8 @@ The app will be available at:
 Dashboard
 <img width="1440" height="900" alt="Screenshot 2025-07-14 at 10 42 14 PM" src="https://github.com/user-attachments/assets/ce736fc7-5339-4342-84da-c424b63a37ab" />
 
-Vocabulary 
-<img width="1440" height="900" alt="Screenshot 2025-07-14 at 10 39 03 PM" src="https://github.com/user-attachments/assets/cc4d82e1-01eb-40bc-a015-1e6c6b783ba0" />
+Vocabulary <img width="1440" height="900" alt="Screenshot 2025-07-14 at 11 36 35 PM" src="https://github.com/user-attachments/assets/39971d84-a361-4c06-9a39-b9f39cc96218" />
+
 Quiz
 <img width="1440" height="900" alt="Screenshot 2025-07-14 at 10 39 14 PM" src="https://github.com/user-attachments/assets/6deee814-1e3f-4ec7-a8de-829b1ca3d34b" />
 

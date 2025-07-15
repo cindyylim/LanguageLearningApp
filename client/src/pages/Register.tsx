@@ -35,6 +35,8 @@ const Register: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [reenterPassword, setReenterPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [nativeLanguage, setNativeLanguage] = useState('en');
   const [targetLanguage, setTargetLanguage] = useState('es');
   const [proficiencyLevel, setProficiencyLevel] = useState('beginner');
@@ -44,8 +46,26 @@ const Register: React.FC = () => {
   const { register } = useAuth();
   const navigate = useNavigate();
 
+  // Password validation function
+  const isPasswordValid = (pw: string) => {
+    return (
+      pw.length >= 8 &&
+      /[0-9]/.test(pw) &&
+      /[^A-Za-z0-9]/.test(pw)
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setPasswordError('');
+    if (!isPasswordValid(password)) {
+      setPasswordError('Password must be at least 8 characters long and include a number and a symbol.');
+      return;
+    }
+    if (password !== reenterPassword) {
+      setPasswordError('Passwords do not match');
+      return;
+    }
     setLoading(true);
     try {
       await register({
@@ -137,6 +157,28 @@ const Register: React.FC = () => {
                     <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0zm2.121-2.121A9.969 9.969 0 0122 9c0 5.523-4.477 10-10 10a9.969 9.969 0 01-7.071-2.929m14.142-14.142A9.969 9.969 0 002 9c0 5.523 4.477 10 10 10a9.969 9.969 0 007.071-2.929" /></svg>
                   )}
                 </button>
+              </div>
+            </div>
+            <div>
+              <label htmlFor="reenterPassword" className="block text-sm font-medium text-gray-700">
+                Re-enter Password
+              </label>
+              <div className="relative mt-1">
+                <input
+                  id="reenterPassword"
+                  name="reenterPassword"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  required
+                  value={reenterPassword}
+                  onChange={e => setReenterPassword(e.target.value)}
+                  className="input-field pr-10"
+                  placeholder="Re-enter your password"
+                />
+              </div>
+              {passwordError && <div className="text-red-500 text-xs mt-1">{passwordError}</div>}
+              <div className="text-xs text-gray-500 mt-1">
+                Password must be at least 8 characters, include a number and a symbol.
               </div>
             </div>
             <div>
