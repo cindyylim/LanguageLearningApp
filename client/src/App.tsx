@@ -10,6 +10,7 @@ import Vocabulary from './pages/Vocabulary';
 import Quizzes from './pages/Quizzes';
 import Quiz from './pages/Quiz';
 import Analytics from './pages/Analytics';
+import VocabularyList from './pages/VocabularyList';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -65,6 +66,7 @@ const AppRoutes: React.FC = () => {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="vocabulary" element={<Vocabulary />} />
+        <Route path="vocabulary/:id" element={<VocabularyList />} />
         <Route path="quizzes" element={<Quizzes />} />
         <Route path="quizzes/:id" element={<Quiz />} />
         <Route path="analytics" element={<Analytics />} />
