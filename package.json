@@ -1,0 +1,17 @@
+{
+  "name": "language-learning-app",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "install:all": "cd client && npm install && cd ../server && npm install",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "cd client && npm run build",
+    "build:server": "cd server && npm run build",
+    "start": "npm run start:client && npm run start:server",
+    "start:client": "cd client && npm start",
+    "start:server": "cd server && npm start"
+  }
+} 

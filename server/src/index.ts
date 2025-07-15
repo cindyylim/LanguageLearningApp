@@ -8,7 +8,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
-
+import path from "path";
 // Import routes
 import authRoutes from './routes/auth';
 import vocabularyRoutes from './routes/vocabulary';
@@ -29,7 +29,7 @@ const limiter = rateLimit({
 // Middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: 'https://languagelearningapp-z0ca.onrender.com',
   credentials: true
 }));
 app.use(compression());
@@ -64,6 +64,11 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route not found' });
+});
+
+app.use(express.static(path.join(__dirname, 'client/build')));
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'client/build', 'index.html'));
 });
 
 // Start server

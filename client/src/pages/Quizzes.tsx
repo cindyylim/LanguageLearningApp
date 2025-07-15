@@ -21,7 +21,7 @@ const Quizzes: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await axios.get('/api/quizzes');
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/quizzes`);
         setQuizzes(res.data.quizzes || []);
       } catch (err: any) {
         setError('Failed to load quizzes');
@@ -36,7 +36,7 @@ const Quizzes: React.FC = () => {
     setShowModal(true);
     if (vocabLists.length === 0) {
       try {
-        const res = await axios.get('/api/vocabulary');
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/vocabulary`);
         setVocabLists(res.data.vocabularyLists || []);
       } catch {}
     }
@@ -46,7 +46,7 @@ const Quizzes: React.FC = () => {
     e.preventDefault();
     setGenerating(true);
     try {
-      const res = await axios.post('/api/quizzes/generate', form);
+      const res = await axios.post(`${process.env.REACT_APP_API_URL}/api/quizzes/generate`, form);
       setQuizzes([res.data.quiz, ...quizzes]);
       setShowModal(false);
     } catch (err: any) {

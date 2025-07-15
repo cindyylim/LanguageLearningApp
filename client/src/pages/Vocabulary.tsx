@@ -39,7 +39,7 @@ const Vocabulary: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.get('/api/vocabulary');
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/vocabulary`);
       setLists(res.data.vocabularyLists || []);
     } catch (err: any) {
       setError('Failed to load vocabulary lists');
@@ -52,7 +52,7 @@ const Vocabulary: React.FC = () => {
     e.preventDefault();
     setSaving(true);
     try {
-      await axios.post('/api/vocabulary', listForm);
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/vocabulary`, listForm);
       setShowListModal(false);
       setListForm({ 
         name: '', 
@@ -74,7 +74,7 @@ const Vocabulary: React.FC = () => {
     if (!showWordModal) return;
     setSaving(true);
     try {
-      await axios.post(`/api/vocabulary/${showWordModal}/words`, wordForm);
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/vocabulary/${showWordModal}/words`, wordForm);
       setShowWordModal(null);
       setWordForm({ word: '', translation: '', partOfSpeech: '', difficulty: 'medium' });
       fetchLists();
@@ -87,7 +87,7 @@ const Vocabulary: React.FC = () => {
 
   const updateWordProgress = async (wordId: string, status: 'learning' | 'learned' | 'mastered') => {
     try {
-      await axios.post(`/api/vocabulary/words/${wordId}/progress`, { status });
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/vocabulary/words/${wordId}/progress`, { status });
       fetchLists(); // Refresh to show updated progress
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to update word progress');
