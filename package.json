@@ -1,0 +1,14 @@
+{
+  "name": "language-learning-app",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "postinstall": "cd client && npm install && cd ../server && npm install",
+    "build": "cd client && npm run build && cd ../server && npm run build",
+    "start": "cd server && npm start",
+    "heroku-postbuild": "cd client && npm install && npm run build"
+  }
+} 
