@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   HomeIcon,
@@ -47,21 +47,20 @@ const Layout: React.FC = () => {
           </div>
           <nav className="flex-1 space-y-1 px-2 py-4">
             {navigation.map((item) => {
-              const isActive = location.pathname === item.href;
+              const active = location.pathname === item.href || location.pathname.startsWith(item.href + '/');
               return (
-                <Link
+                <NavLink
                   key={item.name}
                   to={item.href}
                   className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
-                    isActive
-                      ? 'bg-primary-100 text-primary-900'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    active ? 'bg-primary-100 text-primary-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                   }`}
                   onClick={() => setSidebarOpen(false)}
+                  end={item.href === '/dashboard'}
                 >
                   <item.icon className="mr-3 h-5 w-5" />
                   {item.name}
-                </Link>
+                </NavLink>
               );
             })}
           </nav>
@@ -76,20 +75,19 @@ const Layout: React.FC = () => {
           </div>
           <nav className="flex-1 space-y-1 px-2 py-4">
             {navigation.map((item) => {
-              const isActive = location.pathname === item.href;
+              const active = location.pathname === item.href || location.pathname.startsWith(item.href + '/');
               return (
-                <Link
+                <NavLink
                   key={item.name}
                   to={item.href}
                   className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
-                    isActive
-                      ? 'bg-primary-100 text-primary-900'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    active ? 'bg-primary-100 text-primary-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                   }`}
+                  end={item.href === '/dashboard'}
                 >
                   <item.icon className="mr-3 h-5 w-5" />
                   {item.name}
-                </Link>
+                </NavLink>
               );
             })}
           </nav>

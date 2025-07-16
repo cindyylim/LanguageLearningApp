@@ -11,6 +11,7 @@ import Quizzes from './pages/Quizzes';
 import Quiz from './pages/Quiz';
 import Analytics from './pages/Analytics';
 import VocabularyList from './pages/VocabularyList';
+import Home from './pages/Home';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -46,6 +47,7 @@ const AppRoutes: React.FC = () => {
   return (
     <Routes>
       {/* Public Routes */}
+      <Route path="/" element={<Home />} />
       <Route path="/login" element={
         <PublicRoute>
           <Login />
@@ -56,14 +58,13 @@ const AppRoutes: React.FC = () => {
           <Register />
         </PublicRoute>
       } />
-      
       {/* Protected Routes */}
       <Route path="/" element={
         <ProtectedRoute>
           <Layout />
         </ProtectedRoute>
       }>
-        <Route index element={<Navigate to="/dashboard" replace />} />
+        <Route index element={<Dashboard />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="vocabulary" element={<Vocabulary />} />
         <Route path="vocabulary/:id" element={<VocabularyList />} />
@@ -71,9 +72,8 @@ const AppRoutes: React.FC = () => {
         <Route path="quizzes/:id" element={<Quiz />} />
         <Route path="analytics" element={<Analytics />} />
       </Route>
-      
       {/* Catch all route */}
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };
