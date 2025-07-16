@@ -127,7 +127,26 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Vocabulary list not found' });
     }
     const words = await db.collection('Word').find({ vocabularyListId: new ObjectId(id) }).toArray();
-    return res.json({ vocabularyList: { ...list, words } });
+    // Fetch progress for all words for this user
+    const wordIds = words.map((w: any) => w._id.toString());
+    const progressData = await db.collection('WordProgress').find({
+      userId: req.user!.id,
+      wordId: { $in: wordIds }
+    }).toArray();
+    const progressMap = progressData.reduce((acc: any, p: any) => {
+      acc[p.wordId] = p;
+      return acc;
+    }, {});
+    const wordsWithProgress = words.map((word: any) => ({
+      ...word,
+      progress: progressMap[word._id.toString()] || {
+        mastery: 0,
+        status: 'not_started',
+        reviewCount: 0,
+        streak: 0
+      }
+    }));
+    return res.json({ vocabularyList: { ...list, words: wordsWithProgress } });
   } catch (error) {
     console.error('Error fetching vocabulary list:', error);
     return res.status(500).json({ error: 'Internal server error' });

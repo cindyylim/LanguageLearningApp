@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 
 const VocabularyList: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -109,12 +110,47 @@ const VocabularyList: React.FC = () => {
     }
   };
 
+  // Add function to update word progress
+  const updateWordProgress = async (wordId: string, status: 'learning' | 'learned' | 'mastered') => {
+    try {
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/vocabulary/words/${wordId}/progress`, { status });
+      // Refresh list
+      if (id) {
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/vocabulary/${id}`);
+        setList(res.data.vocabularyList);
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to update word progress');
+    }
+  };
+
+  // Calculate progress stats
+  const totalWords = list?.words?.length || 0;
+  const mastered = list?.words?.filter((w: any) => w.progress?.mastery >= 0.8).length || 0;
+  const learning = list?.words?.filter((w: any) => w.progress?.mastery >= 0.3 && w.progress?.mastery < 0.8).length || 0;
+  const newWords = totalWords - mastered - learning;
+  const percentMastered = totalWords ? Math.round((mastered / totalWords) * 100) : 0;
+  const percentLearning = totalWords ? Math.round((learning / totalWords) * 100) : 0;
+  const percentNew = totalWords ? Math.round((newWords / totalWords) * 100) : 0;
+
   return (
     <div className="max-w-2xl mx-auto p-4">
-      <div className="flex gap-2 mb-4">
-        <button className="btn-secondary" onClick={() => navigate(-1)}>&larr; Back</button>
-        <button className="btn-primary" onClick={() => setShowEditListModal(true)}>Edit List</button>
-        <button className="btn-danger" onClick={() => setDeleteWordId('LIST')}>Delete List</button>
+      <div className="flex gap-2 mb-4 items-center">
+        <button className="btn-secondary flex items-center gap-2" onClick={() => navigate(-1)}>
+          &larr; Back
+        </button>
+        <button
+          className="btn-primary flex items-center gap-2"
+          onClick={() => setShowEditListModal(true)}
+        >
+          <PencilSquareIcon className="h-5 w-5" /> Edit List
+        </button>
+        <button
+          className="btn-danger flex items-center gap-2"
+          onClick={() => setDeleteWordId('LIST')}
+        >
+          <TrashIcon className="h-5 w-5" /> Delete List
+        </button>
       </div>
       {/* Edit List Modal */}
       {showEditListModal && (
@@ -204,6 +240,35 @@ const VocabularyList: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold mb-1">{list.name}</h1>
           <div className="text-gray-600 mb-4">{list.description || 'No description'}</div>
+          {/* Progress Tracker */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-medium text-gray-700">Progress</span>
+              <span className="text-xs text-gray-500">{mastered} mastered, {learning} learning, {newWords} new</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-4 flex overflow-hidden">
+              <div
+                className="bg-green-500 h-4"
+                style={{ width: `${percentMastered}%` }}
+                title="Mastered"
+              ></div>
+              <div
+                className="bg-yellow-400 h-4"
+                style={{ width: `${percentLearning}%` }}
+                title="Learning"
+              ></div>
+              <div
+                className="bg-gray-400 h-4"
+                style={{ width: `${percentNew}%` }}
+                title="New"
+              ></div>
+            </div>
+            <div className="flex justify-between text-xs mt-1">
+              <span className="text-green-600">{percentMastered}% Mastered</span>
+              <span className="text-yellow-600">{percentLearning}% Learning</span>
+              <span className="text-gray-600">{percentNew}% New</span>
+            </div>
+          </div>
           <div className="mb-2 text-sm text-gray-500">{list.words.length} words</div>
           <div className="space-y-2">
             {list.words.map((w: any) => (
@@ -221,8 +286,40 @@ const VocabularyList: React.FC = () => {
                     <span className="text-xs text-gray-600">Progress: {Math.round((w.progress.mastery || 0) * 100)}% ({w.progress.status || 'not started'})</span>
                   )}
                   <div className="flex gap-2 mt-2">
-                    <button className="btn-secondary text-xs" onClick={() => openEditWord(w)}>Edit</button>
-                    <button className="btn-danger text-xs" onClick={() => setDeleteWordId(w._id)}>Delete</button>
+                    <button
+                      className="p-2 rounded hover:bg-blue-100 text-blue-600"
+                      title="Edit Word"
+                      onClick={() => openEditWord(w)}
+                    >
+                      <PencilSquareIcon className="h-5 w-5" />
+                    </button>
+                    <button
+                      className="p-2 rounded hover:bg-red-100 text-red-600"
+                      title="Delete Word"
+                      onClick={() => setDeleteWordId(w._id)}
+                    >
+                      <TrashIcon className="h-5 w-5" />
+                    </button>
+                  </div>
+                  <div className="flex gap-1 mt-2">
+                    <button
+                      onClick={() => updateWordProgress(w._id, 'learning')}
+                      className={`px-2 py-1 text-xs rounded ${w.progress?.status === 'learning' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+                    >
+                      Learning
+                    </button>
+                    <button
+                      onClick={() => updateWordProgress(w._id, 'learned')}
+                      className={`px-2 py-1 text-xs rounded ${w.progress?.status === 'learned' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
+                    >
+                      Learned
+                    </button>
+                    <button
+                      onClick={() => updateWordProgress(w._id, 'mastered')}
+                      className={`px-2 py-1 text-xs rounded ${w.progress?.status === 'mastered' ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}
+                    >
+                      Mastered
+                    </button>
                   </div>
                 </div>
               </div>
