@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import LanguageDropdown from '../components/LanguageDropdown';
 
 const Vocabulary: React.FC = () => {
   const { user } = useAuth();
@@ -13,9 +14,8 @@ const Vocabulary: React.FC = () => {
   const [listForm, setListForm] = useState({ 
     name: '', 
     description: '', 
-    isPublic: false,
-    targetLanguage: user?.targetLanguage || 'es',
-    nativeLanguage: user?.nativeLanguage || 'en'
+    targetLanguage: 'en',
+    nativeLanguage: 'en'
   });
   const [wordForm, setWordForm] = useState({ word: '', translation: '', partOfSpeech: '', difficulty: 'medium' });
   const [saving, setSaving] = useState(false);
@@ -23,13 +23,24 @@ const Vocabulary: React.FC = () => {
   const [aiForm, setAIForm] = useState({
     name: '',
     description: '',
-    targetLanguage: user?.targetLanguage || 'es',
-    nativeLanguage: user?.nativeLanguage || 'en',
+    targetLanguage: 'en',
+    nativeLanguage: 'en',
     prompt: '',
     wordCount: 10
   });
   const [aiLoading, setAILoading] = useState(false);
+  // State to hold the selected code received from the child
+  const [targetLanguageCode, setTargetLanguageCode] = useState('en');
+  const [nativeLanguageCode, setNativeLanguageCode] = useState('en');
 
+  const handleTargetLanguageChange = (code: string) => {
+    setAIForm({...aiForm, targetLanguage: code});
+    setTargetLanguageCode(code);
+  };
+  const handleNativeLanguageChange = (code: string) => {
+    setAIForm({...aiForm, nativeLanguage: code});
+    setNativeLanguageCode(code);
+};
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -42,8 +53,8 @@ const Vocabulary: React.FC = () => {
     if (user) {
       setListForm(prev => ({
         ...prev,
-        targetLanguage: user.targetLanguage || 'es',
-        nativeLanguage: user.nativeLanguage || 'en'
+        targetLanguage: 'en',
+        nativeLanguage: 'en'
       }));
     }
   }, [user]);
@@ -52,7 +63,7 @@ const Vocabulary: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/vocabulary`);
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary`);
       setLists(res.data.vocabularyLists || []);
     } catch (err: any) {
       setError('Failed to load vocabulary lists');
@@ -65,14 +76,13 @@ const Vocabulary: React.FC = () => {
     e.preventDefault();
     setSaving(true);
     try {
-      await axios.post(`${process.env.REACT_APP_API_URL}/api/vocabulary`, listForm);
+      await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary`, listForm);
       setShowListModal(false);
       setListForm({ 
         name: '', 
         description: '', 
-        isPublic: false,
-        targetLanguage: user?.targetLanguage || 'es',
-        nativeLanguage: user?.nativeLanguage || 'en'
+        targetLanguage: 'en',
+        nativeLanguage: 'en'
       });
       fetchLists();
     } catch (err: any) {
@@ -87,7 +97,7 @@ const Vocabulary: React.FC = () => {
     if (!showWordModal) return;
     setSaving(true);
     try {
-      await axios.post(`${process.env.REACT_APP_API_URL}/api/vocabulary/${showWordModal}/words`, wordForm);
+      await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/${showWordModal}/words`, wordForm);
       setShowWordModal(null);
       setWordForm({ word: '', translation: '', partOfSpeech: '', difficulty: 'medium' });
       fetchLists();
@@ -102,13 +112,13 @@ const Vocabulary: React.FC = () => {
     e.preventDefault();
     setAILoading(true);
     try {
-      await axios.post(`${process.env.REACT_APP_API_URL}/api/vocabulary/generate-ai-list`, aiForm);
+      await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/generate-ai-list`, aiForm);
       setShowAIModal(false);
       setAIForm({
         name: '',
         description: '',
-        targetLanguage: user?.targetLanguage || 'es',
-        nativeLanguage: user?.nativeLanguage || 'en',
+        targetLanguage: 'en',
+        nativeLanguage: 'en',
         prompt: '',
         wordCount: 10
       });
@@ -120,9 +130,9 @@ const Vocabulary: React.FC = () => {
     }
   };
 
-  const updateWordProgress = async (wordId: string, status: 'learning' | 'learned' | 'mastered') => {
+  const updateWordProgress = async (wordId: string, status: 'learning' | 'mastered') => {
     try {
-      await axios.post(`${process.env.REACT_APP_API_URL}/api/vocabulary/words/${wordId}/progress`, { status });
+      await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/words/${wordId}/progress`, { status });
       fetchLists(); // Refresh to show updated progress
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to update word progress');
@@ -130,19 +140,19 @@ const Vocabulary: React.FC = () => {
   };
 
   const getProgressColor = (mastery: number) => {
-    if (mastery >= 0.8) return 'text-green-600';
+    if (mastery >= 1.0) return 'text-green-600';
     if (mastery >= 0.5) return 'text-yellow-600';
     return 'text-red-600';
   };
 
   const getProgressText = (mastery: number) => {
-    if (mastery >= 0.8) return 'Mastered';
+    if (mastery >= 1.0) return 'Mastered';
     if (mastery >= 0.5) return 'Learning';
     return 'New';
   };
 
   const getProgressBarColor = (mastery: number) => {
-    if (mastery >= 0.8) return 'bg-green-500';
+    if (mastery >= 1.0) return 'bg-green-500';
     if (mastery >= 0.5) return 'bg-yellow-500';
     return 'bg-red-500';
   };
@@ -169,10 +179,6 @@ const Vocabulary: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium mb-1">Description</label>
                 <input className="input-field" value={listForm.description} onChange={e => setListForm(f => ({ ...f, description: e.target.value }))} />
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="isPublic" checked={listForm.isPublic} onChange={e => setListForm(f => ({ ...f, isPublic: e.target.checked }))} />
-                <label htmlFor="isPublic" className="text-sm">Public</label>
               </div>
               <button type="submit" className="btn-primary w-full" disabled={saving}>{saving ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div> : 'Add List'}</button>
             </form>
@@ -226,11 +232,11 @@ const Vocabulary: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Target Language</label>
-                <input className="input-field" required value={aiForm.targetLanguage} onChange={e => setAIForm(f => ({ ...f, targetLanguage: e.target.value }))} />
+                <LanguageDropdown onCodeSelect={handleTargetLanguageChange}/>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Native Language</label>
-                <input className="input-field" required value={aiForm.nativeLanguage} onChange={e => setAIForm(f => ({ ...f, nativeLanguage: e.target.value }))} />
+                <LanguageDropdown onCodeSelect={handleNativeLanguageChange}/>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Topic / Keywords</label>
@@ -240,7 +246,7 @@ const Vocabulary: React.FC = () => {
                 <label className="block text-sm font-medium mb-1">Number of Words</label>
                 <input className="input-field" type="number" min={5} max={50} value={aiForm.wordCount} onChange={e => setAIForm(f => ({ ...f, wordCount: Number(e.target.value) }))} />
               </div>
-              <button type="submit" className="btn-primary w-full" disabled={aiLoading}>{aiLoading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div> : 'Generate List'}</button>
+              <button type="submit" className="btn-primary w-full disabled:bg-gray-500" disabled={aiLoading || !aiForm.targetLanguage || !aiForm.nativeLanguage || !aiForm.name || !aiForm.wordCount || !aiForm.prompt}>{aiLoading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div> : 'Generate List'}</button>
             </form>
           </div>
         </div>
@@ -293,12 +299,6 @@ const Vocabulary: React.FC = () => {
                           className={`px-2 py-1 text-xs rounded ${status === 'learning' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
                         >
                           Learning
-                        </button>
-                        <button
-                          onClick={() => updateWordProgress(w._id, 'learned')}
-                          className={`px-2 py-1 text-xs rounded ${status === 'learned' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
-                        >
-                          Learned
                         </button>
                         <button
                           onClick={() => updateWordProgress(w._id, 'mastered')}

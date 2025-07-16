@@ -22,7 +22,7 @@ const VocabularyList: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/vocabulary/${id}`);
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
         setList(res.data.vocabularyList);
       } catch (err: any) {
         setError('Failed to load vocabulary list');
@@ -43,10 +43,10 @@ const VocabularyList: React.FC = () => {
     e.preventDefault();
     setSaving(true);
     try {
-      await axios.put(`${process.env.REACT_APP_API_URL}/api/vocabulary/${id}`, editListForm);
+      await axios.put(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`, editListForm);
       setShowEditListModal(false);
       // Refresh list
-      const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/vocabulary/${id}`);
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
       setList(res.data.vocabularyList);
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to update list');
@@ -58,7 +58,7 @@ const VocabularyList: React.FC = () => {
   const handleDeleteList = async () => {
     setDeleting(true);
     try {
-      await axios.delete(`${process.env.REACT_APP_API_URL}/api/vocabulary/${id}`);
+      await axios.delete(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
       navigate('/vocabulary');
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to delete list');
@@ -82,10 +82,10 @@ const VocabularyList: React.FC = () => {
     if (!showEditWordModal) return;
     setSaving(true);
     try {
-      await axios.put(`${process.env.REACT_APP_API_URL}/api/vocabulary/${id}/words/${showEditWordModal}`, editWordForm);
+      await axios.put(`${process.env.REACT_APP_API_URL}/vocabulary/${id}/words/${showEditWordModal}`, editWordForm);
       setShowEditWordModal(null);
       // Refresh list
-      const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/vocabulary/${id}`);
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
       setList(res.data.vocabularyList);
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to update word');
@@ -98,10 +98,10 @@ const VocabularyList: React.FC = () => {
     if (!deleteWordId) return;
     setDeleting(true);
     try {
-      await axios.delete(`${process.env.REACT_APP_API_URL}/api/vocabulary/${id}/words/${deleteWordId}`);
+      await axios.delete(`${process.env.REACT_APP_API_URL}/vocabulary/${id}/words/${deleteWordId}`);
       setDeleteWordId(null);
       // Refresh list
-      const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/vocabulary/${id}`);
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
       setList(res.data.vocabularyList);
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to delete word');
@@ -111,12 +111,12 @@ const VocabularyList: React.FC = () => {
   };
 
   // Add function to update word progress
-  const updateWordProgress = async (wordId: string, status: 'learning' | 'learned' | 'mastered') => {
+  const updateWordProgress = async (wordId: string, status: 'learning' | 'mastered') => {
     try {
-      await axios.post(`${process.env.REACT_APP_API_URL}/api/vocabulary/words/${wordId}/progress`, { status });
+      await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/words/${wordId}/progress`, { status });
       // Refresh list
       if (id) {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/vocabulary/${id}`);
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
         setList(res.data.vocabularyList);
       }
     } catch (err: any) {
@@ -126,12 +126,10 @@ const VocabularyList: React.FC = () => {
 
   // Calculate progress stats
   const totalWords = list?.words?.length || 0;
-  const mastered = list?.words?.filter((w: any) => w.progress?.mastery >= 0.8).length || 0;
-  const learning = list?.words?.filter((w: any) => w.progress?.mastery >= 0.3 && w.progress?.mastery < 0.8).length || 0;
-  const newWords = totalWords - mastered - learning;
+  const mastered = list?.words?.filter((w: any) => w.progress?.mastery == 1).length || 0;
+  const learning = list?.words?.filter((w: any) => w.progress?.mastery < 1).length || 0;
   const percentMastered = totalWords ? Math.round((mastered / totalWords) * 100) : 0;
   const percentLearning = totalWords ? Math.round((learning / totalWords) * 100) : 0;
-  const percentNew = totalWords ? Math.round((newWords / totalWords) * 100) : 0;
 
   return (
     <div className="max-w-2xl mx-auto p-4">
@@ -244,7 +242,7 @@ const VocabularyList: React.FC = () => {
           <div className="mb-6">
             <div className="flex items-center justify-between mb-1">
               <span className="text-sm font-medium text-gray-700">Progress</span>
-              <span className="text-xs text-gray-500">{mastered} mastered, {learning} learning, {newWords} new</span>
+              <span className="text-xs text-gray-500">{mastered} mastered, {learning} learning</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-4 flex overflow-hidden">
               <div
@@ -257,16 +255,10 @@ const VocabularyList: React.FC = () => {
                 style={{ width: `${percentLearning}%` }}
                 title="Learning"
               ></div>
-              <div
-                className="bg-gray-400 h-4"
-                style={{ width: `${percentNew}%` }}
-                title="New"
-              ></div>
             </div>
             <div className="flex justify-between text-xs mt-1">
               <span className="text-green-600">{percentMastered}% Mastered</span>
               <span className="text-yellow-600">{percentLearning}% Learning</span>
-              <span className="text-gray-600">{percentNew}% New</span>
             </div>
           </div>
           <div className="mb-2 text-sm text-gray-500">{list.words.length} words</div>
@@ -307,12 +299,6 @@ const VocabularyList: React.FC = () => {
                       className={`px-2 py-1 text-xs rounded ${w.progress?.status === 'learning' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
                     >
                       Learning
-                    </button>
-                    <button
-                      onClick={() => updateWordProgress(w._id, 'learned')}
-                      className={`px-2 py-1 text-xs rounded ${w.progress?.status === 'learned' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
-                    >
-                      Learned
                     </button>
                     <button
                       onClick={() => updateWordProgress(w._id, 'mastered')}

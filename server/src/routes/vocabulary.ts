@@ -12,7 +12,6 @@ router.use(authMiddleware);
 const createVocabularyListSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().optional(),
-  isPublic: z.boolean().optional().default(false),
   targetLanguage: z.string().optional(),
   nativeLanguage: z.string().optional()
 });
@@ -80,7 +79,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 // Create new vocabulary list
 router.post('/', async (req: AuthRequest, res: Response) => {
   try {
-    const { name, description, isPublic, targetLanguage, nativeLanguage } = createVocabularyListSchema.parse(req.body);
+    const { name, description, targetLanguage, nativeLanguage } = createVocabularyListSchema.parse(req.body);
     const db = await connectToDatabase();
     
     // Get user's language preferences if not provided
@@ -90,8 +89,8 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     if (!userTargetLanguage || !userNativeLanguage) {
       const user = await db.collection('User').findOne({ _id: new ObjectId(req.user!.id) });
       if (user) {
-        userTargetLanguage = userTargetLanguage || user.targetLanguage || 'es';
-        userNativeLanguage = userNativeLanguage || user.nativeLanguage || 'en';
+        userTargetLanguage = userTargetLanguage || user.targetLanguage;
+        userNativeLanguage = userNativeLanguage || user.nativeLanguage;
       }
     }
     
@@ -99,7 +98,6 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     const result = await db.collection('VocabularyList').insertOne({
       name,
       description,
-      isPublic,
       targetLanguage: userTargetLanguage,
       nativeLanguage: userNativeLanguage,
       userId: req.user!.id,
@@ -157,11 +155,11 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
 router.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, description, isPublic } = createVocabularyListSchema.parse(req.body);
+    const { name, description } = createVocabularyListSchema.parse(req.body);
     const db = await connectToDatabase();
     const result = await db.collection('VocabularyList').updateOne(
       { _id: new ObjectId(id), userId: req.user!.id },
-      { $set: { name, description, isPublic, updatedAt: new Date() } }
+      { $set: { name, description, updatedAt: new Date() } }
     );
     if (result.matchedCount === 0) {
       return res.status(404).json({ error: 'Vocabulary list not found' });
@@ -181,11 +179,45 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const db = await connectToDatabase();
-    const result = await db.collection('VocabularyList').deleteOne({ _id: new ObjectId(id), userId: req.user!.id });
-    if (result.deletedCount === 0) {
+    const listObjectId = new ObjectId(id);
+
+    const list = await db.collection('VocabularyList').findOne({
+      _id: listObjectId,
+      userId: req.user!.id
+    });
+    if (!list) {
       return res.status(404).json({ error: 'Vocabulary list not found' });
     }
-    return res.json({ message: 'Vocabulary list deleted successfully' });
+
+    const words = await db
+      .collection('Word')
+      .find({ vocabularyListId: listObjectId })
+      .project({ _id: 1 })
+      .toArray();
+    const wordIds = words.map((w: any) => w._id.toString());
+
+    await db.collection('VocabularyList').deleteOne({ _id: listObjectId });
+    const wordsDeleteResult = await db
+      .collection('Word')
+      .deleteMany({ vocabularyListId: listObjectId });
+
+    if (wordIds.length > 0) {
+      const progressDeleteResult = await db.collection('WordProgress').deleteMany({
+        userId: req.user!.id,
+        wordId: { $in: wordIds }
+      });
+      return res.json({
+        message: 'Vocabulary list deleted successfully',
+        deletedWords: wordsDeleteResult.deletedCount || 0,
+        deletedWordProgress: progressDeleteResult.deletedCount || 0
+      });
+    }
+
+    return res.json({
+      message: 'Vocabulary list deleted successfully',
+      deletedWords: wordsDeleteResult.deletedCount || 0,
+      deletedWordProgress: 0
+    });
   } catch (error) {
     console.error('Error deleting vocabulary list:', error);
     return res.status(500).json({ error: 'Internal server error' });
@@ -265,8 +297,8 @@ router.post('/:id/generate-sentences', async (req: AuthRequest, res: Response) =
         partOfSpeech: w.partOfSpeech || undefined,
         difficulty: w.difficulty
       })),
-      list.targetLanguage || 'es',
-      list.nativeLanguage || 'en'
+      list.targetLanguage,
+      list.nativeLanguage
     );
     return res.json({ sentences });
   } catch (error) {
@@ -310,7 +342,6 @@ router.post('/generate-ai-list', async (req: AuthRequest, res: Response) => {
     const result = await db.collection('VocabularyList').insertOne({
       name,
       description,
-      isPublic: false,
       targetLanguage,
       nativeLanguage,
       userId: req.user!.id,
@@ -343,7 +374,7 @@ router.post('/generate-ai-list', async (req: AuthRequest, res: Response) => {
 router.post('/words/:wordId/progress', async (req: AuthRequest, res: Response) => {
   try {
     const { wordId } = req.params;
-    const { mastery, status } = req.body; // mastery: 0-1, status: 'learning', 'learned', 'mastered'
+    const { mastery, status } = req.body; // mastery: 0-1, status: 'learning', 'mastered'
     
     const db = await connectToDatabase();
     const now = new Date();
@@ -375,21 +406,18 @@ router.post('/words/:wordId/progress', async (req: AuthRequest, res: Response) =
     if (!mastery && status) {
       switch (status) {
         case 'learning':
-          newMastery = 0.3;
-          break;
-        case 'learned':
-          newMastery = 0.7;
+          newMastery = 0;
           break;
         case 'mastered':
           newMastery = 1.0;
           break;
         default:
-          newMastery = 0.3;
+          newMastery = 0;
       }
     }
     
     // Calculate next review date based on mastery
-    const interval = Math.max(1, Math.floor(newMastery * 7));
+    const interval = Math.min(1, Math.floor(newMastery * 7));
     const nextReview = new Date(now.getTime() + interval * 24 * 60 * 60 * 1000);
     
     if (existingProgress) {
@@ -430,11 +458,12 @@ router.post('/words/:wordId/progress', async (req: AuthRequest, res: Response) =
     
     // Update daily learning stats for manual progress updates
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
+    const startOfDay = today.setHours(0, 0, 0, 0);
+    const endOfDay = today.setHours(23, 59, 59, 999)
+        
     const existingStats = await db.collection('LearningStats').findOne({
       userId: req.user!.id,
-      date: today
+      date: { $gte: startOfDay, $lte: endOfDay }
     });
     
     if (existingStats) {
@@ -457,7 +486,6 @@ router.post('/words/:wordId/progress', async (req: AuthRequest, res: Response) =
         wordsReviewed: 1,
         totalQuestions: 0,
         correctAnswers: 0,
-        timeSpent: 0,
         createdAt: new Date(),
         updatedAt: new Date()
       });

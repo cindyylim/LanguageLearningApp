@@ -12,7 +12,6 @@ const Quizzes: React.FC = () => {
     vocabularyListId: '',
     difficulty: 'medium',
     questionCount: 10,
-    timeLimit: 10,
   });
   const [generating, setGenerating] = useState(false);
 
@@ -21,7 +20,7 @@ const Quizzes: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/quizzes`);
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/quizzes`);
         setQuizzes(res.data.quizzes || []);
       } catch (err: any) {
         setError('Failed to load quizzes');
@@ -36,7 +35,7 @@ const Quizzes: React.FC = () => {
     setShowModal(true);
     if (vocabLists.length === 0) {
       try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/vocabulary`);
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary`);
         setVocabLists(res.data.vocabularyLists || []);
       } catch {}
     }
@@ -46,7 +45,7 @@ const Quizzes: React.FC = () => {
     e.preventDefault();
     setGenerating(true);
     try {
-      const res = await axios.post(`${process.env.REACT_APP_API_URL}/api/quizzes/generate`, form);
+      const res = await axios.post(`${process.env.REACT_APP_API_URL}/quizzes/generate`, form);
       setQuizzes([res.data.quiz, ...quizzes]);
       setShowModal(false);
     } catch (err: any) {
@@ -103,17 +102,6 @@ const Quizzes: React.FC = () => {
                   className="input-field"
                   value={form.questionCount}
                   onChange={e => setForm(f => ({ ...f, questionCount: Number(e.target.value) }))}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Time Limit (minutes)</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={60}
-                  className="input-field"
-                  value={form.timeLimit}
-                  onChange={e => setForm(f => ({ ...f, timeLimit: Number(e.target.value) }))}
                 />
               </div>
               <button type="submit" className="btn-primary w-full" disabled={generating}>

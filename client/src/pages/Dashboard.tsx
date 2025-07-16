@@ -14,7 +14,7 @@ const Dashboard: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/analytics/progress`);
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/analytics/progress`);
         setSummary(res.data.summary);
       } catch (err: any) {
         setError('Failed to load dashboard data');
@@ -54,10 +54,6 @@ const Dashboard: React.FC = () => {
           <div className="card">
             <div className="text-lg font-semibold">Average Score</div>
             <div className="text-3xl font-bold">{Math.round((summary.avgScore ?? 0) * 100)}%</div>
-          </div>
-          <div className="card">
-            <div className="text-lg font-semibold">Study Time</div>
-            <div className="text-3xl font-bold">{summary.totalStudyTime} min</div>
           </div>
         </div>
       ) : null}
