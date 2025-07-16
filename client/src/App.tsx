@@ -47,7 +47,7 @@ const AppRoutes: React.FC = () => {
   return (
     <Routes>
       {/* Public Routes */}
-      <Route path="/" element={<Home />} />
+      <Route path="/" element={<PublicRoute><Home /></PublicRoute>} />
       <Route path="/login" element={
         <PublicRoute>
           <Login />
@@ -64,7 +64,6 @@ const AppRoutes: React.FC = () => {
           <Layout />
         </ProtectedRoute>
       }>
-        <Route index element={<Dashboard />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="vocabulary" element={<Vocabulary />} />
         <Route path="vocabulary/:id" element={<VocabularyList />} />
@@ -73,7 +72,7 @@ const AppRoutes: React.FC = () => {
         <Route path="analytics" element={<Analytics />} />
       </Route>
       {/* Catch all route */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<Home/>} />
     </Routes>
   );
 };

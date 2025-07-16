@@ -1,8 +1,12 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { Navigate } from 'react-router-dom';
 
 const Home: React.FC = () => {
-  return (
+    const { user } = useAuth();
+    if (user) return <Navigate to="/dashboard" replace />;
+    return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
       <div className="max-w-2xl w-full text-center py-16">
         <h1 className="text-4xl md:text-5xl font-extrabold text-primary-700 mb-4">Unlock Your Language Potential</h1>
