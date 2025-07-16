@@ -139,7 +139,13 @@ router.get('/recommendations', async (req: AuthRequest, res: Response) => {
       progressData,
       performanceData
     );
-    const recommendedWords = await db.collection('Word').find({ _id: { $in: recommendations.recommendedWords.map((id: string) => new ObjectId(id)) } }).toArray();
+    // Defensive: filter out invalid or empty IDs before mapping to ObjectId
+    const recommendedWordIds = (recommendations.recommendedWords || []).filter(
+      (id: string) => typeof id === 'string' && /^[a-fA-F0-9]{24}$/.test(id)
+    );
+    const recommendedWords = recommendedWordIds.length > 0
+      ? await db.collection('Word').find({ _id: { $in: recommendedWordIds.map((id: string) => new ObjectId(id)) } }).toArray()
+      : [];
     res.json({
       ...recommendations,
       recommendedWords

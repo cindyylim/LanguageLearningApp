@@ -59,12 +59,13 @@ const AppRoutes: React.FC = () => {
         </PublicRoute>
       } />
       {/* Protected Routes */}
-      <Route path="/dashboard" element={
+      <Route path="/" element={
         <ProtectedRoute>
           <Layout />
         </ProtectedRoute>
       }>
         <Route index element={<Dashboard />} />
+        <Route path="dashboard" element={<Dashboard />} />
         <Route path="vocabulary" element={<Vocabulary />} />
         <Route path="vocabulary/:id" element={<VocabularyList />} />
         <Route path="quizzes" element={<Quizzes />} />
