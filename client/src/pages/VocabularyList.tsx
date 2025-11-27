@@ -128,10 +128,8 @@ const VocabularyList: React.FC = () => {
   const totalWords = list?.words?.length || 0;
   const mastered = list?.words?.filter((w: any) => w.progress?.mastery == 1).length || 0;
   const learning = list?.words?.filter((w: any) => w.progress?.mastery < 1).length || 0;
-  const newWords = totalWords - mastered - learning;
   const percentMastered = totalWords ? Math.round((mastered / totalWords) * 100) : 0;
   const percentLearning = totalWords ? Math.round((learning / totalWords) * 100) : 0;
-  const percentNew = totalWords ? Math.round((newWords / totalWords) * 100) : 0;
 
   return (
     <div className="max-w-2xl mx-auto p-4">
@@ -244,7 +242,7 @@ const VocabularyList: React.FC = () => {
           <div className="mb-6">
             <div className="flex items-center justify-between mb-1">
               <span className="text-sm font-medium text-gray-700">Progress</span>
-              <span className="text-xs text-gray-500">{mastered} mastered, {learning} learning, {newWords} new</span>
+              <span className="text-xs text-gray-500">{mastered} mastered, {learning} learning</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-4 flex overflow-hidden">
               <div
@@ -257,16 +255,10 @@ const VocabularyList: React.FC = () => {
                 style={{ width: `${percentLearning}%` }}
                 title="Learning"
               ></div>
-              <div
-                className="bg-gray-400 h-4"
-                style={{ width: `${percentNew}%` }}
-                title="New"
-              ></div>
             </div>
             <div className="flex justify-between text-xs mt-1">
               <span className="text-green-600">{percentMastered}% Mastered</span>
               <span className="text-yellow-600">{percentLearning}% Learning</span>
-              <span className="text-gray-600">{percentNew}% New</span>
             </div>
           </div>
           <div className="mb-2 text-sm text-gray-500">{list.words.length} words</div>

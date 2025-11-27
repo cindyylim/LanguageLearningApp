@@ -13,7 +13,6 @@ const generateQuizSchema = z.object({
   vocabularyListId: z.string(),
   questionCount: z.number().min(1).max(20).optional().default(10),
   difficulty: z.enum(['easy', 'medium', 'hard']).optional().default('medium'),
-  timeLimit: z.number().min(1).max(60).optional()
 });
 
 const submitQuizSchema = z.object({
@@ -26,7 +25,7 @@ const submitQuizSchema = z.object({
 // Generate AI-powered quiz
 router.post('/generate', async (req: AuthRequest, res: Response) => {
   try {
-    const { vocabularyListId, questionCount, difficulty, timeLimit } = generateQuizSchema.parse(req.body);
+    const { vocabularyListId, questionCount, difficulty } = generateQuizSchema.parse(req.body);
     const db = await connectToDatabase();
     // Get vocabulary list with words
     const vocabularyList = await db.collection('VocabularyList').findOne({ _id: new ObjectId(vocabularyListId), userId: req.user!.id });
@@ -57,8 +56,7 @@ router.post('/generate', async (req: AuthRequest, res: Response) => {
       title: `Quiz: ${vocabularyList.name}`,
       description: `AI-generated quiz from ${vocabularyList.name}`,
       difficulty,
-      questionCount,
-      timeLimit,
+      questionCount, 
       userId: req.user!.id,
       createdAt: now,
       updatedAt: now
@@ -160,66 +158,85 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
       };
     });
 
-    // Update word progress for each answered question
+    // Update word progress for each unique word (group by wordId to avoid duplicates)
+    const wordProgressMap = new Map<string, { correct: number; total: number }>();
+    
+    // Group answers by wordId
+    processedAnswers.forEach((processedAnswer: any) => {
+      if (processedAnswer.wordId) {
+        const wordId = processedAnswer.wordId;
+        if (!wordProgressMap.has(wordId)) {
+          wordProgressMap.set(wordId, { correct: 0, total: 0 });
+        }
+        const stats = wordProgressMap.get(wordId)!;
+        stats.total++;
+        if (processedAnswer.isCorrect) {
+          stats.correct++;
+        }
+      }
+    });
+
+    // Process each unique wordId only once
+    const now = new Date();
     await Promise.all(
-      processedAnswers.map(async (processedAnswer: any) => {
-        if (processedAnswer.wordId) {
-          const existingProgress = await db.collection('WordProgress').findOne({
-            userId: req.user!.id,
-            wordId: processedAnswer.wordId
-          });
+      Array.from(wordProgressMap.entries()).map(async ([wordId, stats]) => {
+        const existingProgress = await db.collection('WordProgress').findOne({
+          userId: req.user!.id,
+          wordId: wordId
+        });
 
-          const now = new Date();
-          const isCorrect = processedAnswer.isCorrect;
+        // Calculate average correctness for this word in this quiz
+        const avgCorrectness = stats.total > 0 ? stats.correct / stats.total : 0;
+        const isCorrect = avgCorrectness >= 0.5; // Consider correct if at least 50% correct
           
-          if (existingProgress) {
-            // Update existing progress
-            const newReviewCount = existingProgress.reviewCount + 1;
-            const newStreak = isCorrect ? existingProgress.streak + 1 : 0;
-            
-            // Calculate new mastery level (0-1 scale)
-            let newMastery = existingProgress.mastery;
-            if (isCorrect) {
-              newMastery = Math.min(1, newMastery + 0.1); // Increase mastery for correct answers
-            } else {
-              newMastery = Math.max(0, newMastery - 0.15); // Decrease mastery for incorrect answers
-            }
-
-            // Calculate next review date based on spaced repetition
-            const interval = Math.min(1, Math.floor(newMastery * 7)); // 1-7 days based on mastery
-            const nextReview = new Date(now.getTime() + interval * 24 * 60 * 60 * 1000);
-
-            await db.collection('WordProgress').updateOne(
-              { _id: existingProgress._id },
-              {
-                $set: {
-                  mastery: newMastery,
-                  reviewCount: newReviewCount,
-                  streak: newStreak,
-                  lastReviewed: now,
-                  nextReview: nextReview,
-                  updatedAt: now
-                }
-              }
-            );
+        if (existingProgress) {
+          // Update existing progress
+          const newReviewCount = existingProgress.reviewCount + stats.total;
+          const newStreak = isCorrect ? existingProgress.streak + 1 : 0;
+          
+          // Calculate new mastery level (0-1 scale)
+          // Increase mastery based on average correctness
+          let newMastery = existingProgress.mastery;
+          if (avgCorrectness > 0.5) {
+            newMastery = Math.min(1, newMastery + (avgCorrectness * 0.1)); // Increase mastery proportionally
           } else {
-            // Create new progress record
-            const initialMastery = isCorrect ? 1 : 0;
-            const interval = Math.min(1, Math.floor(initialMastery * 7));
-            const nextReview = new Date(now.getTime() + interval * 24 * 60 * 60 * 1000);
-
-            await db.collection('WordProgress').insertOne({
-              userId: req.user!.id,
-              wordId: processedAnswer.wordId,
-              mastery: initialMastery,
-              reviewCount: 1,
-              streak: isCorrect ? 1 : 0,
-              lastReviewed: now,
-              nextReview: nextReview,
-              createdAt: now,
-              updatedAt: now
-            });
+            newMastery = Math.max(0, newMastery - ((1 - avgCorrectness) * 0.15)); // Decrease mastery proportionally
           }
+
+          // Calculate next review date based on spaced repetition
+          const interval = Math.min(1, Math.floor(newMastery * 7)); // 1-7 days based on mastery
+          const nextReview = new Date(now.getTime() + interval * 24 * 60 * 60 * 1000);
+
+          await db.collection('WordProgress').updateOne(
+            { _id: existingProgress._id },
+            {
+              $set: {
+                mastery: newMastery,
+                reviewCount: newReviewCount,
+                streak: newStreak,
+                lastReviewed: now,
+                nextReview: nextReview,
+                updatedAt: now
+              }
+            }
+          );
+        } else {
+          // Create new progress record
+          const initialMastery = avgCorrectness;
+          const interval = Math.min(1, Math.floor(initialMastery * 7));
+          const nextReview = new Date(now.getTime() + interval * 24 * 60 * 60 * 1000);
+
+          await db.collection('WordProgress').insertOne({
+            userId: req.user!.id,
+            wordId: wordId,
+            mastery: initialMastery,
+            reviewCount: stats.total,
+            streak: isCorrect ? 1 : 0,
+            lastReviewed: now,
+            nextReview: nextReview,
+            createdAt: now,
+            updatedAt: now
+          });
         }
       })
     );
@@ -234,11 +251,12 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
     
     // Update daily learning stats
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const startOfDay = today.setHours(0, 0, 0, 0);
+    const endOfDay = today.setHours(23, 59, 59, 999)
     
     const existingStats = await db.collection('LearningStats').findOne({
       userId: req.user!.id,
-      date: today
+      date: { $gte: startOfDay, $lte: endOfDay }
     });
     
     if (existingStats) {

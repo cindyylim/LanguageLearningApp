@@ -51,8 +51,8 @@ const Analytics: React.FC = () => {
             <div className="card">
               <h2 className="text-lg font-semibold mb-2">Recent Activity</h2>
               <ul className="space-y-1">
-                {progress.recentAttempts && progress.recentAttempts.length > 0 ? progress.recentAttempts.map((a: any) => (
-                  <li key={a.id} className="flex justify-between text-sm">
+                {progress.recentAttempts && progress.recentAttempts.length > 0 ? progress.recentAttempts.map((a: any, index: number) => (
+                  <li key={a._id || index} className="flex justify-between text-sm">
                     <span>{a.quiz?.title || 'Quiz'}</span>
                     <span className="text-gray-500">{Math.round((a.score ?? 0) * 100)}%</span>
                   </li>
@@ -74,8 +74,8 @@ const Analytics: React.FC = () => {
             <div className="card">
               <h2 className="text-lg font-semibold mb-2">Recommended Words</h2>
               <ul className="flex flex-wrap gap-2">
-                {recommendations.recommendedWords && recommendations.recommendedWords.length > 0 ? recommendations.recommendedWords.map((w: any) => (
-                  <li key={w.id} className="badge badge-success">{w.word} ({w.translation})</li>
+                {recommendations.recommendedWords && recommendations.recommendedWords.length > 0 ? recommendations.recommendedWords.map((w: any, index: number) => (
+                  <li key={w._id || index} className="badge badge-success">{w.word} ({w.translation})</li>
                 )) : <li className="text-gray-400">No words to review</li>}
               </ul>
             </div>

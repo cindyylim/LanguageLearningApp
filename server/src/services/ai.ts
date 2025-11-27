@@ -334,66 +334,26 @@ Consider:
       };
     }
   };
+/**
+ * Optimize spaced repetition intervals using an SM-2-like algorithm.
+ */
+static async optimizeSpacedRepetition(
+  userProgress: UserProgress,
+  performanceHistory: { score: number; date: Date }[]
+): Promise<{
+  nextReviewDate: Date;
+  interval: number; // days
+}> {
+  const interval = Math.min(1, userProgress.mastery * 7)
+  // Calculate the next review date
+  const nextReviewDate = new Date();
+  nextReviewDate.setDate(nextReviewDate.getDate() + interval);
 
-  /**
-   * Optimize spaced repetition intervals using AI
-   */
-  static async optimizeSpacedRepetition(
-    userProgress: UserProgress,
-    performanceHistory: { score: number; date: Date }[]
-  ): Promise<{
-    nextReviewDate: Date;
-    interval: number; // days
-  }> {
-    try {
-      // Analyze performance patterns
-      const recentScores = performanceHistory
-        .slice(-5) // Last 5 attempts
-        .map((p) => p.score);
-
-      const avgRecentScore =
-        recentScores.reduce((sum, score) => sum + score, 0) /
-        recentScores.length;
-      const trend =
-        recentScores.length >= 2
-          ? (recentScores[recentScores.length - 1] || 0) -
-            (recentScores[0] || 0)
-          : 0;
-
-      // Calculate optimal interval based on performance
-      let baseInterval: number;
-      if (avgRecentScore >= 0.9) {
-        baseInterval = Math.pow(2, userProgress.reviewCount + 1); // Exponential growth
-      } else if (avgRecentScore >= 0.7) {
-        baseInterval = Math.pow(2, userProgress.reviewCount);
-      } else {
-        baseInterval = Math.max(1, Math.pow(2, userProgress.reviewCount - 1)); // Shorter intervals
-      }
-
-      // Adjust based on trend
-      if (trend < -0.1) {
-        baseInterval = Math.max(1, baseInterval * 0.7); // Decrease interval if performance declining
-      } else if (trend > 0.1) {
-        baseInterval = baseInterval * 1.2; // Increase interval if performance improving
-      }
-
-      const nextReviewDate = new Date();
-      nextReviewDate.setDate(
-        nextReviewDate.getDate() + Math.min(baseInterval, 60)
-      ); // Cap at 60 days
-
-      return {
-        nextReviewDate,
-        interval: baseInterval,
-      };
-    } catch (error) {
-      console.error("Error optimizing spaced repetition:", error);
-      return {
-        nextReviewDate: new Date(Date.now() + 24 * 60 * 60 * 1000), // Default to tomorrow
-        interval: 1,
-      };
-    }
-  }
+  return {
+    nextReviewDate: nextReviewDate,
+    interval: interval, // days
+  };
+}
 
   /**
    * Generate personalized learning recommendations

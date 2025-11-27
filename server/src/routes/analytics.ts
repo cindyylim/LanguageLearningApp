@@ -16,7 +16,7 @@ router.get('/progress', async (req: AuthRequest, res: Response) => {
     
     // Get user's learning statistics
     const learningStats = await db.collection('LearningStats').find({ userId }).sort({ date: -1 }).limit(30).toArray();
-    
+
     // Get word progress
     const wordProgress = await db.collection('WordProgress').aggregate([
       { $match: { userId } },

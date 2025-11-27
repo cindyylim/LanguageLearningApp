@@ -13,9 +13,8 @@ const Vocabulary: React.FC = () => {
   const [listForm, setListForm] = useState({ 
     name: '', 
     description: '', 
-    isPublic: false,
-    targetLanguage: user?.targetLanguage || 'es',
-    nativeLanguage: user?.nativeLanguage || 'en'
+    targetLanguage: user?.targetLanguage || '',
+    nativeLanguage: user?.nativeLanguage || ''
   });
   const [wordForm, setWordForm] = useState({ word: '', translation: '', partOfSpeech: '', difficulty: 'medium' });
   const [saving, setSaving] = useState(false);
@@ -23,8 +22,8 @@ const Vocabulary: React.FC = () => {
   const [aiForm, setAIForm] = useState({
     name: '',
     description: '',
-    targetLanguage: user?.targetLanguage || 'es',
-    nativeLanguage: user?.nativeLanguage || 'en',
+    targetLanguage: user?.targetLanguage || '',
+    nativeLanguage: user?.nativeLanguage || '',
     prompt: '',
     wordCount: 10
   });
@@ -42,8 +41,8 @@ const Vocabulary: React.FC = () => {
     if (user) {
       setListForm(prev => ({
         ...prev,
-        targetLanguage: user.targetLanguage || 'es',
-        nativeLanguage: user.nativeLanguage || 'en'
+        targetLanguage: user.targetLanguage || '',
+        nativeLanguage: user.nativeLanguage || ''
       }));
     }
   }, [user]);
@@ -70,9 +69,8 @@ const Vocabulary: React.FC = () => {
       setListForm({ 
         name: '', 
         description: '', 
-        isPublic: false,
-        targetLanguage: user?.targetLanguage || 'es',
-        nativeLanguage: user?.nativeLanguage || 'en'
+        targetLanguage: user?.targetLanguage || '',
+        nativeLanguage: user?.nativeLanguage || ''
       });
       fetchLists();
     } catch (err: any) {
@@ -107,8 +105,8 @@ const Vocabulary: React.FC = () => {
       setAIForm({
         name: '',
         description: '',
-        targetLanguage: user?.targetLanguage || 'es',
-        nativeLanguage: user?.nativeLanguage || 'en',
+        targetLanguage: user?.targetLanguage || '',
+        nativeLanguage: user?.nativeLanguage || '',
         prompt: '',
         wordCount: 10
       });
@@ -169,10 +167,6 @@ const Vocabulary: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium mb-1">Description</label>
                 <input className="input-field" value={listForm.description} onChange={e => setListForm(f => ({ ...f, description: e.target.value }))} />
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="isPublic" checked={listForm.isPublic} onChange={e => setListForm(f => ({ ...f, isPublic: e.target.checked }))} />
-                <label htmlFor="isPublic" className="text-sm">Public</label>
               </div>
               <button type="submit" className="btn-primary w-full" disabled={saving}>{saving ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div> : 'Add List'}</button>
             </form>
@@ -240,7 +234,7 @@ const Vocabulary: React.FC = () => {
                 <label className="block text-sm font-medium mb-1">Number of Words</label>
                 <input className="input-field" type="number" min={5} max={50} value={aiForm.wordCount} onChange={e => setAIForm(f => ({ ...f, wordCount: Number(e.target.value) }))} />
               </div>
-              <button type="submit" className="btn-primary w-full" disabled={aiLoading}>{aiLoading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div> : 'Generate List'}</button>
+              <button type="submit" className="btn-primary w-full disabled:bg-gray-500" disabled={aiLoading || !aiForm.targetLanguage || !aiForm.nativeLanguage || !aiForm.name || !aiForm.wordCount || !aiForm.prompt}>{aiLoading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div> : 'Generate List'}</button>
             </form>
           </div>
         </div>

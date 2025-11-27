@@ -12,7 +12,6 @@ const Quizzes: React.FC = () => {
     vocabularyListId: '',
     difficulty: 'medium',
     questionCount: 10,
-    timeLimit: 10,
   });
   const [generating, setGenerating] = useState(false);
 
@@ -103,17 +102,6 @@ const Quizzes: React.FC = () => {
                   className="input-field"
                   value={form.questionCount}
                   onChange={e => setForm(f => ({ ...f, questionCount: Number(e.target.value) }))}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Time Limit (minutes)</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={60}
-                  className="input-field"
-                  value={form.timeLimit}
-                  onChange={e => setForm(f => ({ ...f, timeLimit: Number(e.target.value) }))}
                 />
               </div>
               <button type="submit" className="btn-primary w-full" disabled={generating}>
