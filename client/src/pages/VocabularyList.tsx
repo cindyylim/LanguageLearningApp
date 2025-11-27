@@ -22,7 +22,7 @@ const VocabularyList: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/vocabulary/${id}`);
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
         setList(res.data.vocabularyList);
       } catch (err: any) {
         setError('Failed to load vocabulary list');
@@ -43,10 +43,10 @@ const VocabularyList: React.FC = () => {
     e.preventDefault();
     setSaving(true);
     try {
-      await axios.put(`${process.env.REACT_APP_API_URL}/api/vocabulary/${id}`, editListForm);
+      await axios.put(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`, editListForm);
       setShowEditListModal(false);
       // Refresh list
-      const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/vocabulary/${id}`);
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
       setList(res.data.vocabularyList);
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to update list');
@@ -58,7 +58,7 @@ const VocabularyList: React.FC = () => {
   const handleDeleteList = async () => {
     setDeleting(true);
     try {
-      await axios.delete(`${process.env.REACT_APP_API_URL}/api/vocabulary/${id}`);
+      await axios.delete(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
       navigate('/vocabulary');
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to delete list');
@@ -82,10 +82,10 @@ const VocabularyList: React.FC = () => {
     if (!showEditWordModal) return;
     setSaving(true);
     try {
-      await axios.put(`${process.env.REACT_APP_API_URL}/api/vocabulary/${id}/words/${showEditWordModal}`, editWordForm);
+      await axios.put(`${process.env.REACT_APP_API_URL}/vocabulary/${id}/words/${showEditWordModal}`, editWordForm);
       setShowEditWordModal(null);
       // Refresh list
-      const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/vocabulary/${id}`);
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
       setList(res.data.vocabularyList);
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to update word');
@@ -98,10 +98,10 @@ const VocabularyList: React.FC = () => {
     if (!deleteWordId) return;
     setDeleting(true);
     try {
-      await axios.delete(`${process.env.REACT_APP_API_URL}/api/vocabulary/${id}/words/${deleteWordId}`);
+      await axios.delete(`${process.env.REACT_APP_API_URL}/vocabulary/${id}/words/${deleteWordId}`);
       setDeleteWordId(null);
       // Refresh list
-      const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/vocabulary/${id}`);
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
       setList(res.data.vocabularyList);
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to delete word');
@@ -113,10 +113,10 @@ const VocabularyList: React.FC = () => {
   // Add function to update word progress
   const updateWordProgress = async (wordId: string, status: 'learning' | 'mastered') => {
     try {
-      await axios.post(`${process.env.REACT_APP_API_URL}/api/vocabulary/words/${wordId}/progress`, { status });
+      await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/words/${wordId}/progress`, { status });
       // Refresh list
       if (id) {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/vocabulary/${id}`);
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
         setList(res.data.vocabularyList);
       }
     } catch (err: any) {

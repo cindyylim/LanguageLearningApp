@@ -14,7 +14,7 @@ const Dashboard: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/analytics/progress`);
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/analytics/progress`);
         setSummary(res.data.summary);
       } catch (err: any) {
         setError('Failed to load dashboard data');
