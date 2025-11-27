@@ -12,6 +12,8 @@
     "build:server": "cd server && npm run build",
     "start": "npm run start:client && npm run start:server",
     "start:client": "cd client && npm start",
-    "start:server": "cd server && npm start"
+    "start:server": "cd server && npm start",
+    "dev:server": "cd server && npm run dev",
+    "dev": "npm run start:client && npm run dev:server"
   }
 } 
