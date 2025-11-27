@@ -59,8 +59,6 @@ MONGODB_URI=
 5. Start the development servers:
 ```bash
 npm run dev
-cd client
-npm start
 ```
 
 The app will be available at:
@@ -76,28 +74,6 @@ The app will be available at:
 5. **Track Progress**: Monitor your learning journey with detailed analytics
 6. **Review**: Use spaced repetition to optimize retention
 
-## API Endpoints
-
-### Authentication
-- `POST /api/auth/register` - User registration
-- `POST /api/auth/login` - User login
-
-### Vocabulary
-- `GET /api/vocabulary` - Get user's vocabulary lists
-- `POST /api/vocabulary` - Create new vocabulary list
-- `PUT /api/vocabulary/:id` - Update vocabulary list
-- `DELETE /api/vocabulary/:id` - Delete vocabulary list
-- `POST /api/vocabulary/generate-ai-list` - Generate a new vocabulary list using AI (provide name, description, targetLanguage, nativeLanguage, prompt, and wordCount)
-
-### Quizzes
-- `POST /api/quizzes/generate` - Generate AI-powered quiz
-- `GET /api/quizzes` - Get user's quizzes
-- `POST /api/quizzes/:id/submit` - Submit quiz answers
-- `GET /api/quizzes/:id/results` - Get quiz results
-
-### Analytics
-- `GET /api/analytics/progress` - Get learning progress
-- `GET /api/analytics/recommendations` - Get AI recommendations
 
 ## Demo
 Home Page
