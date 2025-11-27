@@ -181,11 +181,45 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const db = await connectToDatabase();
-    const result = await db.collection('VocabularyList').deleteOne({ _id: new ObjectId(id), userId: req.user!.id });
-    if (result.deletedCount === 0) {
+    const listObjectId = new ObjectId(id);
+
+    const list = await db.collection('VocabularyList').findOne({
+      _id: listObjectId,
+      userId: req.user!.id
+    });
+    if (!list) {
       return res.status(404).json({ error: 'Vocabulary list not found' });
     }
-    return res.json({ message: 'Vocabulary list deleted successfully' });
+
+    const words = await db
+      .collection('Word')
+      .find({ vocabularyListId: listObjectId })
+      .project({ _id: 1 })
+      .toArray();
+    const wordIds = words.map((w: any) => w._id.toString());
+
+    await db.collection('VocabularyList').deleteOne({ _id: listObjectId });
+    const wordsDeleteResult = await db
+      .collection('Word')
+      .deleteMany({ vocabularyListId: listObjectId });
+
+    if (wordIds.length > 0) {
+      const progressDeleteResult = await db.collection('WordProgress').deleteMany({
+        userId: req.user!.id,
+        wordId: { $in: wordIds }
+      });
+      return res.json({
+        message: 'Vocabulary list deleted successfully',
+        deletedWords: wordsDeleteResult.deletedCount || 0,
+        deletedWordProgress: progressDeleteResult.deletedCount || 0
+      });
+    }
+
+    return res.json({
+      message: 'Vocabulary list deleted successfully',
+      deletedWords: wordsDeleteResult.deletedCount || 0,
+      deletedWordProgress: 0
+    });
   } catch (error) {
     console.error('Error deleting vocabulary list:', error);
     return res.status(500).json({ error: 'Internal server error' });
@@ -375,16 +409,16 @@ router.post('/words/:wordId/progress', async (req: AuthRequest, res: Response) =
     if (!mastery && status) {
       switch (status) {
         case 'learning':
-          newMastery = 0.3;
+          newMastery = 0;
           break;
         case 'learned':
-          newMastery = 0.7;
+          newMastery = 0.3;
           break;
         case 'mastered':
           newMastery = 1.0;
           break;
         default:
-          newMastery = 0.3;
+          newMastery = 0;
       }
     }
     
@@ -457,7 +491,6 @@ router.post('/words/:wordId/progress', async (req: AuthRequest, res: Response) =
         wordsReviewed: 1,
         totalQuestions: 0,
         correctAnswers: 0,
-        timeSpent: 0,
         createdAt: new Date(),
         updatedAt: new Date()
       });

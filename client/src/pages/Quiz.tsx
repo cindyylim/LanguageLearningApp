@@ -49,8 +49,7 @@ const Quiz: React.FC = () => {
       const payload = {
         answers: quiz.questions.map((q: QuizQuestion) => ({
           questionId: q._id,
-          answer: answers[q._id] || '',
-          timeSpent: 10, // Placeholder, could track per-question time
+          answer: answers[q._id] || ''
         })),
       };
       const res = await axios.post(`${process.env.REACT_APP_API_URL}/api/quizzes/${id}/submit`, payload);
@@ -72,7 +71,6 @@ const Quiz: React.FC = () => {
         <h1 className="text-2xl font-bold mb-2">Quiz Results</h1>
         <div className="mb-4">Score: <span className="font-bold text-primary-600">{Math.round((result.score ?? 0) * 100)}%</span></div>
         <div className="mb-4">Correct Answers: {result.correctAnswers} / {result.totalQuestions}</div>
-        <div className="mb-4">Time Spent: {result.timeSpent} seconds</div>
         <div className="mb-6">
           <h2 className="text-lg font-semibold mb-2">Review Answers</h2>
           {quiz.questions.map((q: QuizQuestion, idx: number) => {

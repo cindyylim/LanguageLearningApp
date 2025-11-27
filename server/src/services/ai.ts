@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const gemini = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
 
@@ -10,9 +10,17 @@ export interface Word {
   difficulty: string;
 }
 
+export interface AdaptiveMetrics {
+  avgMastery: number;
+  avgStreak: number;
+  avgReviewCount: number;
+}
+
+export type Difficulty = "easy" | "medium" | "hard";
+
 export interface Question {
   question: string;
-  type: 'multiple_choice' | 'fill_blank' | 'sentence_completion';
+  type: "multiple_choice" | "fill_blank" | "sentence_completion";
   correctAnswer: string;
   options?: string[];
   context?: string;
@@ -30,25 +38,39 @@ export interface UserProgress {
 }
 
 export class AIService {
-  /**
-   * Generate contextual questions from vocabulary using Gemini
-   */
+  private static readonly MODEL = gemini.getGenerativeModel({
+    model: "gemini-2.0-flash",
+  });
+  private static readonly MAX_RETRIES = 3;
+  private static readonly INITIAL_DELAY_MS = 1000; // 1 second
+
   static async generateQuestions(
     words: Word[],
     targetLanguage: string,
     nativeLanguage: string,
     questionCount: number = 10,
-    difficulty: string = 'medium'
+    difficulty: Difficulty = "medium"
   ): Promise<Question[]> {
-    try {
-      const prompt = `
+    const wordsPrompt = words
+      .map(
+        // Include the word ID directly in the prompt for the model to use
+        (w) =>
+          `- [ID: ${w.id}] ${w.word} (${w.translation}) - ${
+            w.partOfSpeech || "unknown"
+          }`
+      )
+      .join("\n");
+
+    for (let attempt = 1; attempt <= AIService.MAX_RETRIES; attempt++) {
+      try {
+        const prompt = `
 Generate ${questionCount} language learning questions for the following vocabulary words.
 Target language: ${targetLanguage}
 Native language: ${nativeLanguage}
 Difficulty level: ${difficulty}
 
-Vocabulary words:
-${words.map(w => `- ${w.word} (${w.translation}) - ${w.partOfSpeech || 'unknown'}`).join('\n')}
+Vocabulary words (Use the provided ID for the 'wordId' field):
+${wordsPrompt}
 
 Requirements:
 1. Create a mix of question types: multiple choice, fill-in-the-blank, and sentence completion
@@ -66,24 +88,43 @@ Return the response as a JSON array with the following structure:
     "options": ["option1", "option2", "option3", "option4"],
     "context": "Additional context or explanation",
     "difficulty": "easy|medium|hard",
-    "wordId": "word_id_here"
+    "wordId": "word_id_from_the_list" 
   }
 ]
 `;
-      const model = gemini.getGenerativeModel({ model: "gemini-2.0-flash" });
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const responseText = response.text();
-      // Remove Markdown code block if present
-      const cleaned = responseText.replace(/```[a-z]*\n?|```/gi, '').trim();
-      const questions = JSON.parse(cleaned) as Question[];
-      return questions.slice(0, questionCount);
-    } catch (error) {
-      console.error('Error generating questions:', error);
-      throw new Error('Failed to generate questions');
-    }
-  }
+        const result = await AIService.MODEL.generateContent(prompt);
+        const responseText = result.response.text();
 
+        // Safer JSON cleanup
+        const cleaned = responseText
+          .replace(/```[a-z]*\n?|```/gi, "")
+          .trim()
+          .replace(/^\[?/, "[")
+          .replace(/\]?$/, "]");
+
+        const questions = JSON.parse(cleaned) as Question[];
+        return questions.slice(0, questionCount);
+      } catch (error) {
+        console.error(
+          `Attempt ${attempt} failed for generating questions.`,
+          error
+        );
+
+        if (attempt === AIService.MAX_RETRIES) {
+          // Final attempt failed, throw the specific error.
+          throw new Error(
+            "Failed to generate questions after multiple retries."
+          );
+        }
+
+        // Exponential backoff: Wait longer on each failure (1s, 2s, 4s...)
+        const delay = AIService.INITIAL_DELAY_MS * Math.pow(2, attempt - 1);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+    // Should never be reached if logic is correct, but required for type safety
+    throw new Error("Failed to generate questions due to unexpected flow.");
+  }
   /**
    * Generate contextual sentences for vocabulary words
    */
@@ -92,59 +133,76 @@ Return the response as a JSON array with the following structure:
     targetLanguage: string,
     nativeLanguage: string
   ): Promise<{ wordId: string; sentences: string[] }[]> {
-    try {
-      const prompt = `
+    // ... Prompt construction (omitted for brevity) ...
+    const prompt = `
 Generate 3 contextual sentences for each vocabulary word in ${targetLanguage}.
 Provide natural, everyday usage examples that help learners understand the word in context.
 
 Words:
-${words.map(w => `- ${w.word} (${w.translation})`).join('\n')}
+${words.map((w) => `- [ID: ${w.id}] ${w.word} (${w.translation})`).join("\n")}
 
 Return as JSON:
 [
-  {
-    "wordId": "word_id",
-    "sentences": [
-      "Sentence 1 in ${targetLanguage}",
-      "Sentence 2 in ${targetLanguage}",
-      "Sentence 3 in ${targetLanguage}"
-    ]
-  }
+{
+  "wordId": "word_id",
+  "sentences": [
+    "Sentence 1 in ${targetLanguage}",
+    "Sentence 2 in ${targetLanguage}",
+    "Sentence 3 in ${targetLanguage}"
+  ]
+}
 ]
 `;
-      const model = gemini.getGenerativeModel({ model: "gemini-2.0-flash" });
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const responseText = response.text();
-      // Remove Markdown code block if present
-      const cleaned = responseText.replace(/```[a-z]*\n?|```/gi, '').trim();
-      return JSON.parse(cleaned);
-    } catch (error) {
-      console.error('Error generating contextual sentences:', error);
-      throw new Error('Failed to generate contextual sentences');
+
+    for (let attempt = 1; attempt <= AIService.MAX_RETRIES; attempt++) {
+      try {
+        const result = await AIService.MODEL.generateContent(prompt);
+        const responseText = result.response.text();
+        const cleaned = responseText.replace(/```[a-z]*\n?|```/gi, "").trim();
+        return JSON.parse(cleaned);
+      } catch (error) {
+        console.error(
+          `Attempt ${attempt} failed for generating sentences.`,
+          error
+        );
+
+        if (attempt === AIService.MAX_RETRIES) {
+          throw new Error(
+            "Failed to generate contextual sentences after multiple retries."
+          );
+        }
+
+        const delay = AIService.INITIAL_DELAY_MS * Math.pow(2, attempt - 1);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
     }
+    throw new Error(
+      "Failed to generate contextual sentences due to unexpected flow."
+    );
   }
 
   /**
    * Analyze text complexity and difficulty using Gemini
    */
-  static async analyzeTextComplexity(text: string, targetLanguage: string): Promise<{
-    complexity: 'easy' | 'medium' | 'hard';
+  static async analyzeTextComplexity(
+    text: string,
+    targetLanguage: string
+  ): Promise<{
+    complexity: "easy" | "medium" | "hard";
     score: number;
     suggestions: string[];
   }> {
-    try {
-      const model = gemini.getGenerativeModel({ model: "gemini-2.0-flash" });
-      const prompt = `
+    // ... Prompt construction (omitted for brevity) ...
+    const prompt = `
 Analyze the complexity of this ${targetLanguage} text and provide a difficulty assessment.
 
 Text: "${text}"
 
 Provide analysis in JSON format:
 {
-  "complexity": "easy|medium|hard",
-  "score": 0.0-1.0,
-  "suggestions": ["suggestion1", "suggestion2"]
+"complexity": "easy|medium|hard",
+"score": 0.0-1.0,
+"suggestions": ["suggestion1", "suggestion2"]
 }
 
 Consider:
@@ -153,101 +211,155 @@ Consider:
 - Sentence structure
 - Cultural context
 `;
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const responseText = response.text();
-      // Remove Markdown code block if present
-      const cleaned = responseText.replace(/```[a-z]*\n?|```/gi, '').trim();
-      return JSON.parse(cleaned);
-    } catch (error) {
-      console.error('Error analyzing text complexity:', error);
-      // Fallback to basic analysis
-      return {
-        complexity: 'medium',
-        score: 0.5,
-        suggestions: ['Unable to analyze complexity']
-      };
+
+    for (let attempt = 1; attempt <= AIService.MAX_RETRIES; attempt++) {
+      try {
+        const result = await AIService.MODEL.generateContent(prompt);
+        const responseText = result.response.text();
+        const cleaned = responseText.replace(/```[a-z]*\n?|```/gi, "").trim();
+        return JSON.parse(cleaned); // Success!
+      } catch (error) {
+        console.error(
+          `Attempt ${attempt} failed for analyzing complexity.`,
+          error
+        );
+
+        if (attempt === AIService.MAX_RETRIES) {
+          // Final attempt failed, use the fallback data
+          return {
+            complexity: "medium",
+            score: 0.5,
+            suggestions: [
+              "Unable to analyze complexity after multiple retries.",
+            ],
+          };
+        }
+
+        const delay = AIService.INITIAL_DELAY_MS * Math.pow(2, attempt - 1);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
     }
+    // Should be caught by the fallback above, but here for absolute type safety
+    throw new Error(
+      "Failed to analyze text complexity due to unexpected flow."
+    );
   }
 
-  /**
-   * Calculate adaptive difficulty based on user performance
-   */
-  static async calculateAdaptiveDifficulty(
+  static calculateAdaptiveDifficulty = async (
     userProgress: UserProgress[],
     targetScore: number = 0.8
   ): Promise<{
     recommendedDifficulty: string;
-    confidence: number;
     nextReviewDate: Date;
-  }> {
+  }> => {
     try {
-      // Calculate average mastery
-      const avgMastery = userProgress.reduce((sum, p) => sum + p.mastery, 0) / userProgress.length;
-      
-      // Calculate success rate based on streaks
-      const totalStreaks = userProgress.reduce((sum, p) => sum + p.streak, 0);
-      const successRate = totalStreaks / (userProgress.length * 5); // Assuming 5 is max streak
-      
-      // Determine recommended difficulty
-      let recommendedDifficulty: string;
-      let confidence: number;
-      
-      if (avgMastery >= 0.8 && successRate >= 0.8) {
-        recommendedDifficulty = 'hard';
-        confidence = 0.9;
-      } else if (avgMastery >= 0.6 && successRate >= 0.6) {
-        recommendedDifficulty = 'medium';
-        confidence = 0.7;
-      } else {
-        recommendedDifficulty = 'easy';
-        confidence = 0.8;
+      if (userProgress.length === 0) {
+        // Default for new users
+        return {
+          recommendedDifficulty: "easy",
+          nextReviewDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        };
       }
-      
-      // Calculate next review date using spaced repetition
-      const avgReviewCount = userProgress.reduce((sum, p) => sum + p.reviewCount, 0) / userProgress.length;
-      const daysUntilNextReview = Math.pow(2, avgReviewCount); // Exponential spacing
+
+      // --- 1. Calculate Core Metrics ---
+      const metrics: AdaptiveMetrics = userProgress.reduce(
+        (acc, p) => ({
+          avgMastery: acc.avgMastery + p.mastery,
+          avgStreak: acc.avgStreak + p.streak,
+          avgReviewCount: acc.avgReviewCount + p.reviewCount,
+        }),
+        { avgMastery: 0, avgStreak: 0, avgReviewCount: 0 }
+      );
+
+      metrics.avgMastery /= userProgress.length;
+      metrics.avgStreak /= userProgress.length;
+      metrics.avgReviewCount /= userProgress.length;
+
+      // --- 2. Determine Recommended Difficulty ---
+
+      let recommendedDifficulty: string;
+      const mastery = metrics.avgMastery;
+
+      // Use targetScore and a lower threshold (e.g., targetScore * 0.75) for grading
+      const hardThreshold = targetScore; // 0.8
+      const mediumThreshold = targetScore * 0.75; // 0.6
+
+      if (mastery >= hardThreshold) {
+        recommendedDifficulty = "hard";
+      } else if (mastery >= mediumThreshold) {
+        recommendedDifficulty = "medium";
+      } else {
+        recommendedDifficulty = "easy";
+      }
+
+      // --- 3. Calculate Next Review Date (Spaced Repetition) ---
+
+      let intervalMultiplier: number;
+
+      switch (recommendedDifficulty) {
+        case "hard":
+          // Mastering well, use a higher interval multiplier (e.g., 3x the base)
+          intervalMultiplier = 3;
+          break;
+        case "medium":
+          // Solid but not perfect, use a standard multiplier
+          intervalMultiplier = 1.5;
+          break;
+        case "easy":
+        default:
+          // Struggling, review sooner
+          intervalMultiplier = 1;
+          break;
+      }
+
+      // Base interval uses the exponential approach, scaled by difficulty
+      const baseInterval = Math.pow(2, metrics.avgReviewCount);
+      const daysUntilNextReview = Math.min(
+        baseInterval * intervalMultiplier,
+        30
+      ); // Cap at 30 days
+
       const nextReviewDate = new Date();
-      nextReviewDate.setDate(nextReviewDate.getDate() + Math.min(daysUntilNextReview, 30)); // Cap at 30 days
-      
+      nextReviewDate.setDate(nextReviewDate.getDate() + daysUntilNextReview);
+
       return {
         recommendedDifficulty,
-        confidence,
-        nextReviewDate
+        nextReviewDate,
       };
     } catch (error) {
-      console.error('Error calculating adaptive difficulty:', error);
+      console.error("Error calculating adaptive difficulty:", error);
       return {
-        recommendedDifficulty: 'medium',
-        confidence: 0.5,
-        nextReviewDate: new Date(Date.now() + 24 * 60 * 60 * 1000) // Default to tomorrow
+        recommendedDifficulty: "medium",
+        nextReviewDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
       };
     }
-  }
+  };
 
   /**
    * Optimize spaced repetition intervals using AI
    */
   static async optimizeSpacedRepetition(
-    wordId: string,
     userProgress: UserProgress,
     performanceHistory: { score: number; date: Date }[]
   ): Promise<{
     nextReviewDate: Date;
     interval: number; // days
-    confidence: number;
   }> {
     try {
       // Analyze performance patterns
       const recentScores = performanceHistory
         .slice(-5) // Last 5 attempts
-        .map(p => p.score);
-      
-      const avgRecentScore = recentScores.reduce((sum, score) => sum + score, 0) / recentScores.length;
-      const trend = recentScores.length >= 2 
-        ? (recentScores[recentScores.length - 1] || 0) - (recentScores[0] || 0)
-        : 0;
-      
+        .map((p) => p.score);
+
+      const avgRecentScore =
+        recentScores.reduce((sum, score) => sum + score, 0) /
+        recentScores.length;
+      const trend =
+        recentScores.length >= 2
+          ? (recentScores[recentScores.length - 1] || 0) -
+            (recentScores[0] || 0)
+          : 0;
+
       // Calculate optimal interval based on performance
       let baseInterval: number;
       if (avgRecentScore >= 0.9) {
@@ -257,30 +369,28 @@ Consider:
       } else {
         baseInterval = Math.max(1, Math.pow(2, userProgress.reviewCount - 1)); // Shorter intervals
       }
-      
+
       // Adjust based on trend
       if (trend < -0.1) {
         baseInterval = Math.max(1, baseInterval * 0.7); // Decrease interval if performance declining
       } else if (trend > 0.1) {
         baseInterval = baseInterval * 1.2; // Increase interval if performance improving
       }
-      
+
       const nextReviewDate = new Date();
-      nextReviewDate.setDate(nextReviewDate.getDate() + Math.min(baseInterval, 60)); // Cap at 60 days
-      
-      const confidence = Math.min(0.9, 0.5 + (avgRecentScore * 0.4));
-      
+      nextReviewDate.setDate(
+        nextReviewDate.getDate() + Math.min(baseInterval, 60)
+      ); // Cap at 60 days
+
       return {
         nextReviewDate,
         interval: baseInterval,
-        confidence
       };
     } catch (error) {
-      console.error('Error optimizing spaced repetition:', error);
+      console.error("Error optimizing spaced repetition:", error);
       return {
         nextReviewDate: new Date(Date.now() + 24 * 60 * 60 * 1000), // Default to tomorrow
         interval: 1,
-        confidence: 0.5
       };
     }
   }
@@ -301,45 +411,47 @@ Consider:
     try {
       // Analyze weak areas
       const weakWords = userProgress
-        .filter(p => p.mastery < 0.6)
-        .map(p => p.wordId);
-      
+        .filter((p) => p.mastery < 0.6)
+        .map((p) => p.wordId);
+
       // Analyze recent performance trends
-      const avgRecentScore = recentPerformance.length > 0
-        ? recentPerformance.reduce((sum, p) => sum + p.score, 0) / recentPerformance.length
-        : 0.5;
-      
+      const avgRecentScore =
+        recentPerformance.length > 0
+          ? recentPerformance.reduce((sum, p) => sum + p.score, 0) /
+            recentPerformance.length
+          : 0.5;
+
       const focusAreas = [];
       if (weakWords.length > 0) {
-        focusAreas.push('vocabulary_review');
+        focusAreas.push("vocabulary_review");
       }
       if (avgRecentScore < 0.7) {
-        focusAreas.push('practice_questions');
+        focusAreas.push("practice_questions");
       }
-      if (userProgress.some(p => p.streak < 2)) {
-        focusAreas.push('consistency_building');
+      if (userProgress.some((p) => p.streak < 2)) {
+        focusAreas.push("consistency_building");
       }
-      
+
       // Generate study plan
-      const studyPlan = focusAreas.includes('vocabulary_review') 
-        ? 'Focus on reviewing difficult words with contextual examples'
-        : 'Continue with regular practice and introduce new vocabulary';
-      
+      const studyPlan = focusAreas.includes("vocabulary_review")
+        ? "Focus on reviewing difficult words with contextual examples"
+        : "Continue with regular practice and introduce new vocabulary";
+
       const estimatedTime = focusAreas.length * 15; // 15 minutes per focus area
-      
+
       return {
         focusAreas,
         recommendedWords: weakWords,
         studyPlan,
-        estimatedTime
+        estimatedTime,
       };
     } catch (error) {
-      console.error('Error generating recommendations:', error);
+      console.error("Error generating recommendations:", error);
       return {
-        focusAreas: ['general_practice'],
+        focusAreas: ["general_practice"],
         recommendedWords: [],
-        studyPlan: 'Continue with regular study routine',
-        estimatedTime: 20
+        studyPlan: "Continue with regular study routine",
+        estimatedTime: 20,
       };
     }
   }
@@ -352,9 +464,17 @@ Consider:
     targetLanguage: string,
     nativeLanguage: string,
     wordCount: number = 10
-  ): Promise<{ word: string; translation: string; partOfSpeech?: string; difficulty?: string }[]> {
-    try {
-      const aiPrompt = `
+  ): Promise<
+    {
+      word: string;
+      translation: string;
+      partOfSpeech?: string;
+      difficulty?: string;
+    }[]
+  > {
+    for (let attempt = 1; attempt <= AIService.MAX_RETRIES; attempt++) {
+      try {
+        const aiPrompt = `
 Generate a list of ${wordCount} useful vocabulary words for language learners based on the following topic or keywords: "${prompt}".
 Target language: ${targetLanguage}
 Native language: ${nativeLanguage}
@@ -371,16 +491,24 @@ Return the result as a JSON array with this structure:
   ...
 ]
 `;
-      const model = gemini.getGenerativeModel({ model: "gemini-2.0-flash" });
-      const result = await model.generateContent(aiPrompt);
-      const response = await result.response;
-      const responseText = response.text();
-      // Remove Markdown code block if present
-      const cleaned = responseText.replace(/```[a-z]*\n?|```/gi, '').trim();
-      return JSON.parse(cleaned);
-    } catch (error) {
-      console.error('Error generating vocabulary list:', error);
-      throw new Error('Failed to generate vocabulary list');
+        const result = await AIService.MODEL.generateContent(aiPrompt);
+        const response = await result.response;
+        const responseText = response.text();
+        // Remove Markdown code block if present
+        const cleaned = responseText.replace(/```[a-z]*\n?|```/gi, "").trim();
+        return JSON.parse(cleaned);
+      } catch (error) {
+        console.error('Error generating vocabulary list:', error);
+
+        if (attempt === AIService.MAX_RETRIES) {
+          console.error('Error generating vocabulary list:', error);
+          return [];
+        }
+
+        const delay = AIService.INITIAL_DELAY_MS * Math.pow(2, attempt - 1);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
     }
+    return [];
   }
-} 
+}

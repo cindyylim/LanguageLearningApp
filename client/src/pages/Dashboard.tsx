@@ -55,10 +55,6 @@ const Dashboard: React.FC = () => {
             <div className="text-lg font-semibold">Average Score</div>
             <div className="text-3xl font-bold">{Math.round((summary.avgScore ?? 0) * 100)}%</div>
           </div>
-          <div className="card">
-            <div className="text-lg font-semibold">Study Time</div>
-            <div className="text-3xl font-bold">{summary.totalStudyTime} min</div>
-          </div>
         </div>
       ) : null}
       <div className="flex flex-wrap gap-4 mt-4">

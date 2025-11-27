@@ -64,13 +64,12 @@ router.get('/progress', async (req: AuthRequest, res: Response) => {
     
     // Calculate summary statistics
     const totalWords = wordProgress.length;
-    const masteredWords = wordProgress.filter((wp: any) => wp.mastery >= 0.8).length;
-    const needsReview = wordProgress.filter((wp: any) => wp.mastery < 0.6).length;
+    const masteredWords = wordProgress.filter((wp: any) => wp.mastery == 1.0).length;
+    const needsReview = wordProgress.filter((wp: any) => wp.mastery < 1.0).length;
     const totalQuizzesTaken = allAttempts.length;
     const avgScore = recentAttempts.length > 0
       ? recentAttempts.reduce((sum: number, attempt: any) => sum + (attempt.score || 0), 0) / recentAttempts.length
       : 0;
-    const totalStudyTime = recentAttempts.reduce((sum: number, attempt: any) => sum + (attempt.timeSpent || 0), 0);
     
     // Get max streak from word progress (for comparison)
     const maxWordStreak = wordProgress.reduce((max: number, wp: any) => Math.max(max, wp.streak || 0), 0);
@@ -84,7 +83,6 @@ router.get('/progress', async (req: AuthRequest, res: Response) => {
         maxWordStreak,
         totalQuizzesTaken,
         avgScore,
-        totalStudyTime: Math.round(totalStudyTime / 60)
       },
       learningStats,
       wordProgress,
@@ -139,7 +137,6 @@ router.get('/recommendations', async (req: AuthRequest, res: Response) => {
       progressData,
       performanceData
     );
-    // Defensive: filter out invalid or empty IDs before mapping to ObjectId
     const recommendedWordIds = (recommendations.recommendedWords || []).filter(
       (id: string) => typeof id === 'string' && /^[a-fA-F0-9]{24}$/.test(id)
     );
@@ -185,7 +182,6 @@ router.get('/adaptive-difficulty', async (req: AuthRequest, res: Response) => {
     const adaptiveDifficulty = await AIService.calculateAdaptiveDifficulty(progressData);
     res.json({
       recommendedDifficulty: adaptiveDifficulty.recommendedDifficulty,
-      confidence: adaptiveDifficulty.confidence,
       nextReviewDate: adaptiveDifficulty.nextReviewDate,
       currentProgress: {
         totalWords: userProgress.length,
@@ -240,22 +236,21 @@ router.get('/spaced-repetition', async (req: AuthRequest, res: Response) => {
     // Optimize spaced repetition for each word
     const optimizedSchedule = await Promise.all(
       wordsToReview.map(async (wordProgress: any) => {
-        const wordHistory = performanceHistory
+        const wordHistory: { score: number; date: Date }[] = performanceHistory
           .filter((p: any) => p.question?.wordId?.toString() === wordProgress.wordId)
           .map((p: any) => ({
             score: p.isCorrect ? 1 : 0,
-            date: p.createdAt
+            date: p.createdAt instanceof Date ? p.createdAt : new Date(p.createdAt)
           }));
 
         const optimization = await AIService.optimizeSpacedRepetition(
-          wordProgress.wordId,
           {
             userId,
-            wordId: wordProgress.wordId,
+            wordId: wordProgress.wordId.toString(),
             mastery: wordProgress.mastery,
             reviewCount: wordProgress.reviewCount,
             streak: wordProgress.streak,
-            lastReviewed: wordProgress.lastReviewed
+            lastReviewed: wordProgress.lastReviewed instanceof Date ? wordProgress.lastReviewed : (wordProgress.lastReviewed ? new Date(wordProgress.lastReviewed) : undefined)
           },
           wordHistory
         );
@@ -267,8 +262,7 @@ router.get('/spaced-repetition', async (req: AuthRequest, res: Response) => {
           currentMastery: wordProgress.mastery,
           nextReviewDate: optimization.nextReviewDate,
           interval: optimization.interval,
-          confidence: optimization.confidence,
-          priority: wordProgress.mastery < 0.6 ? 'high' : 'medium'
+          priority: wordProgress.mastery < 1.0 ? 'high' : 'medium'
         };
       })
     );
@@ -321,10 +315,6 @@ router.get('/insights', async (req: AuthRequest, res: Response) => {
       }
     }
 
-    const avgDailyStudyTime = recentStats.length > 0
-      ? recentStats.reduce((sum: number, stat: any) => sum + stat.timeSpent, 0) / recentStats.length
-      : 0;
-
     // Get difficulty distribution
     const difficultyStats = await db.collection('Quiz').find({ userId }).toArray();
 
@@ -336,13 +326,12 @@ router.get('/insights', async (req: AuthRequest, res: Response) => {
     // Get most challenging words
     const challengingWords = await db.collection('WordProgress').find({
       userId,
-      mastery: { $lt: 0.6 }
+      mastery: { $lt: 1.0 }
     }).sort({ mastery: 1 }).limit(5).toArray();
 
     res.json({
       trends: {
         scoreTrend,
-        avgDailyStudyTime,
         totalQuizzesTaken: recentAttempts.length,
         consistencyScore: recentStats.length / 30 // Days with activity
       },
@@ -350,7 +339,6 @@ router.get('/insights', async (req: AuthRequest, res: Response) => {
       challengingWords,
       recommendations: {
         focusOnWeakWords: challengingWords && challengingWords.length > 0,
-        increaseStudyTime: avgDailyStudyTime < 15, // Less than 15 minutes per day
         tryHarderQuestions: typeof scoreTrend === 'number' && scoreTrend > 0.1 // Improving performance
       }
     });

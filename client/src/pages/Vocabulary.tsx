@@ -130,19 +130,19 @@ const Vocabulary: React.FC = () => {
   };
 
   const getProgressColor = (mastery: number) => {
-    if (mastery >= 0.8) return 'text-green-600';
+    if (mastery >= 1.0) return 'text-green-600';
     if (mastery >= 0.5) return 'text-yellow-600';
     return 'text-red-600';
   };
 
   const getProgressText = (mastery: number) => {
-    if (mastery >= 0.8) return 'Mastered';
+    if (mastery >= 1.0) return 'Mastered';
     if (mastery >= 0.5) return 'Learning';
     return 'New';
   };
 
   const getProgressBarColor = (mastery: number) => {
-    if (mastery >= 0.8) return 'bg-green-500';
+    if (mastery >= 1.0) return 'bg-green-500';
     if (mastery >= 0.5) return 'bg-yellow-500';
     return 'bg-red-500';
   };

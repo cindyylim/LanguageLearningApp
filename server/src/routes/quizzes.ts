@@ -19,8 +19,7 @@ const generateQuizSchema = z.object({
 const submitQuizSchema = z.object({
   answers: z.array(z.object({
     questionId: z.string(),
-    answer: z.string(),
-    timeSpent: z.number()
+    answer: z.string()
   }))
 });
 
@@ -68,7 +67,6 @@ router.post('/generate', async (req: AuthRequest, res: Response) => {
     // Create quiz questions
     const quizQuestions = await Promise.all(
       aiQuestions.map(async (aiQuestion: any) => {
-        const validWordId = words.some((w: any) => w._id.toString() === aiQuestion.wordId) ? aiQuestion.wordId : null;
         const result = await db.collection('QuizQuestion').insertOne({
           question: aiQuestion.question,
           type: aiQuestion.type,
@@ -77,7 +75,7 @@ router.post('/generate', async (req: AuthRequest, res: Response) => {
           context: aiQuestion.context,
           difficulty: aiQuestion.difficulty,
           quizId: quizId,
-          wordId: validWordId,
+          wordId: aiQuestion.wordId,
           createdAt: now
         });
         return await db.collection('QuizQuestion').findOne({ _id: result.insertedId });
@@ -149,17 +147,14 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
     const questions = await db.collection('QuizQuestion').find({ quizId: id }).toArray();
     let correctAnswers = 0;
     const totalQuestions = questions.length;
-    let totalTimeSpent = 0;
     const processedAnswers = answers.map((answer: any) => {
       const question = questions.find((q: any) => q._id.toString() === answer.questionId);
       if (!question) throw new Error(`Question ${answer.questionId} not found`);
       const isCorrect = answer.answer.toLowerCase().trim() === question.correctAnswer.toLowerCase().trim();
       if (isCorrect) correctAnswers++;
-      totalTimeSpent += answer.timeSpent;
       return {
         answer: answer.answer,
         isCorrect,
-        timeSpent: answer.timeSpent,
         questionId: answer.questionId,
         wordId: question.wordId // Add wordId for progress tracking
       };
@@ -191,7 +186,7 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
             }
 
             // Calculate next review date based on spaced repetition
-            const interval = Math.max(1, Math.floor(newMastery * 7)); // 1-7 days based on mastery
+            const interval = Math.min(1, Math.floor(newMastery * 7)); // 1-7 days based on mastery
             const nextReview = new Date(now.getTime() + interval * 24 * 60 * 60 * 1000);
 
             await db.collection('WordProgress').updateOne(
@@ -209,8 +204,8 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
             );
           } else {
             // Create new progress record
-            const initialMastery = isCorrect ? 0.3 : 0.1;
-            const interval = Math.max(1, Math.floor(initialMastery * 7));
+            const initialMastery = isCorrect ? 1 : 0;
+            const interval = Math.min(1, Math.floor(initialMastery * 7));
             const nextReview = new Date(now.getTime() + interval * 24 * 60 * 60 * 1000);
 
             await db.collection('WordProgress').insertOne({
@@ -231,7 +226,6 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
 
     const attemptResult = await db.collection('QuizAttempt').insertOne({
       score: totalQuestions > 0 ? correctAnswers / totalQuestions : 0,
-      timeSpent: totalTimeSpent,
       completed: true,
       userId: req.user!.id,
       quizId: id,
@@ -255,7 +249,6 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
             quizzesTaken: 1,
             totalQuestions: totalQuestions,
             correctAnswers: correctAnswers,
-            timeSpent: totalTimeSpent
           },
           $set: {
             updatedAt: new Date()
@@ -269,7 +262,6 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
         quizzesTaken: 1,
         totalQuestions: totalQuestions,
         correctAnswers: correctAnswers,
-        timeSpent: totalTimeSpent,
         createdAt: new Date(),
         updatedAt: new Date()
       });
@@ -281,7 +273,6 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
         await db.collection('QuizAnswer').insertOne({
           answer: processedAnswer.answer,
           isCorrect: processedAnswer.isCorrect,
-          timeSpent: processedAnswer.timeSpent,
           attemptId: attemptResult.insertedId.toString(),
           questionId: processedAnswer.questionId,
           createdAt: new Date()
@@ -293,7 +284,6 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
       attempt: {
         id: attemptResult.insertedId.toString(),
         score: totalQuestions > 0 ? correctAnswers / totalQuestions : 0,
-        timeSpent: totalTimeSpent,
         completed: true,
         correctAnswers,
         totalQuestions,

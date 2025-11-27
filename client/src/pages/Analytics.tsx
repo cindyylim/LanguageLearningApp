@@ -46,7 +46,6 @@ const Analytics: React.FC = () => {
                 <li>Needs Review: <span className="font-bold text-warning-600">{progress.summary.needsReview}</span></li>
                 <li>Current Streak: <span className="font-bold text-primary-600">{progress.summary.currentStreak}</span></li>
                 <li>Average Score: <span className="font-bold">{Math.round((progress.summary.avgScore ?? 0) * 100)}%</span></li>
-                <li>Total Study Time: <span className="font-bold">{progress.summary.totalStudyTime} min</span></li>
               </ul>
             </div>
             <div className="card">
