@@ -374,7 +374,7 @@ router.post('/generate-ai-list', async (req: AuthRequest, res: Response) => {
 router.post('/words/:wordId/progress', async (req: AuthRequest, res: Response) => {
   try {
     const { wordId } = req.params;
-    const { mastery, status } = req.body; // mastery: 0-1, status: 'learning', 'learned', 'mastered'
+    const { mastery, status } = req.body; // mastery: 0-1, status: 'learning', 'mastered'
     
     const db = await connectToDatabase();
     const now = new Date();
@@ -407,9 +407,6 @@ router.post('/words/:wordId/progress', async (req: AuthRequest, res: Response) =
       switch (status) {
         case 'learning':
           newMastery = 0;
-          break;
-        case 'learned':
-          newMastery = 0.5;
           break;
         case 'mastered':
           newMastery = 1.0;

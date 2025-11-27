@@ -118,7 +118,7 @@ const Vocabulary: React.FC = () => {
     }
   };
 
-  const updateWordProgress = async (wordId: string, status: 'learning' | 'learned' | 'mastered') => {
+  const updateWordProgress = async (wordId: string, status: 'learning' | 'mastered') => {
     try {
       await axios.post(`${process.env.REACT_APP_API_URL}/api/vocabulary/words/${wordId}/progress`, { status });
       fetchLists(); // Refresh to show updated progress
@@ -287,12 +287,6 @@ const Vocabulary: React.FC = () => {
                           className={`px-2 py-1 text-xs rounded ${status === 'learning' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
                         >
                           Learning
-                        </button>
-                        <button
-                          onClick={() => updateWordProgress(w._id, 'learned')}
-                          className={`px-2 py-1 text-xs rounded ${status === 'learned' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
-                        >
-                          Learned
                         </button>
                         <button
                           onClick={() => updateWordProgress(w._id, 'mastered')}

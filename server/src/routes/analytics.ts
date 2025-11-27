@@ -126,7 +126,7 @@ router.get('/recommendations', async (req: AuthRequest, res: Response) => {
     }
     const progressData = userProgress.map((wp: any) => ({
       userId,
-      wordId: wp.word?._id?.toString() || '',
+      wordId: wp.wordId,
       mastery: wp.mastery,
       reviewCount: wp.reviewCount,
       streak: wp.streak,

@@ -371,9 +371,8 @@ static async optimizeSpacedRepetition(
     try {
       // Analyze weak areas
       const weakWords = userProgress
-        .filter((p) => p.mastery < 0.6)
+        .filter((p) => p.mastery < 1.0)
         .map((p) => p.wordId);
-
       // Analyze recent performance trends
       const avgRecentScore =
         recentPerformance.length > 0

@@ -212,6 +212,7 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
             {
               $set: {
                 mastery: newMastery,
+                status: newMastery < 1.0 ? 'learning': 'mastered',
                 reviewCount: newReviewCount,
                 streak: newStreak,
                 lastReviewed: now,
@@ -230,6 +231,7 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
             userId: req.user!.id,
             wordId: wordId,
             mastery: initialMastery,
+            status: initialMastery < 1.0 ? 'learning': 'mastered',
             reviewCount: stats.total,
             streak: isCorrect ? 1 : 0,
             lastReviewed: now,
