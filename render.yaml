@@ -2,6 +2,7 @@ services:
   - type: web
     name: language-learning-server
     env: node
+    nodeVersion: 20
     buildCommand: cd server && npm install && npm run build
     startCommand: cd server && npm start
     envVars:

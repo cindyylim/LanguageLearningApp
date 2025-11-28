@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import LanguageDropdown from '../components/LanguageDropdown';
 
 const Vocabulary: React.FC = () => {
   const { user } = useAuth();
@@ -13,8 +14,8 @@ const Vocabulary: React.FC = () => {
   const [listForm, setListForm] = useState({ 
     name: '', 
     description: '', 
-    targetLanguage: user?.targetLanguage || '',
-    nativeLanguage: user?.nativeLanguage || ''
+    targetLanguage: 'en',
+    nativeLanguage: 'en'
   });
   const [wordForm, setWordForm] = useState({ word: '', translation: '', partOfSpeech: '', difficulty: 'medium' });
   const [saving, setSaving] = useState(false);
@@ -22,13 +23,24 @@ const Vocabulary: React.FC = () => {
   const [aiForm, setAIForm] = useState({
     name: '',
     description: '',
-    targetLanguage: user?.targetLanguage || '',
-    nativeLanguage: user?.nativeLanguage || '',
+    targetLanguage: 'en',
+    nativeLanguage: 'en',
     prompt: '',
     wordCount: 10
   });
   const [aiLoading, setAILoading] = useState(false);
+  // State to hold the selected code received from the child
+  const [targetLanguageCode, setTargetLanguageCode] = useState('en');
+  const [nativeLanguageCode, setNativeLanguageCode] = useState('en');
 
+  const handleTargetLanguageChange = (code: string) => {
+    setAIForm({...aiForm, targetLanguage: code});
+    setTargetLanguageCode(code);
+  };
+  const handleNativeLanguageChange = (code: string) => {
+    setAIForm({...aiForm, nativeLanguage: code});
+    setNativeLanguageCode(code);
+};
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -41,8 +53,8 @@ const Vocabulary: React.FC = () => {
     if (user) {
       setListForm(prev => ({
         ...prev,
-        targetLanguage: user.targetLanguage || '',
-        nativeLanguage: user.nativeLanguage || ''
+        targetLanguage: 'en',
+        nativeLanguage: 'en'
       }));
     }
   }, [user]);
@@ -69,8 +81,8 @@ const Vocabulary: React.FC = () => {
       setListForm({ 
         name: '', 
         description: '', 
-        targetLanguage: user?.targetLanguage || '',
-        nativeLanguage: user?.nativeLanguage || ''
+        targetLanguage: 'en',
+        nativeLanguage: 'en'
       });
       fetchLists();
     } catch (err: any) {
@@ -105,8 +117,8 @@ const Vocabulary: React.FC = () => {
       setAIForm({
         name: '',
         description: '',
-        targetLanguage: user?.targetLanguage || '',
-        nativeLanguage: user?.nativeLanguage || '',
+        targetLanguage: 'en',
+        nativeLanguage: 'en',
         prompt: '',
         wordCount: 10
       });
@@ -220,11 +232,11 @@ const Vocabulary: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Target Language</label>
-                <input className="input-field" required value={aiForm.targetLanguage} onChange={e => setAIForm(f => ({ ...f, targetLanguage: e.target.value }))} />
+                <LanguageDropdown onCodeSelect={handleTargetLanguageChange}/>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Native Language</label>
-                <input className="input-field" required value={aiForm.nativeLanguage} onChange={e => setAIForm(f => ({ ...f, nativeLanguage: e.target.value }))} />
+                <LanguageDropdown onCodeSelect={handleNativeLanguageChange}/>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Topic / Keywords</label>
