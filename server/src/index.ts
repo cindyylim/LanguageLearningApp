@@ -8,6 +8,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
+import cookieParser from 'cookie-parser';
+import mongoSanitize from 'express-mongo-sanitize';
 import path from "path";
 // Import routes
 import authRoutes from './routes/auth';
@@ -30,31 +32,44 @@ const limiter = rateLimit({
 app.use(helmet());
 
 const allowedOrigins = [
-    'https://languagelearningapp-z0ca.onrender.com',
-    'http://localhost:3000'
-  ];
-  
-  app.use(cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, etc.)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      } else {
-        return callback(new Error('Not allowed by CORS'));
-      }
-    },
-    credentials: true
-  }));
+  'https://languagelearningapp-z0ca.onrender.com',
+  'http://localhost:3000'
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      return callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
+app.use(cookieParser());
 app.use(compression());
 app.use(limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Sanitize data to prevent NoSQL injection
+app.use(mongoSanitize({
+  replaceWith: '_',  // Replace prohibited characters with underscore
+  onSanitize: ({ req, key }) => {
+    console.warn(`Sanitized key "${key}" from request`, {
+      ip: req.ip,
+      path: req.path,
+      method: req.method
+    });
+  }
+}));
+
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+  res.json({
+    status: 'OK',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development'
   });
@@ -67,13 +82,9 @@ app.use('/api/quizzes', quizRoutes);
 app.use('/api/analytics', analyticsRoutes);
 
 // Error handling middleware
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error(err.stack);
-  res.status(500).json({ 
-    error: 'Something went wrong!',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
-  });
-});
+// Error handling middleware
+import { errorHandler } from './middleware/error';
+app.use(errorHandler);
 
 // 404 handler
 app.use('*', (req, res) => {

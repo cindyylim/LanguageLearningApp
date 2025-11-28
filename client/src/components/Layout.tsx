@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthStore } from '../store/useAuthStore';
 import {
   HomeIcon,
   BookOpenIcon,
@@ -13,7 +13,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 const Layout: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout } = useAuthStore();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -52,9 +52,8 @@ const Layout: React.FC = () => {
                 <NavLink
                   key={item.name}
                   to={item.href}
-                  className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
-                    active ? 'bg-primary-100 text-primary-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
+                  className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${active ? 'bg-primary-100 text-primary-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
                   onClick={() => setSidebarOpen(false)}
                   end={item.href === '/dashboard'}
                 >
@@ -80,9 +79,8 @@ const Layout: React.FC = () => {
                 <NavLink
                   key={item.name}
                   to={item.href}
-                  className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
-                    active ? 'bg-primary-100 text-primary-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
+                  className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md ${active ? 'bg-primary-100 text-primary-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
                   end={item.href === '/dashboard'}
                 >
                   <item.icon className="mr-3 h-5 w-5" />

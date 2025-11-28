@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { getErrorMessage } from '../types/errors';
 
-interface QuizQuestion {
+export interface QuizQuestion {
   _id: string;
   question: string;
   type: string;
@@ -10,17 +11,48 @@ interface QuizQuestion {
   context?: string;
   difficulty: string;
   correctAnswer: string;
+  createdAt: string;
+  quizId: string;
+  wordId: string;
+}
+
+interface QuizData {
+  _id: string;
+  title: string;
+  description: string;
+  difficulty: string;
+  questionCount: number;
+  questions: QuizQuestion[];
+  createdAt: string;
+  updatedAt: string;
+  userId: string;
+}
+
+interface Answer {
+  answer: string;
+  isCorrect: boolean;
+  questionId: string;
+  wordId: string;
+}
+
+interface QuizResult {
+  answers: Answer[];
+  completed: boolean;
+  correctAnswers: number;
+  id: string;
+  score: number;
+  totalQuestions: number;
 }
 
 const Quiz: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [quiz, setQuiz] = useState<any>(null);
+  const [quiz, setQuiz] = useState<QuizData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [answers, setAnswers] = useState<{ [key: string]: string }>({});
   const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<QuizResult | null>(null);
 
   useEffect(() => {
     const fetchQuiz = async () => {
@@ -29,8 +61,8 @@ const Quiz: React.FC = () => {
       try {
         const res = await axios.get(`${process.env.REACT_APP_API_URL}/quizzes/${id}`);
         setQuiz(res.data.quiz);
-      } catch (err: any) {
-        setError('Failed to load quiz');
+      } catch (err: unknown) {
+        setError(getErrorMessage(err) || 'Failed to load quiz');
       } finally {
         setLoading(false);
       }
@@ -47,15 +79,15 @@ const Quiz: React.FC = () => {
     setSubmitting(true);
     try {
       const payload = {
-        answers: quiz.questions.map((q: QuizQuestion) => ({
+        answers: quiz?.questions.map((q: QuizQuestion) => ({
           questionId: q._id,
           answer: answers[q._id] || ''
         })),
       };
       const res = await axios.post(`${process.env.REACT_APP_API_URL}/quizzes/${id}/submit`, payload);
       setResult(res.data.attempt);
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to submit quiz');
+    } catch (err: unknown) {
+      alert(getErrorMessage(err) || 'Failed to submit quiz');
     } finally {
       setSubmitting(false);
     }
@@ -74,14 +106,14 @@ const Quiz: React.FC = () => {
         <div className="mb-6">
           <h2 className="text-lg font-semibold mb-2">Review Answers</h2>
           {quiz.questions.map((q: QuizQuestion, idx: number) => {
-            const userAnswer = (result.answers && result.answers.find((a: any) => a.questionId === q._id)) || {};
-            const isCorrect = userAnswer.isCorrect;
+            const userAnswer = (result.answers && result.answers.find((a: Answer) => a.questionId === q._id)) || null;
+            const isCorrect = userAnswer?.isCorrect;
             return (
               <div key={q._id} className="mb-4 p-4 rounded border bg-gray-50">
                 <div className="font-semibold mb-1">Q{idx + 1}. {q.question}</div>
                 {q.context && <div className="mb-1 text-xs text-gray-500">{q.context}</div>}
                 <div className="mb-1">
-                  <span className="font-medium">Your answer:</span> {userAnswer.answer || <span className="italic text-gray-400">No answer</span>}
+                  <span className="font-medium">Your answer:</span> {userAnswer?.answer || <span className="italic text-gray-400">No answer</span>}
                   {isCorrect !== undefined && (
                     <span className={isCorrect ? 'ml-2 text-success-600 font-bold' : 'ml-2 text-red-600 font-bold'}>
                       {isCorrect ? 'Correct' : 'Incorrect'}
@@ -144,4 +176,3 @@ const Quiz: React.FC = () => {
 
 export default Quiz;
 
- 

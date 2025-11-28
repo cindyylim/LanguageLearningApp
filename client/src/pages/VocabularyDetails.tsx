@@ -2,11 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { ListVocabulary, Word } from '../types/vocabulary';
+import { getErrorMessage } from '../types/errors';
 
-const VocabularyList: React.FC = () => {
+const VocbularyDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [list, setList] = useState<any>(null);
+  const [list, setList] = useState<ListVocabulary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEditListModal, setShowEditListModal] = useState(false);
@@ -24,8 +26,8 @@ const VocabularyList: React.FC = () => {
       try {
         const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
         setList(res.data.vocabularyList);
-      } catch (err: any) {
-        setError('Failed to load vocabulary list');
+      } catch (err: unknown) {
+        setError(getErrorMessage(err) || 'Failed to load vocabulary list');
       } finally {
         setLoading(false);
       }
@@ -48,8 +50,8 @@ const VocabularyList: React.FC = () => {
       // Refresh list
       const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
       setList(res.data.vocabularyList);
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to update list');
+    } catch (err: unknown) {
+      alert(getErrorMessage(err) || 'Failed to update list');
     } finally {
       setSaving(false);
     }
@@ -60,14 +62,14 @@ const VocabularyList: React.FC = () => {
     try {
       await axios.delete(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
       navigate('/vocabulary');
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to delete list');
+    } catch (err: unknown) {
+      alert(getErrorMessage(err) || 'Failed to delete list');
     } finally {
       setDeleting(false);
     }
   };
 
-  const openEditWord = (w: any) => {
+  const openEditWord = (w: Word) => {
     setEditWordForm({
       word: w.word,
       translation: w.translation,
@@ -87,8 +89,8 @@ const VocabularyList: React.FC = () => {
       // Refresh list
       const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
       setList(res.data.vocabularyList);
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to update word');
+    } catch (err: unknown) {
+      alert(getErrorMessage(err) || 'Failed to update word');
     } finally {
       setSaving(false);
     }
@@ -103,8 +105,8 @@ const VocabularyList: React.FC = () => {
       // Refresh list
       const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
       setList(res.data.vocabularyList);
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to delete word');
+    } catch (err: unknown) {
+      alert(getErrorMessage(err) || 'Failed to delete word');
     } finally {
       setDeleting(false);
     }
@@ -119,15 +121,15 @@ const VocabularyList: React.FC = () => {
         const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
         setList(res.data.vocabularyList);
       }
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to update word progress');
+    } catch (err: unknown) {
+      alert(getErrorMessage(err) || 'Failed to update word progress');
     }
   };
 
   // Calculate progress stats
   const totalWords = list?.words?.length || 0;
-  const mastered = list?.words?.filter((w: any) => w.progress?.mastery == 1).length || 0;
-  const learning = list?.words?.filter((w: any) => w.progress?.mastery < 1).length || 0;
+  const mastered = list?.words?.filter((w: Word) => (w.progress?.mastery ?? 0) === 1).length || 0;
+  const learning = list?.words?.filter((w: Word) => (w.progress?.mastery ?? 0) < 1).length || 0;
   const percentMastered = totalWords ? Math.round((mastered / totalWords) * 100) : 0;
   const percentLearning = totalWords ? Math.round((learning / totalWords) * 100) : 0;
 
@@ -263,7 +265,7 @@ const VocabularyList: React.FC = () => {
           </div>
           <div className="mb-2 text-sm text-gray-500">{list.words.length} words</div>
           <div className="space-y-2">
-            {list.words.map((w: any) => (
+            {list.words.map((w: Word) => (
               <div key={w._id} className="p-3 bg-gray-50 rounded flex flex-col md:flex-row md:items-center md:justify-between">
                 <div>
                   <div className="font-medium text-lg">{w.word}</div>
@@ -317,4 +319,4 @@ const VocabularyList: React.FC = () => {
   );
 };
 
-export default VocabularyList; 
+export default VocbularyDetails; 

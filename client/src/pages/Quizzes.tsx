@@ -1,13 +1,30 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
+import { ListVocabulary } from '../types/vocabulary';
+import { QuizAttempt } from './Analytics';
+import { QuizQuestion } from './Quiz';
+import { getErrorMessage } from '../types/errors';
 
+interface Quiz {
+  _id: string;
+  attempts: QuizAttempt[];
+  createdAt: string;
+  description: string;
+  difficulty: string;
+  questionCount: number;
+  questions: QuizQuestion[];
+  title: string;
+  updatedAt: string;
+  userId: string;
+  _count: { questions: number, attempts: number }
+}
 const Quizzes: React.FC = () => {
-  const [quizzes, setQuizzes] = useState<any[]>([]);
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const [vocabLists, setVocabLists] = useState<any[]>([]);
+  const [vocabLists, setVocabLists] = useState<ListVocabulary[]>([]);
   const [form, setForm] = useState({
     vocabularyListId: '',
     difficulty: 'medium',
@@ -22,8 +39,8 @@ const Quizzes: React.FC = () => {
       try {
         const res = await axios.get(`${process.env.REACT_APP_API_URL}/quizzes`);
         setQuizzes(res.data.quizzes || []);
-      } catch (err: any) {
-        setError('Failed to load quizzes');
+      } catch (err: unknown) {
+        setError(getErrorMessage(err) || 'Failed to load quizzes');
       } finally {
         setLoading(false);
       }
@@ -37,7 +54,7 @@ const Quizzes: React.FC = () => {
       try {
         const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary`);
         setVocabLists(res.data.vocabularyLists || []);
-      } catch {}
+      } catch { }
     }
   };
 
@@ -48,8 +65,8 @@ const Quizzes: React.FC = () => {
       const res = await axios.post(`${process.env.REACT_APP_API_URL}/quizzes/generate`, form);
       setQuizzes([res.data.quiz, ...quizzes]);
       setShowModal(false);
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to generate quiz');
+    } catch (err: unknown) {
+      alert(getErrorMessage(err) || 'Failed to generate quiz');
     } finally {
       setGenerating(false);
     }
@@ -76,7 +93,7 @@ const Quizzes: React.FC = () => {
                   onChange={e => setForm(f => ({ ...f, vocabularyListId: e.target.value }))}
                 >
                   <option value="">Select a list</option>
-                  {vocabLists.map((list: any) => (
+                  {vocabLists.map((list: ListVocabulary) => (
                     <option key={list._id} value={list._id}>{list.name}</option>
                   ))}
                 </select>
@@ -119,7 +136,7 @@ const Quizzes: React.FC = () => {
         <div className="text-gray-500 text-center">No quizzes found. Generate your first quiz!</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {quizzes.map((quiz: any) => (
+          {quizzes.map((quiz: Quiz) => (
             <Link to={`/quizzes/${quiz._id}`} key={quiz._id} className="card hover:shadow-lg transition-shadow">
               <div className="flex justify-between items-center mb-2">
                 <div className="font-semibold text-lg">{quiz.title}</div>
@@ -129,7 +146,7 @@ const Quizzes: React.FC = () => {
               <div className="text-xs text-gray-400">Created: {new Date(quiz.createdAt).toLocaleDateString()}</div>
               <div className="mt-2">
                 {quiz.attempts && quiz.attempts.length > 0 ? (
-                  <span className="badge badge-success">Last Score: {Math.round((quiz.attempts[0].score ?? 0) * 100)}%</span>
+                  <span className="badge badge-success">Last Score: {Math.round((quiz.attempts[0]?.score ?? 0) * 100)}%</span>
                 ) : (
                   <span className="badge badge-warning">Not Attempted</span>
                 )}
