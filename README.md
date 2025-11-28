@@ -6,8 +6,6 @@ Deployed with Render. Link: https://languagelearningapp-z0ca.onrender.com/login
 
 - 🤖 **AI-Powered Question Generation**: Uses Google Gemini to create contextual questions from vocabulary lists
 - 📝 **Contextual Sentences**: Generates real-world usage examples for vocabulary
-- 🧠 **Adaptive Difficulty**: AI algorithms adjust question difficulty based on user performance
-- 🔄 **Spaced Repetition**: Optimizes learning intervals using AI-powered algorithms
 - 📊 **Text Analysis**: Google Gemini integration for advanced text processing
 - 🎯 **Multiple Question Types**: Multiple choice, fill-in-the-blank, sentence completion
 - 📈 **Progress Tracking**: Detailed analytics and learning insights
@@ -70,7 +68,7 @@ The app will be available at:
 1. **Create Vocabulary Lists**: Add words and phrases you want to learn
 2. **Generate Vocabulary Lists with AI**: Instantly create a new vocabulary list by providing a topic or keywords and letting AI generate relevant words for you
 3. **Generate Quizzes**: Use AI to create contextual questions
-4. **Practice**: Take quizzes with adaptive difficulty
+4. **Practice**: Take quizzes with selected difficulty
 5. **Track Progress**: Monitor your learning journey with detailed analytics
 6. **Review**: Use spaced repetition to optimize retention
 
