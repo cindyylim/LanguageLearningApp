@@ -5,6 +5,10 @@ import { z } from 'zod';
 import { connectToDatabase } from '../utils/mongo';
 import { ObjectId } from 'mongodb';
 
+interface jwtToken {
+  userId: string;
+}
+
 const router = Router();
 
 // Validation schemas
@@ -134,7 +138,7 @@ router.get('/profile', async (req: Request, res: Response) => {
     if (!token) {
       return res.status(401).json({ error: 'Access denied. No token provided.' });
     }
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as jwtToken;
     const db = await connectToDatabase();
     const user = await db.collection('User').findOne({ _id: new ObjectId(decoded.userId) });
     if (!user) {

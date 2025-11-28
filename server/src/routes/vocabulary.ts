@@ -4,6 +4,54 @@ import { connectToDatabase } from '../utils/mongo';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 import { AIService } from '../services/ai';
 import { ObjectId } from 'mongodb';
+import { Word } from '../interface/Word';
+
+interface VocabularyListWithWords {
+  _id: ObjectId;
+  name: string;
+  description?: string;
+  targetLanguage: string;
+  nativeLanguage: string;
+  userId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  words: WordDocument[];
+  _count: { words: number };
+}
+
+interface WordDocument {
+  _id: ObjectId;
+  word: string;
+  translation: string;
+  partOfSpeech?: string | null;
+  difficulty: string;
+  vocabularyListId: ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface WordProgressDocument {
+  _id: ObjectId;
+  wordId: string;
+  userId: string;
+  mastery: number;
+  status: string;
+  reviewCount: number;
+  streak: number;
+  lastReviewed: string;
+  nextReview: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface AIWord {
+  word: string;
+  translation: string;
+  partOfSpeech?: string;
+  difficulty?: string;
+}
+
+type ProgressMap = Record<string, WordProgressDocument>;
 
 const router = Router();
 
@@ -47,23 +95,46 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 
     // Add progress data for each word
     const listsWithProgress = await Promise.all(
-      lists.map(async (list: any) => {
+      (lists as unknown as VocabularyListWithWords[]).map(async (list: VocabularyListWithWords) => {
         if (list.words && list.words.length > 0) {
-          const wordIds = list.words.map((w: any) => w._id.toString());
+          const wordIds = list.words.map((w: WordDocument) => w._id.toString());
           const progressData = await db.collection('WordProgress').find({
             userId: req.user!.id,
             wordId: { $in: wordIds }
-          }).toArray();
+          }).toArray() as unknown as WordProgressDocument[];
           
-          const progressMap = progressData.reduce((acc: any, p: any) => {
+          const progressMap = progressData.reduce((acc: ProgressMap, p: WordProgressDocument) => {
             acc[p.wordId] = p;
             return acc;
-          }, {});
+          }, {} as ProgressMap);
 
-          list.words = list.words.map((word: any) => ({
-            ...word,
-            progress: progressMap[word._id.toString()] || null
-          }));
+          const wordsWithProgress = list.words.map((word: WordDocument) => {
+            const progress = progressMap[word._id.toString()] || null;
+            return {
+              _id: word._id.toString(),
+              word: word.word,
+              translation: word.translation,
+              partOfSpeech: word.partOfSpeech || '',
+              difficulty: word.difficulty,
+              vocabularyListId: word.vocabularyListId.toString(),
+              createdAt: word.createdAt instanceof Date ? word.createdAt.toISOString() : String(word.createdAt),
+              updatedAt: word.updatedAt instanceof Date ? word.updatedAt.toISOString() : String(word.updatedAt),
+              progress: progress ? {
+                _id: progress._id.toString(),
+                wordId: progress.wordId,
+                userId: progress.userId,
+                mastery: progress.mastery,
+                status: progress.status,
+                reviewCount: progress.reviewCount,
+                streak: progress.streak,
+                lastReviewed: progress.lastReviewed,
+                nextReview: progress.nextReview,
+                createdAt: progress.createdAt,
+                updatedAt: progress.updatedAt
+              } : null
+            } as Word;
+          });
+          return { ...list, words: wordsWithProgress };
         }
         return list;
       })
@@ -124,26 +195,48 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
     if (!list) {
       return res.status(404).json({ error: 'Vocabulary list not found' });
     }
-    const words = await db.collection('Word').find({ vocabularyListId: new ObjectId(id) }).toArray();
+    const words = await db.collection('Word').find({ vocabularyListId: new ObjectId(id) }).toArray() as unknown as WordDocument[];
     // Fetch progress for all words for this user
-    const wordIds = words.map((w: any) => w._id.toString());
+    const wordIds = words.map((w: WordDocument) => w._id.toString());
     const progressData = await db.collection('WordProgress').find({
       userId: req.user!.id,
       wordId: { $in: wordIds }
-    }).toArray();
-    const progressMap = progressData.reduce((acc: any, p: any) => {
+    }).toArray() as unknown as WordProgressDocument[];
+    const progressMap = progressData.reduce((acc: ProgressMap, p: WordProgressDocument) => {
       acc[p.wordId] = p;
       return acc;
-    }, {});
-    const wordsWithProgress = words.map((word: any) => ({
-      ...word,
-      progress: progressMap[word._id.toString()] || {
-        mastery: 0,
-        status: 'not_started',
-        reviewCount: 0,
-        streak: 0
-      }
-    }));
+    }, {} as ProgressMap);
+    const wordsWithProgress = words.map((word: WordDocument) => {
+      const progress = progressMap[word._id.toString()];
+      return {
+        _id: word._id.toString(),
+        word: word.word,
+        translation: word.translation,
+        partOfSpeech: word.partOfSpeech || '',
+        difficulty: word.difficulty,
+        vocabularyListId: word.vocabularyListId.toString(),
+        createdAt: word.createdAt instanceof Date ? word.createdAt.toISOString() : String(word.createdAt),
+        updatedAt: word.updatedAt instanceof Date ? word.updatedAt.toISOString() : String(word.updatedAt),
+        progress: progress ? {
+          _id: progress._id.toString(),
+          wordId: progress.wordId,
+          userId: progress.userId,
+          mastery: progress.mastery,
+          status: progress.status,
+          reviewCount: progress.reviewCount,
+          streak: progress.streak,
+          lastReviewed: progress.lastReviewed,
+          nextReview: progress.nextReview,
+          createdAt: progress.createdAt,
+          updatedAt: progress.updatedAt
+        } : {
+          mastery: 0,
+          status: 'not_started',
+          reviewCount: 0,
+          streak: 0
+        }
+      } as Word;
+    });
     return res.json({ vocabularyList: { ...list, words: wordsWithProgress } });
   } catch (error) {
     console.error('Error fetching vocabulary list:', error);
@@ -193,8 +286,8 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
       .collection('Word')
       .find({ vocabularyListId: listObjectId })
       .project({ _id: 1 })
-      .toArray();
-    const wordIds = words.map((w: any) => w._id.toString());
+      .toArray() as unknown as { _id: ObjectId }[];
+    const wordIds = words.map((w: { _id: ObjectId }) => w._id.toString());
 
     await db.collection('VocabularyList').deleteOne({ _id: listObjectId });
     const wordsDeleteResult = await db
@@ -284,13 +377,13 @@ router.post('/:id/generate-sentences', async (req: AuthRequest, res: Response) =
     if (!list) {
       return res.status(404).json({ error: 'Vocabulary list not found' });
     }
-    const words = await db.collection('Word').find({ vocabularyListId: new ObjectId(id) }).toArray();
+    const words = await db.collection('Word').find({ vocabularyListId: new ObjectId(id) }).toArray() as unknown as WordDocument[];
     if (words.length === 0) {
       return res.status(400).json({ error: 'No words in vocabulary list' });
     }
     // For AIService, pass words in expected format
     const sentences = await AIService.generateContextualSentences(
-      words.map((w: any) => ({
+      words.map((w: WordDocument) => ({
         id: w._id.toString(),
         word: w.word,
         translation: w.translation,
@@ -350,7 +443,7 @@ router.post('/generate-ai-list', async (req: AuthRequest, res: Response) => {
     });
     const listId = result.insertedId;
     // Insert words
-    const wordDocs = aiWords.map((w: any) => ({
+    const wordDocs = aiWords.map((w: AIWord) => ({
       word: w.word,
       translation: w.translation,
       partOfSpeech: w.partOfSpeech || null,

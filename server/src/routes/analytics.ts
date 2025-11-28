@@ -1,8 +1,11 @@
 import { Router, Response } from 'express';
 import { connectToDatabase } from '../utils/mongo';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
-import { AIService } from '../services/ai';
+import { AIService, UserProgress } from '../services/ai';
 import { ObjectId } from 'mongodb';
+import { WordProgress } from '../interface/WordProgress';
+import { WordSchedule } from '../interface/WordSchedule';
+import { Quiz, QuizAttempt, QuizAnswerWithQuestion } from '../interface/Quiz';
 
 const router = Router();
 
@@ -13,12 +16,12 @@ router.get('/progress', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const db = await connectToDatabase();
-    
+
     // Get user's learning statistics
     const learningStats = await db.collection('LearningStats').find({ userId }).sort({ date: -1 }).limit(30).toArray();
 
     // Get word progress
-    const wordProgress = await db.collection('WordProgress').aggregate([
+    const wordProgress = await db.collection('WordProgress').aggregate<WordProgress>([
       { $match: { userId } },
       {
         $lookup: {
@@ -31,17 +34,17 @@ router.get('/progress', async (req: AuthRequest, res: Response) => {
       { $unwind: { path: '$word', preserveNullAndEmptyArrays: true } },
       { $sort: { lastReviewed: -1 } }
     ]).toArray();
-    
+
     // Get all quiz attempts
-    const allAttempts = await db.collection('QuizAttempt').find({ userId }).sort({ createdAt: -1 }).toArray();
+    const allAttempts = await db.collection('QuizAttempt').find({ userId }).sort({ createdAt: -1 }).toArray() as unknown as QuizAttempt[];
     const recentAttempts = allAttempts.slice(0, 10);
-    
+
     // Calculate current streak (consecutive days with activity)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     let currentStreak = 0;
     let checkDate = new Date(today);
-    
+
     // Check for activity in the last 30 days to find current streak
     for (let i = 0; i < 30; i++) {
       const startOfDay = new Date(checkDate);
@@ -53,7 +56,7 @@ router.get('/progress', async (req: AuthRequest, res: Response) => {
         userId,
         date: { $gte: startOfDay, $lte: endOfDay }
       });
-      
+
       if (dayActivity) {
         currentStreak++;
         checkDate.setDate(checkDate.getDate() - 1);
@@ -61,19 +64,19 @@ router.get('/progress', async (req: AuthRequest, res: Response) => {
         break; // Streak broken
       }
     }
-    
+
     // Calculate summary statistics
     const totalWords = wordProgress.length;
-    const masteredWords = wordProgress.filter((wp: any) => wp.mastery == 1.0).length;
-    const needsReview = wordProgress.filter((wp: any) => wp.mastery < 1.0).length;
+    const masteredWords = wordProgress.filter((wp: WordProgress) => wp.mastery == 1.0).length;
+    const needsReview = wordProgress.filter((wp: WordProgress) => wp.mastery < 1.0).length;
     const totalQuizzesTaken = allAttempts.length;
     const avgScore = recentAttempts.length > 0
-      ? recentAttempts.reduce((sum: number, attempt: any) => sum + (attempt.score || 0), 0) / recentAttempts.length
+      ? recentAttempts.reduce((sum: number, attempt: QuizAttempt) => sum + (attempt.score || 0), 0) / recentAttempts.length
       : 0;
-    
+
     // Get max streak from word progress (for comparison)
-    const maxWordStreak = wordProgress.reduce((max: number, wp: any) => Math.max(max, wp.streak || 0), 0);
-    
+    const maxWordStreak = wordProgress.reduce((max: number, wp: WordProgress) => Math.max(max, wp.streak || 0), 0);
+
     return res.json({
       summary: {
         totalWords,
@@ -99,7 +102,7 @@ router.get('/recommendations', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const db = await connectToDatabase();
-    const userProgress = await db.collection('WordProgress').aggregate([
+    const userProgress = await db.collection('WordProgress').aggregate<WordProgress[]>([
       { $match: { userId } },
       {
         $lookup: {
@@ -110,7 +113,7 @@ router.get('/recommendations', async (req: AuthRequest, res: Response) => {
         }
       },
       { $unwind: { path: '$word', preserveNullAndEmptyArrays: true } }
-    ]).toArray();
+    ]).toArray() as unknown as WordProgress[];
     const recentAttempts = await db.collection('QuizAttempt').find({ userId }).sort({ createdAt: -1 }).limit(20).toArray();
     const performanceData = [];
     for (const attempt of recentAttempts) {
@@ -124,13 +127,13 @@ router.get('/recommendations', async (req: AuthRequest, res: Response) => {
         });
       }
     }
-    const progressData = userProgress.map((wp: any) => ({
+    const progressData: UserProgress[] = userProgress.map((wp: WordProgress) => ({
       userId,
       wordId: wp.wordId,
       mastery: wp.mastery,
       reviewCount: wp.reviewCount,
       streak: wp.streak,
-      lastReviewed: wp.lastReviewed
+      lastReviewed: wp.lastReviewed ? new Date(wp.lastReviewed) : undefined
     }));
     const recommendations = await AIService.generateRecommendations(
       userId,
@@ -159,7 +162,7 @@ router.get('/adaptive-difficulty', async (req: AuthRequest, res: Response) => {
     const userId = req.user!.id;
     const db = await connectToDatabase();
     // Get user progress
-    const userProgress = await db.collection('WordProgress').aggregate([
+    const userProgress = await db.collection('WordProgress').aggregate<WordProgress>([
       { $match: { userId } },
       {
         $lookup: {
@@ -171,13 +174,13 @@ router.get('/adaptive-difficulty', async (req: AuthRequest, res: Response) => {
       },
       { $unwind: { path: '$word', preserveNullAndEmptyArrays: true } }
     ]).toArray();
-    const progressData = userProgress.map((wp: any) => ({
+    const progressData: UserProgress[] = userProgress.map((wp: WordProgress) => ({
       userId,
-      wordId: wp.word?._id?.toString() || '',
+      wordId: wp.wordId?.toString() || '',
       mastery: wp.mastery,
       reviewCount: wp.reviewCount,
       streak: wp.streak,
-      lastReviewed: wp.lastReviewed
+      lastReviewed: wp.lastReviewed ? new Date(wp.lastReviewed) : undefined
     }));
     const adaptiveDifficulty = await AIService.calculateAdaptiveDifficulty(progressData);
     res.json({
@@ -185,8 +188,8 @@ router.get('/adaptive-difficulty', async (req: AuthRequest, res: Response) => {
       nextReviewDate: adaptiveDifficulty.nextReviewDate,
       currentProgress: {
         totalWords: userProgress.length,
-        avgMastery: userProgress.reduce((sum: number, wp: any) => sum + wp.mastery, 0) / userProgress.length,
-        avgStreak: userProgress.reduce((sum: number, wp: any) => sum + wp.streak, 0) / userProgress.length
+        avgMastery: userProgress.reduce((sum: number, wp: WordProgress) => sum + wp.mastery, 0) / userProgress.length,
+        avgStreak: userProgress.reduce((sum: number, wp: WordProgress) => sum + wp.streak, 0) / userProgress.length
       }
     });
   } catch (error) {
@@ -207,7 +210,7 @@ router.get('/spaced-repetition', async (req: AuthRequest, res: Response) => {
         { nextReview: { $lte: new Date() } },
         { nextReview: null }
       ]
-    }).toArray();
+    }).toArray() as unknown as WordProgress[];
 
     // Get performance history for optimization
     const performanceHistory = await db.collection('QuizAnswer').aggregate([
@@ -225,20 +228,20 @@ router.get('/spaced-repetition', async (req: AuthRequest, res: Response) => {
         }
       },
       { $unwind: { path: '$question', preserveNullAndEmptyArrays: true } },
-      {
+        {
         $match: {
-          'question.wordId': { $in: wordsToReview.map((w: any) => new ObjectId(w.wordId)) }
+          'question.wordId': { $in: wordsToReview.map((w: WordProgress) => new ObjectId(w.wordId)) }
         }
       },
       { $sort: { createdAt: -1 } }
-    ]).toArray();
+    ]).toArray() as unknown as QuizAnswerWithQuestion[];
 
     // Optimize spaced repetition for each word
-    const optimizedSchedule = await Promise.all(
-      wordsToReview.map(async (wordProgress: any) => {
+    const optimizedSchedule: WordSchedule[] = await Promise.all(
+      wordsToReview.map(async (wordProgress: WordProgress) => {
         const wordHistory: { score: number; date: Date }[] = performanceHistory
-          .filter((p: any) => p.question?.wordId?.toString() === wordProgress.wordId)
-          .map((p: any) => ({
+          .filter((p: QuizAnswerWithQuestion) => p.question?.wordId?.toString() === wordProgress.wordId)
+          .map((p: QuizAnswerWithQuestion) => ({
             score: p.isCorrect ? 1 : 0,
             date: p.createdAt instanceof Date ? p.createdAt : new Date(p.createdAt)
           }));
@@ -250,15 +253,13 @@ router.get('/spaced-repetition', async (req: AuthRequest, res: Response) => {
             mastery: wordProgress.mastery,
             reviewCount: wordProgress.reviewCount,
             streak: wordProgress.streak,
-            lastReviewed: wordProgress.lastReviewed instanceof Date ? wordProgress.lastReviewed : (wordProgress.lastReviewed ? new Date(wordProgress.lastReviewed) : undefined)
+            lastReviewed: wordProgress.lastReviewed ? new Date(wordProgress.lastReviewed) : undefined
           },
           wordHistory
         );
 
         return {
           wordId: wordProgress.wordId,
-          word: wordProgress.word?.word || '',
-          translation: wordProgress.word?.translation || '',
           currentMastery: wordProgress.mastery,
           nextReviewDate: optimization.nextReviewDate,
           interval: optimization.interval,
@@ -268,7 +269,7 @@ router.get('/spaced-repetition', async (req: AuthRequest, res: Response) => {
     );
 
     // Sort by priority and next review date
-    const sortedSchedule = optimizedSchedule.sort((a: any, b: any) => {
+    const sortedSchedule = optimizedSchedule.sort((a: WordSchedule, b: WordSchedule) => {
       if (a.priority === 'high' && b.priority !== 'high') return -1;
       if (b.priority === 'high' && a.priority !== 'high') return 1;
       return new Date(a.nextReviewDate).getTime() - new Date(b.nextReviewDate).getTime();
@@ -277,7 +278,7 @@ router.get('/spaced-repetition', async (req: AuthRequest, res: Response) => {
     res.json({
       wordsToReview: sortedSchedule,
       totalWords: sortedSchedule.length,
-      highPriority: sortedSchedule.filter((w: any) => w.priority === 'high').length
+      highPriority: sortedSchedule.filter((w: WordSchedule) => w.priority === 'high').length
     });
   } catch (error) {
     console.error('Error generating spaced repetition schedule:', error);
@@ -316,9 +317,9 @@ router.get('/insights', async (req: AuthRequest, res: Response) => {
     }
 
     // Get difficulty distribution
-    const difficultyStats = await db.collection('Quiz').find({ userId }).toArray();
+    const difficultyStats = await db.collection('Quiz').find({ userId }).toArray() as unknown as Quiz[];
 
-    const difficultyDistribution = difficultyStats.reduce((acc: Record<string, number>, quiz: any) => {
+    const difficultyDistribution = difficultyStats.reduce((acc: Record<string, number>, quiz: Quiz) => {
       acc[quiz.difficulty] = (acc[quiz.difficulty] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);

@@ -2,8 +2,11 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { connectToDatabase } from '../utils/mongo';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
-import { AIService } from '../services/ai';
+import { AIService, Question } from '../services/ai';
 import { ObjectId } from 'mongodb';
+import { Quiz, QuizAnswerWithQuestion, QuizQuestion } from '../interface/Quiz';
+import { Word } from '../interface/Word';
+import { Answer } from '../interface/Answer';
 
 const router = Router();
 
@@ -22,6 +25,8 @@ const submitQuizSchema = z.object({
   }))
 });
 
+type QuizAnswerInput = z.infer<typeof submitQuizSchema>['answers'][number];
+
 // Generate AI-powered quiz
 router.post('/generate', async (req: AuthRequest, res: Response) => {
   try {
@@ -32,13 +37,13 @@ router.post('/generate', async (req: AuthRequest, res: Response) => {
     if (!vocabularyList) {
       return res.status(404).json({ error: 'Vocabulary list not found' });
     }
-    const words = await db.collection('Word').find({ vocabularyListId: new ObjectId(vocabularyListId) }).toArray();
+    const words = await db.collection('Word').find({ vocabularyListId: new ObjectId(vocabularyListId) }).toArray() as unknown as Word[];
     if (words.length === 0) {
       return res.status(400).json({ error: 'No words in vocabulary list' });
     }
     // Generate questions using AI
-    const aiQuestions = await AIService.generateQuestions(
-      words.map((w: any) => ({
+    const aiQuestions: Question[] = await AIService.generateQuestions(
+      words.map((w: Word) => ({
         id: w._id.toString(),
         word: w.word,
         translation: w.translation,
@@ -64,7 +69,7 @@ router.post('/generate', async (req: AuthRequest, res: Response) => {
     const quizId = quizResult.insertedId.toString();
     // Create quiz questions
     const quizQuestions = await Promise.all(
-      aiQuestions.map(async (aiQuestion: any) => {
+      aiQuestions.map(async (aiQuestion: Question) => {
         const result = await db.collection('QuizQuestion').insertOne({
           question: aiQuestion.question,
           type: aiQuestion.type,
@@ -94,10 +99,10 @@ router.post('/generate', async (req: AuthRequest, res: Response) => {
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const db = await connectToDatabase();
-    const quizzes = await db.collection('Quiz').find({ userId: req.user!.id }).sort({ createdAt: -1 }).toArray();
+    const quizzes = await db.collection('Quiz').find({ userId: req.user!.id }).sort({ createdAt: -1 }).toArray() as unknown as Quiz[];
     // For each quiz, get questions and last attempt
     const quizzesWithDetails = await Promise.all(
-      quizzes.map(async (quiz: any) => {
+      quizzes.map(async (quiz: Quiz) => {
         const questions = await db.collection('QuizQuestion').find({ quizId: quiz._id.toString() }).toArray();
         const attempts = await db.collection('QuizAttempt').find({ quizId: quiz._id.toString(), userId: req.user!.id }).sort({ createdAt: -1 }).limit(1).toArray();
         return {
@@ -142,11 +147,11 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
     if (!quiz) {
       return res.status(404).json({ error: 'Quiz not found' });
     }
-    const questions = await db.collection('QuizQuestion').find({ quizId: id }).toArray();
+    const questions = await db.collection('QuizQuestion').find({ quizId: id }).toArray() as unknown as QuizQuestion[];
     let correctAnswers = 0;
     const totalQuestions = questions.length;
-    const processedAnswers = answers.map((answer: any) => {
-      const question = questions.find((q: any) => q._id.toString() === answer.questionId);
+    const processedAnswers = answers.map((answer: QuizAnswerInput) => {
+      const question = questions.find((q: QuizQuestion) => q._id.toString() === answer.questionId);
       if (!question) throw new Error(`Question ${answer.questionId} not found`);
       const isCorrect = answer.answer.toLowerCase().trim() === question.correctAnswer.toLowerCase().trim();
       if (isCorrect) correctAnswers++;
@@ -162,7 +167,7 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
     const wordProgressMap = new Map<string, { correct: number; total: number }>();
     
     // Group answers by wordId
-    processedAnswers.forEach((processedAnswer: any) => {
+    processedAnswers.forEach((processedAnswer: Answer) => {
       if (processedAnswer.wordId) {
         const wordId = processedAnswer.wordId;
         if (!wordProgressMap.has(wordId)) {
@@ -289,7 +294,7 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
     
     // Store answers
     await Promise.all(
-      processedAnswers.map(async (processedAnswer: any) => {
+      processedAnswers.map(async (processedAnswer: Answer) => {
         await db.collection('QuizAnswer').insertOne({
           answer: processedAnswer.answer,
           isCorrect: processedAnswer.isCorrect,
