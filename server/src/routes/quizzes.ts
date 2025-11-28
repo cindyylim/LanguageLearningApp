@@ -198,9 +198,9 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
           // Increase mastery based on average correctness
           let newMastery = existingProgress.mastery;
           if (avgCorrectness > 0.5) {
-            newMastery = Math.min(1, newMastery + (avgCorrectness * 0.1)); // Increase mastery proportionally
+            newMastery = Math.min(1, newMastery + 0.05); 
           } else {
-            newMastery = Math.max(0, newMastery - ((1 - avgCorrectness) * 0.15)); // Decrease mastery proportionally
+            newMastery = Math.max(0, newMastery - 0.2); 
           }
 
           // Calculate next review date based on spaced repetition

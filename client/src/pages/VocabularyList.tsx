@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { ListVocabulary, Word } from './Vocabulary';
 
-const VocabularyList: React.FC = () => {
+const VocbularyDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [list, setList] = useState<any>(null);
+  const [list, setList] = useState<ListVocabulary|null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEditListModal, setShowEditListModal] = useState(false);
@@ -67,7 +68,7 @@ const VocabularyList: React.FC = () => {
     }
   };
 
-  const openEditWord = (w: any) => {
+  const openEditWord = (w: Word) => {
     setEditWordForm({
       word: w.word,
       translation: w.translation,
@@ -126,8 +127,8 @@ const VocabularyList: React.FC = () => {
 
   // Calculate progress stats
   const totalWords = list?.words?.length || 0;
-  const mastered = list?.words?.filter((w: any) => w.progress?.mastery == 1).length || 0;
-  const learning = list?.words?.filter((w: any) => w.progress?.mastery < 1).length || 0;
+  const mastered = list?.words?.filter((w: Word) => w.progress?.mastery == 1).length || 0;
+  const learning = list?.words?.filter((w: Word) => w.progress?.mastery ?? 0 < 1).length || 0;
   const percentMastered = totalWords ? Math.round((mastered / totalWords) * 100) : 0;
   const percentLearning = totalWords ? Math.round((learning / totalWords) * 100) : 0;
 
@@ -263,7 +264,7 @@ const VocabularyList: React.FC = () => {
           </div>
           <div className="mb-2 text-sm text-gray-500">{list.words.length} words</div>
           <div className="space-y-2">
-            {list.words.map((w: any) => (
+            {list.words.map((w: Word) => (
               <div key={w._id} className="p-3 bg-gray-50 rounded flex flex-col md:flex-row md:items-center md:justify-between">
                 <div>
                   <div className="font-medium text-lg">{w.word}</div>
@@ -317,4 +318,4 @@ const VocabularyList: React.FC = () => {
   );
 };
 
-export default VocabularyList; 
+export default VocbularyDetails; 

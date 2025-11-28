@@ -4,9 +4,47 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import LanguageDropdown from '../components/LanguageDropdown';
 
+export interface ListVocabulary {
+  _id: string;
+  name: string;
+  description: string;
+  targetLanguage: string;
+  nativeLanguage: string;
+  createdAt: string;
+  updatedAt: string;
+  userId: string;
+  _count: { words: number };
+  words: Word[];
+}
+
+export interface Word {
+  _id: string;
+  word: string;
+  translation: string;
+  partOfSpeech: string;
+  difficulty: string;
+  vocabularyListId: string;
+  createdAt: string;
+  updatedAt: string;
+  progress: WordProgress | null;
+}
+
+export interface WordProgress {
+  _id: string;
+  wordId: string;
+  userId: string;
+  mastery: number;
+  status: string;
+  reviewCount: number;
+  streak: number;
+  lastReviewed: string;
+  nextReview: string;
+  createdAt: string;
+  updatedAt: string;
+}
 const Vocabulary: React.FC = () => {
   const { user } = useAuth();
-  const [lists, setLists] = useState<any[]>([]);
+  const [lists, setLists] = useState<ListVocabulary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showListModal, setShowListModal] = useState(false);
@@ -259,7 +297,7 @@ const Vocabulary: React.FC = () => {
         <div className="text-gray-500 text-center">No vocabulary lists found. Add your first list!</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {lists.map((list: any) => (
+          {lists.map((list: ListVocabulary) => (
             <div
               key={list._id}
               className="card cursor-pointer hover:shadow-lg transition-shadow"
@@ -275,7 +313,7 @@ const Vocabulary: React.FC = () => {
               </div>
               <div className="text-sm text-gray-600 mb-1">{list.description || 'No description'}</div>
               <div className="space-y-2 mt-4">
-                {list.words && list.words.length > 0 ? list.words.slice(0, 8).map((w: any) => {
+                {list.words && list.words.length > 0 ? list.words.slice(0, 8).map((w: Word) => {
                   const mastery = w.progress?.mastery || 0;
                   const status = w.progress?.status || 'not_started';
                   return (

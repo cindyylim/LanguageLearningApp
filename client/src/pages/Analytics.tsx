@@ -1,9 +1,51 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { Word, WordProgress } from './Vocabulary';
 
+export interface QuizAttempt {
+  _id: string;
+  score: number;
+  completed: boolean;
+  userId: string;
+  quizId: string;
+  createdAt: string;
+}
+
+interface LearningStats {
+  _id: string;
+  date: string;
+  quizzesTaken: number;
+  totalQuestions: number;
+  correctAnswers: number;
+  createdAt: string;
+  updatedAt: string;
+  userId: string;
+}
+
+interface Progress {
+  summary: {
+    totalWords: number;
+    masteredWords: number;
+    needsReview: number;
+    currentStreak: number;
+    maxWordStreak: number;
+    totalQuizzesTaken: number;
+    avgScore: number;
+  };
+  learningStats: LearningStats[];
+  wordProgress: WordProgress[];
+  recentAttempts: QuizAttempt[];
+}
+
+interface Recommendations {
+  focusAreas: string[];
+  studyPlan: string;
+  estimatedTime: number;
+  recommendedWords: Word[];
+}
 const Analytics: React.FC = () => {
-  const [progress, setProgress] = useState<any>(null);
-  const [recommendations, setRecommendations] = useState<any>(null);
+  const [progress, setProgress] = useState<Progress | null>(null);
+  const [recommendations, setRecommendations] = useState<Recommendations | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,9 +93,9 @@ const Analytics: React.FC = () => {
             <div className="card">
               <h2 className="text-lg font-semibold mb-2">Recent Activity</h2>
               <ul className="space-y-1">
-                {progress.recentAttempts && progress.recentAttempts.length > 0 ? progress.recentAttempts.map((a: any, index: number) => (
+                {progress.recentAttempts && progress.recentAttempts.length > 0 ? progress.recentAttempts.map((a: QuizAttempt, index: number) => (
                   <li key={a._id || index} className="flex justify-between text-sm">
-                    <span>{a.quiz?.title || 'Quiz'}</span>
+                    <span>{'Quiz'}</span>
                     <span className="text-gray-500">{Math.round((a.score ?? 0) * 100)}%</span>
                   </li>
                 )) : <li className="text-gray-400">No recent attempts</li>}
@@ -74,7 +116,7 @@ const Analytics: React.FC = () => {
             <div className="card">
               <h2 className="text-lg font-semibold mb-2">Recommended Words</h2>
               <ul className="flex flex-wrap gap-2">
-                {recommendations.recommendedWords && recommendations.recommendedWords.length > 0 ? recommendations.recommendedWords.map((w: any, index: number) => (
+                {recommendations.recommendedWords && recommendations.recommendedWords.length > 0 ? recommendations.recommendedWords.map((w: Word, index: number) => (
                   <li key={w._id || index} className="badge badge-success">{w.word} ({w.translation})</li>
                 )) : <li className="text-gray-400">No words to review</li>}
               </ul>
