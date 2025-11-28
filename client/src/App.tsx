@@ -16,7 +16,7 @@ import Home from './pages/Home';
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
-  
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -24,14 +24,14 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
       </div>
     );
   }
-  
+
   return user ? <>{children}</> : <Navigate to="/login" replace />;
 };
 
 // Public Route Component (redirects to dashboard if already logged in)
 const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
-  
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -39,7 +39,7 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       </div>
     );
   }
-  
+
   return user ? <Navigate to="/dashboard" replace /> : <>{children}</>;
 };
 
@@ -47,32 +47,26 @@ const AppRoutes: React.FC = () => {
   return (
     <Routes>
       {/* Public Routes */}
-      <Route path="/" element={<PublicRoute><Home /></PublicRoute>} />
-      <Route path="/login" element={
-        <PublicRoute>
-          <Login />
-        </PublicRoute>
-      } />
-      <Route path="/register" element={
-        <PublicRoute>
-          <Register />
-        </PublicRoute>
-      } />
+      <Route element={<PublicRoute><Layout /></PublicRoute>}>
+        <Route path="/" element={<Home />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+      </Route>
       {/* Protected Routes */}
-      <Route path="/" element={
+      <Route element={
         <ProtectedRoute>
           <Layout />
         </ProtectedRoute>
       }>
-        <Route path="dashboard" element={<Dashboard />} />
-        <Route path="vocabulary" element={<Vocabulary />} />
-        <Route path="vocabulary/:id" element={<ListVocabulary />} />
-        <Route path="quizzes" element={<Quizzes />} />
-        <Route path="quizzes/:id" element={<Quiz />} />
-        <Route path="analytics" element={<Analytics />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/vocabulary" element={<Vocabulary />} />
+        <Route path="/vocabulary/:id" element={<ListVocabulary />} />
+        <Route path="/quizzes" element={<Quizzes />} />
+        <Route path="/quizzes/:id" element={<Quiz />} />
+        <Route path="/analytics" element={<Analytics />} />
       </Route>
       {/* Catch all route */}
-      <Route path="*" element={<Home/>} />
+      <Route path="*" element={<Home />} />
     </Routes>
   );
 };
