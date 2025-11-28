@@ -34,12 +34,12 @@ const Vocabulary: React.FC = () => {
   const [nativeLanguageCode, setNativeLanguageCode] = useState('en');
 
   const handleTargetLanguageChange = (code: string) => {
-    setAIForm({...aiForm, targetLanguage: code});
     setTargetLanguageCode(code);
+    setAIForm({...aiForm, targetLanguage: targetLanguageCode});
   };
   const handleNativeLanguageChange = (code: string) => {
-    setAIForm({...aiForm, nativeLanguage: code});
     setNativeLanguageCode(code);
+    setAIForm({...aiForm, nativeLanguage: nativeLanguageCode});
 };
   const navigate = useNavigate();
 

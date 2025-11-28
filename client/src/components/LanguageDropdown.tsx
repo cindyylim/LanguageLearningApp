@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 
 // 1. Define the language data array outside the component
 const languages = [

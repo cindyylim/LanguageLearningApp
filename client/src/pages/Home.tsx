@@ -11,11 +11,11 @@ const Home: React.FC = () => {
       <div className="max-w-2xl w-full text-center py-16">
         <h1 className="text-4xl md:text-5xl font-extrabold text-primary-700 mb-4">Unlock Your Language Potential</h1>
         <p className="text-lg md:text-xl text-gray-700 mb-6">
-          Master new languages with AI-powered quizzes, adaptive learning, and smart vocabulary management. Track your progress, get personalized recommendations, and make learning fun and effective!
+          Master new languages with AI-powered quizzes, and smart vocabulary management. Track your progress, get personalized recommendations, and make learning fun and effective!
         </p>
         <ul className="text-left text-gray-700 mb-8 mx-auto max-w-md space-y-2">
           <li>✨ Instantly generate vocabulary lists and quizzes with AI</li>
-          <li>🧠 Adaptive difficulty and spaced repetition for better retention</li>
+          <li>🧠 Different difficulty levels for quizzes and spaced repetition for better retention</li>
           <li>📈 Track your learning progress and streaks</li>
           <li>🔒 Secure authentication and personalized dashboard</li>
           <li>🌍 Multi-language support</li>

@@ -1,34 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import LanguageDropdown from '../components/LanguageDropdown';
 
 const proficiencyLevels = [
   { value: 'beginner', label: 'Beginner' },
   { value: 'intermediate', label: 'Intermediate' },
   { value: 'advanced', label: 'Advanced' },
-];
-
-const languages = [
-  { code: 'en', name: 'English' },
-  { code: 'es', name: 'Spanish' },
-  { code: 'fr', name: 'French' },
-  { code: 'de', name: 'German' },
-  { code: 'it', name: 'Italian' },
-  { code: 'pt', name: 'Portuguese' },
-  { code: 'ru', name: 'Russian' },
-  { code: 'ja', name: 'Japanese' },
-  { code: 'ko', name: 'Korean' },
-  { code: 'zh', name: 'Chinese' },
-  { code: 'ar', name: 'Arabic' },
-  { code: 'hi', name: 'Hindi' },
-  { code: 'nl', name: 'Dutch' },
-  { code: 'sv', name: 'Swedish' },
-  { code: 'no', name: 'Norwegian' },
-  { code: 'da', name: 'Danish' },
-  { code: 'fi', name: 'Finnish' },
-  { code: 'pl', name: 'Polish' },
-  { code: 'tr', name: 'Turkish' },
-  { code: 'he', name: 'Hebrew' },
 ];
 
 const Register: React.FC = () => {
@@ -53,6 +31,14 @@ const Register: React.FC = () => {
       /[0-9]/.test(pw) &&
       /[^A-Za-z0-9]/.test(pw)
     );
+  };
+
+  const handleTargetLanguageChange = (code: string) => {
+    setTargetLanguage(code);
+  };
+
+  const handleNativeLanguageChange = (code: string) => {
+    setNativeLanguage(code);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -185,33 +171,13 @@ const Register: React.FC = () => {
               <label htmlFor="nativeLanguage" className="block text-sm font-medium text-gray-700">
                 Native Language
               </label>
-              <select
-                id="nativeLanguage"
-                name="nativeLanguage"
-                value={nativeLanguage}
-                onChange={e => setNativeLanguage(e.target.value)}
-                className="input-field mt-1"
-              >
-                {languages.map(lang => (
-                  <option key={lang.code} value={lang.code}>{lang.name}</option>
-                ))}
-              </select>
+              <LanguageDropdown onCodeSelect={handleNativeLanguageChange}></LanguageDropdown>
             </div>
             <div>
               <label htmlFor="targetLanguage" className="block text-sm font-medium text-gray-700">
                 Language You Want to Learn
               </label>
-              <select
-                id="targetLanguage"
-                name="targetLanguage"
-                value={targetLanguage}
-                onChange={e => setTargetLanguage(e.target.value)}
-                className="input-field mt-1"
-              >
-                {languages.filter(lang => lang.code !== nativeLanguage).map(lang => (
-                  <option key={lang.code} value={lang.code}>{lang.name}</option>
-                ))}
-              </select>
+              <LanguageDropdown onCodeSelect={handleTargetLanguageChange}></LanguageDropdown>
             </div>
             <div>
               <label htmlFor="proficiencyLevel" className="block text-sm font-medium text-gray-700">
