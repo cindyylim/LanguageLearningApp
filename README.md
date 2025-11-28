@@ -76,17 +76,19 @@ The app will be available at:
 
 
 ## Demo
-Home Page
-<img width="1440" height="900" alt="Screenshot 2025-07-15 at 10 16 58 PM" src="https://github.com/user-attachments/assets/35165eae-71ae-47bd-ae40-b9e337b898da" />
-
+<img width="1440" height="900" alt="Screenshot 2025-07-15 at 10 16 58 PM" src="https://github.com/user-attachments/assets/73684da1-7aa0-4c1b-86b7-365122576247" />
 Dashboard
-<img width="1440" height="900" alt="Screenshot 2025-07-14 at 10 42 14 PM" src="https://github.com/user-attachments/assets/ce736fc7-5339-4342-84da-c424b63a37ab" />
+<img width="1440" height="900" alt="Screenshot 2025-11-27 at 7 12 27 PM" src="https://github.com/user-attachments/assets/bb999f1e-b67d-4c68-9cfb-eda6507e2dbd" />
 
-Vocabulary <img width="1440" height="900" alt="Screenshot 2025-07-14 at 11 36 35 PM" src="https://github.com/user-attachments/assets/39971d84-a361-4c06-9a39-b9f39cc96218" />
-<img width="1440" height="900" alt="Screenshot 2025-07-15 at 10 01 44 PM" src="https://github.com/user-attachments/assets/9eb19ea9-36ae-42e9-9d6d-c4fbb2d71942" />
 
-Quiz
-<img width="1440" height="900" alt="Screenshot 2025-07-14 at 10 39 14 PM" src="https://github.com/user-attachments/assets/6deee814-1e3f-4ec7-a8de-829b1ca3d34b" />
+Vocabulary
+<img width="1440" height="900" alt="Screenshot 2025-11-27 at 7 10 45 PM" src="https://github.com/user-attachments/assets/95281636-beeb-4d7c-ad1a-534649bd3a66" />
+<img width="1440" height="900" alt="Screenshot 2025-11-27 at 7 10 51 PM" src="https://github.com/user-attachments/assets/3d1e4148-4e22-4031-9be6-b2fc1402d8a1" />
+Quizzes
+<img width="1440" height="900" alt="Screenshot 2025-11-27 at 7 11 09 PM" src="https://github.com/user-attachments/assets/5672db9a-4611-42f9-a9c0-46918d3d1a8d" />
+Analytics
+<img width="1440" height="900" alt="Screenshot 2025-11-27 at 7 12 34 PM" src="https://github.com/user-attachments/assets/6cd6959f-349d-4331-baaf-fb32c5ba5044" />
+
 
 ## Contributing
 
