@@ -33,15 +33,26 @@ export async function connectToDatabase(): Promise<Db> {
   // C. Otherwise, start a new connection.
   connectionPromise = (async () => {
     try {
-      const client = new MongoClient(MONGODB_URI);
-      await client.connect();
-      const db = client.db();
+      if (!cachedClient) {
+        cachedClient = new MongoClient(MONGODB_URI, {
+          serverSelectionTimeoutMS: 5000,
+          maxPoolSize: 10,
+        });
+        // CLEAR CACHE ON ERROR
+        cachedClient.on('topologyClosed', () => {
+          console.warn('MongoDB topology closed. Clearing cache.');
+          cachedClient = null;
+          cachedDb = null;
+          connectionPromise = null;
+        });
+      }
+      await cachedClient.connect();
+      const db = cachedClient.db();
 
       // Save to cache for future use
-      cachedClient = client;
       cachedDb = db;
 
-      return { client, db };
+      return { client: cachedClient, db };
     } catch (error) {
       // If connection fails, clear the promise so the next request can try again
       connectionPromise = null;
