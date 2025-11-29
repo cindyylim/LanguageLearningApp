@@ -462,7 +462,10 @@ router.post('/generate-ai-list', async (req: AuthRequest, res: Response) => {
     }));
     await db.collection('Word').insertMany(wordDocs);
     // Fetch the new list with words
-    const list = await db.collection('VocabularyList').findOne({ _id: listId });
+    const list = await db.collection('VocabularyList').findOne({
+      _id: listId,
+      userId: req.user!.id
+    });
     const words = await db.collection('Word').find({ vocabularyListId: listId }).toArray();
     return res.status(201).json({ vocabularyList: { ...list, words } });
   } catch (error) {
