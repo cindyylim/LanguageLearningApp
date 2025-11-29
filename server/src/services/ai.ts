@@ -1,4 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { CircuitBreaker } from "../utils/CircuitBreaker";
+import { RequestQueue } from "../utils/RequestQueue";
 
 const gemini = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
 
@@ -44,6 +46,17 @@ export class AIService {
   private static readonly MAX_RETRIES = 3;
   private static readonly INITIAL_DELAY_MS = 1000; // 1 second
 
+  private static readonly circuitBreaker = new CircuitBreaker({
+    failureThreshold: 5,
+    resetTimeout: 60000, // 1 minute
+  });
+
+  private static readonly requestQueue = new RequestQueue({
+    concurrency: 3,
+    rateLimit: 15, // 15 requests per minute (adjust based on quota)
+    interval: 60000,
+  });
+
   static async generateQuestions(
     words: Word[],
     targetLanguage: string,
@@ -55,8 +68,7 @@ export class AIService {
       .map(
         // Include the word ID directly in the prompt for the model to use
         (w) =>
-          `- [ID: ${w.id}] ${w.word} (${w.translation}) - ${
-            w.partOfSpeech || "unknown"
+          `- [ID: ${w.id}] ${w.word} (${w.translation}) - ${w.partOfSpeech || "unknown"
           }`
       )
       .join("\n");
@@ -92,7 +104,11 @@ Return the response as a JSON array with the following structure:
   }
 ]
 `;
-        const result = await AIService.MODEL.generateContent(prompt);
+        const result = await AIService.requestQueue.add(() =>
+          AIService.circuitBreaker.execute(() =>
+            AIService.MODEL.generateContent(prompt)
+          )
+        );
         const responseText = result.response.text();
 
         // Safer JSON cleanup
@@ -156,7 +172,11 @@ Return as JSON:
 
     for (let attempt = 1; attempt <= AIService.MAX_RETRIES; attempt++) {
       try {
-        const result = await AIService.MODEL.generateContent(prompt);
+        const result = await AIService.requestQueue.add(() =>
+          AIService.circuitBreaker.execute(() =>
+            AIService.MODEL.generateContent(prompt)
+          )
+        );
         const responseText = result.response.text();
         const cleaned = responseText.replace(/```[a-z]*\n?|```/gi, "").trim();
         return JSON.parse(cleaned);
@@ -214,7 +234,11 @@ Consider:
 
     for (let attempt = 1; attempt <= AIService.MAX_RETRIES; attempt++) {
       try {
-        const result = await AIService.MODEL.generateContent(prompt);
+        const result = await AIService.requestQueue.add(() =>
+          AIService.circuitBreaker.execute(() =>
+            AIService.MODEL.generateContent(prompt)
+          )
+        );
         const responseText = result.response.text();
         const cleaned = responseText.replace(/```[a-z]*\n?|```/gi, "").trim();
         return JSON.parse(cleaned); // Success!
@@ -334,26 +358,26 @@ Consider:
       };
     }
   };
-/**
- * Optimize spaced repetition intervals using an SM-2-like algorithm.
- */
-static async optimizeSpacedRepetition(
-  userProgress: UserProgress,
-  performanceHistory: { score: number; date: Date }[]
-): Promise<{
-  nextReviewDate: Date;
-  interval: number; // days
-}> {
-  const interval = Math.min(1, userProgress.mastery * 7)
-  // Calculate the next review date
-  const nextReviewDate = new Date();
-  nextReviewDate.setDate(nextReviewDate.getDate() + interval);
+  /**
+   * Optimize spaced repetition intervals using an SM-2-like algorithm.
+   */
+  static async optimizeSpacedRepetition(
+    userProgress: UserProgress,
+    performanceHistory: { score: number; date: Date }[]
+  ): Promise<{
+    nextReviewDate: Date;
+    interval: number; // days
+  }> {
+    const interval = Math.min(1, userProgress.mastery * 7)
+    // Calculate the next review date
+    const nextReviewDate = new Date();
+    nextReviewDate.setDate(nextReviewDate.getDate() + interval);
 
-  return {
-    nextReviewDate: nextReviewDate,
-    interval: interval, // days
-  };
-}
+    return {
+      nextReviewDate: nextReviewDate,
+      interval: interval, // days
+    };
+  }
 
   /**
    * Generate personalized learning recommendations
@@ -377,7 +401,7 @@ static async optimizeSpacedRepetition(
       const avgRecentScore =
         recentPerformance.length > 0
           ? recentPerformance.reduce((sum, p) => sum + p.score, 0) /
-            recentPerformance.length
+          recentPerformance.length
           : 0.5;
 
       const focusAreas = [];
@@ -450,7 +474,11 @@ Return the result as a JSON array with this structure:
   ...
 ]
 `;
-        const result = await AIService.MODEL.generateContent(aiPrompt);
+        const result = await AIService.requestQueue.add(() =>
+          AIService.circuitBreaker.execute(() =>
+            AIService.MODEL.generateContent(aiPrompt)
+          )
+        );
         const response = await result.response;
         const responseText = response.text();
         // Remove Markdown code block if present
