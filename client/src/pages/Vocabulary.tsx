@@ -1,12 +1,12 @@
 import React from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuthStore } from '../store/useAuthStore';
 import { useNavigate } from 'react-router-dom';
 import LanguageDropdown from '../components/LanguageDropdown';
 import { useVocabulary } from '../hooks/useVocabulary';
 import { ListVocabulary, Word } from '../types/vocabulary';
 
 const Vocabulary: React.FC = () => {
-  const { user } = useAuth();
+  const { user } = useAuthStore();
   const navigate = useNavigate();
   const {
     state,

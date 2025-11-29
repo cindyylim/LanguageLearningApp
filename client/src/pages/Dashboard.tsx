@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuthStore } from "../store/useAuthStore";
 import { Link } from "react-router-dom";
 
 interface Summary {
@@ -13,8 +13,8 @@ interface Summary {
   totalWords: number;
 }
 const Dashboard: React.FC = () => {
-  const { user } = useAuth();
-  const [summary, setSummary] = useState<Summary|null>(null);
+  const { user } = useAuthStore();
+  const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

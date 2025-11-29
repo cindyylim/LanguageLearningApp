@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Word, WordProgress } from './Vocabulary';
+import { Word, WordProgress } from '../types/vocabulary';
 
 export interface QuizAttempt {
   _id: string;

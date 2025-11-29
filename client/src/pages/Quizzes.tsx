@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { ListVocabulary } from './Vocabulary';
+import { ListVocabulary } from '../types/vocabulary';
 import { QuizAttempt } from './Analytics';
 import { QuizQuestion } from './Quiz';
 
@@ -16,7 +16,7 @@ interface Quiz {
   title: string;
   updatedAt: string;
   userId: string;
-  _count: {questions: number, attempts: number}
+  _count: { questions: number, attempts: number }
 }
 const Quizzes: React.FC = () => {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -53,7 +53,7 @@ const Quizzes: React.FC = () => {
       try {
         const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary`);
         setVocabLists(res.data.vocabularyLists || []);
-      } catch {}
+      } catch { }
     }
   };
 

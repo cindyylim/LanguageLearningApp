@@ -1,110 +1,106 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { useAuthStore } from './store/useAuthStore';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Vocabulary from './pages/Vocabulary';
+import VocabularyDetails from './pages/VocabularyDetails';
 import Quizzes from './pages/Quizzes';
 import Quiz from './pages/Quiz';
 import Analytics from './pages/Analytics';
-import VocabularyDetails from './pages/VocabularyDetails';
 import Home from './pages/Home';
 
 // Protected Route Component
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, loading } = useAuth();
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = useAuthStore();
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-      </div>
-    );
+    return <div className="flex justify-center items-center h-screen">Loading...</div>;
   }
 
-  return user ? <>{children}</> : <Navigate to="/login" replace />;
-};
-
-// Public Route Component (redirects to dashboard if already logged in)
-const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-      </div>
-    );
+  if (!user) {
+    return <Navigate to="/login" />;
   }
 
-  return user ? <Navigate to="/dashboard" replace /> : <>{children}</>;
+  return <>{children}</>;
 };
 
-const AppRoutes: React.FC = () => {
+function App() {
+  const initializeAuth = useAuthStore(state => state.initialize);
+
+  useEffect(() => {
+    initializeAuth();
+  }, [initializeAuth]);
+
   return (
-    <Routes>
-      {/* Public Routes */}
-      <Route element={<PublicRoute><Layout /></PublicRoute>}>
-        <Route path="/" element={<Home />} />
+    <Router>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#363636',
+            color: '#fff',
+          },
+          success: {
+            duration: 3000,
+            iconTheme: {
+              primary: '#22c55e',
+              secondary: '#fff',
+            },
+          },
+          error: {
+            duration: 5000,
+            iconTheme: {
+              primary: '#ef4444',
+              secondary: '#fff',
+            },
+          },
+        }}
+      />
+      <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-      </Route>
-      {/* Protected Routes */}
-      <Route element={
-        <ProtectedRoute>
-          <Layout />
-        </ProtectedRoute>
-      }>
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/vocabulary" element={<Vocabulary />} />
-        <Route path="/vocabulary/:id" element={<VocabularyDetails />} />
-        <Route path="/quizzes" element={<Quizzes />} />
-        <Route path="/quizzes/:id" element={<Quiz />} />
-        <Route path="/analytics" element={<Analytics />} />
-      </Route>
-      {/* Catch all route */}
-      <Route path="*" element={<Home />} />
-    </Routes>
+        <Route path="/" element={<Layout />}>
+          <Route index element={<Home />} />
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/vocabulary" element={
+            <ProtectedRoute>
+              <Vocabulary />
+            </ProtectedRoute>
+          } />
+          <Route path="/vocabulary/:id" element={
+            <ProtectedRoute>
+              <VocabularyDetails />
+            </ProtectedRoute>
+          } />
+          <Route path="/quizzes" element={
+            <ProtectedRoute>
+              <Quizzes />
+            </ProtectedRoute>
+          } />
+          <Route path="/quizzes/:id" element={
+            <ProtectedRoute>
+              <Quiz />
+            </ProtectedRoute>
+          } />
+          <Route path="/analytics" element={
+            <ProtectedRoute>
+              <Analytics />
+            </ProtectedRoute>
+          } />
+        </Route>
+        <Route path="*" element={<Home />} />
+      </Routes>
+    </Router>
   );
-};
+}
 
-const App: React.FC = () => {
-  return (
-    <AuthProvider>
-      <Router>
-        <div className="App">
-          <AppRoutes />
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              duration: 4000,
-              style: {
-                background: '#363636',
-                color: '#fff',
-              },
-              success: {
-                duration: 3000,
-                iconTheme: {
-                  primary: '#22c55e',
-                  secondary: '#fff',
-                },
-              },
-              error: {
-                duration: 5000,
-                iconTheme: {
-                  primary: '#ef4444',
-                  secondary: '#fff',
-                },
-              },
-            }}
-          />
-        </div>
-      </Router>
-    </AuthProvider>
-  );
-};
-
-export default App; 
+export default App;

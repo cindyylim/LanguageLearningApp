@@ -148,35 +148,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       { $sort: { updatedAt: -1 } }
     ]).toArray();
 
-    // Format the response to match the interface
-    const formattedLists = lists.map(list => ({
-      ...list,
-      words: list.words.map((word: any) => ({
-        _id: word._id.toString(),
-        word: word.word,
-        translation: word.translation,
-        partOfSpeech: word.partOfSpeech || '',
-        difficulty: word.difficulty,
-        vocabularyListId: word.vocabularyListId.toString(),
-        createdAt: word.createdAt instanceof Date ? word.createdAt.toISOString() : String(word.createdAt),
-        updatedAt: word.updatedAt instanceof Date ? word.updatedAt.toISOString() : String(word.updatedAt),
-        progress: word.progress ? {
-          _id: word.progress._id.toString(),
-          wordId: word.progress.wordId,
-          userId: word.progress.userId,
-          mastery: word.progress.mastery,
-          status: word.progress.status,
-          reviewCount: word.progress.reviewCount,
-          streak: word.progress.streak,
-          lastReviewed: word.progress.lastReviewed,
-          nextReview: word.progress.nextReview,
-          createdAt: word.progress.createdAt,
-          updatedAt: word.progress.updatedAt
-        } : null
-      }))
-    }));
-
-    return res.json({ vocabularyLists: formattedLists });
+    return res.json({ vocabularyLists: lists });
   } catch (error) {
     console.error('Error fetching vocabulary lists:', error);
     return res.status(500).json({ error: 'Internal server error' });

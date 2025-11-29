@@ -127,7 +127,7 @@ const VocbularyDetails: React.FC = () => {
 
   // Calculate progress stats
   const totalWords = list?.words?.length || 0;
-  const mastered = list?.words?.filter((w: Word) => w.progress?.mastery == 1).length || 0;
+  const mastered = list?.words?.filter((w: Word) => w.progress?.mastery === 1).length || 0;
   const learning = list?.words?.filter((w: Word) => w.progress?.mastery ?? 0 < 1).length || 0;
   const percentMastered = totalWords ? Math.round((mastered / totalWords) * 100) : 0;
   const percentLearning = totalWords ? Math.round((learning / totalWords) * 100) : 0;
