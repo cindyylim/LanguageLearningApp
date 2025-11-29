@@ -31,6 +31,7 @@ const Vocabulary: React.FC = () => {
     aiLoading,
   } = state;
 
+
   const handleTargetLanguageChange = (code: string) => {
     dispatch({ type: 'UPDATE_AI_FORM', payload: { targetLanguage: code } });
   };
@@ -40,19 +41,19 @@ const Vocabulary: React.FC = () => {
 
   const getProgressColor = (mastery: number) => {
     if (mastery >= 1.0) return 'text-green-600';
-    if (mastery >= 0.5) return 'text-yellow-600';
+    if (mastery >= 0) return 'text-yellow-600';
     return 'text-red-600';
   };
 
   const getProgressText = (mastery: number) => {
     if (mastery >= 1.0) return 'Mastered';
-    if (mastery >= 0.5) return 'Learning';
+    if (mastery >= 0) return 'Learning';
     return 'New';
   };
 
   const getProgressBarColor = (mastery: number) => {
     if (mastery >= 1.0) return 'bg-green-500';
-    if (mastery >= 0.5) return 'bg-yellow-500';
+    if (mastery >= 0) return 'bg-yellow-500';
     return 'bg-red-500';
   };
 

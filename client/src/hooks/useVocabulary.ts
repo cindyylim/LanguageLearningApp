@@ -1,6 +1,6 @@
 import { useReducer, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { ListVocabulary } from '../types/vocabulary';
+import { ListVocabulary, Word } from '../types/vocabulary';
 
 // State Interface
 interface VocabularyState {
@@ -86,7 +86,9 @@ type Action =
     | { type: 'SAVE_START' }
     | { type: 'SAVE_END' }
     | { type: 'AI_GENERATE_START' }
-    | { type: 'AI_GENERATE_END' };
+    | { type: 'AI_GENERATE_END' }
+    | { type: 'ADD_WORD_SUCCESS'; payload: { listId: string; word: Word } }
+    | { type: 'UPDATE_WORD_PROGRESS'; payload: { wordId: string; status: 'learning' | 'mastered'; mastery: number } };
 
 // Reducer
 function vocabularyReducer(state: VocabularyState, action: Action): VocabularyState {
@@ -129,6 +131,50 @@ function vocabularyReducer(state: VocabularyState, action: Action): VocabularySt
             return { ...state, aiLoading: true };
         case 'AI_GENERATE_END':
             return { ...state, aiLoading: false };
+        case 'ADD_WORD_SUCCESS':
+            return {
+                ...state,
+                lists: state.lists.map(list => {
+                    if (list._id === action.payload.listId) {
+                        return {
+                            ...list,
+                            words: [...(list.words || []), action.payload.word],
+                            _count: { ...list._count, words: (list._count?.words || 0) + 1 }
+                        };
+                    }
+                    return list;
+                })
+            };
+        case 'UPDATE_WORD_PROGRESS':
+            return {
+                ...state,
+                lists: state.lists.map(list => ({
+                    ...list,
+                    words: list.words?.map(word => {
+                        if (word._id === action.payload.wordId) {
+                            return {
+                                ...word,
+                                progress: {
+                                    ...word.progress,
+                                    status: action.payload.status,
+                                    mastery: action.payload.mastery,
+                                    // Keep existing fields or provide defaults for optimistic update
+                                    _id: word.progress?._id || 'temp-id',
+                                    wordId: word.progress?.wordId || word._id,
+                                    userId: word.progress?.userId || 'temp-user',
+                                    reviewCount: word.progress?.reviewCount || 0,
+                                    streak: word.progress?.streak || 0,
+                                    lastReviewed: new Date().toISOString(),
+                                    nextReview: new Date().toISOString() + (Math.max(1, word.progress?.mastery || 0) * 24 * 7 * 60 * 60 * 1000).toString(),
+                                    createdAt: word.progress?.createdAt || new Date().toISOString(),
+                                    updatedAt: new Date().toISOString()
+                                }
+                            } as Word;
+                        }
+                        return word;
+                    })
+                }))
+            };
         default:
             return state;
     }
@@ -184,10 +230,16 @@ export const useVocabulary = (user: any) => {
         if (!state.showWordModal) return;
         dispatch({ type: 'SAVE_START' });
         try {
-            await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/${state.showWordModal}/words`, state.wordForm);
+            const res = await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/${state.showWordModal}/words`, state.wordForm);
+            const newWord = res.data.word;
+
+            dispatch({
+                type: 'ADD_WORD_SUCCESS',
+                payload: { listId: state.showWordModal, word: newWord }
+            });
+
             dispatch({ type: 'CLOSE_WORD_MODAL' });
             dispatch({ type: 'RESET_WORD_FORM' });
-            fetchLists();
         } catch (err: any) {
             alert(err.response?.data?.error || 'Failed to add word');
         } finally {
@@ -211,11 +263,20 @@ export const useVocabulary = (user: any) => {
     };
 
     const updateWordProgress = async (wordId: string, status: 'learning' | 'mastered') => {
+        const newMastery = status === 'mastered' ? 1.0 : 0;
+        dispatch({
+            type: 'UPDATE_WORD_PROGRESS',
+            payload: { wordId, status, mastery: newMastery }
+        });
+
         try {
             await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/words/${wordId}/progress`, { status });
-            fetchLists();
+            console.log(state.lists)
+            // No need to fetch lists, we already updated state
         } catch (err: any) {
             alert(err.response?.data?.error || 'Failed to update word progress');
+            // Ideally revert state here, but for now just alerting
+            fetchLists(); // Re-fetch to sync state on error
         }
     };
 
