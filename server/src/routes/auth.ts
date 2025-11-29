@@ -63,6 +63,14 @@ router.post('/register', async (req: Request, res: Response) => {
       { expiresIn: '7d' }
     );
 
+    // Set httpOnly cookie
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
     return res.status(201).json({
       message: 'User registered successfully',
       user: {
@@ -73,8 +81,7 @@ router.post('/register', async (req: Request, res: Response) => {
         targetLanguage: user.targetLanguage,
         proficiencyLevel: user.proficiencyLevel,
         createdAt: user.createdAt
-      },
-      token
+      }
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -110,6 +117,14 @@ router.post('/login', async (req: Request, res: Response) => {
       { expiresIn: '7d' }
     );
 
+    // Set httpOnly cookie
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
     return res.json({
       message: 'Login successful',
       user: {
@@ -119,8 +134,7 @@ router.post('/login', async (req: Request, res: Response) => {
         nativeLanguage: user.nativeLanguage,
         targetLanguage: user.targetLanguage,
         proficiencyLevel: user.proficiencyLevel
-      },
-      token
+      }
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -134,7 +148,7 @@ router.post('/login', async (req: Request, res: Response) => {
 // Get current user profile
 router.get('/profile', async (req: Request, res: Response) => {
   try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
+    const token = req.cookies.token;
     if (!token) {
       return res.status(401).json({ error: 'Access denied. No token provided.' });
     }
@@ -144,19 +158,27 @@ router.get('/profile', async (req: Request, res: Response) => {
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    return res.json({ user: {
-      id: user._id.toString(),
-      name: user.name,
-      email: user.email,
-      nativeLanguage: user.nativeLanguage,
-      targetLanguage: user.targetLanguage,
-      proficiencyLevel: user.proficiencyLevel,
-      createdAt: user.createdAt
-    }});
+    return res.json({
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        nativeLanguage: user.nativeLanguage,
+        targetLanguage: user.targetLanguage,
+        proficiencyLevel: user.proficiencyLevel,
+        createdAt: user.createdAt
+      }
+    });
   } catch (error) {
     console.error('Profile error:', error);
     return res.status(401).json({ error: 'Invalid token' });
   }
+});
+
+// Logout user
+router.post('/logout', (req: Request, res: Response) => {
+  res.clearCookie('token');
+  return res.json({ message: 'Logged out successfully' });
 });
 
 export default router; 

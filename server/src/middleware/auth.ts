@@ -21,19 +21,19 @@ export const authMiddleware = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
-): Promise<void> => { 
+): Promise<void> => {
   try {
-    
-    const token = req.header('Authorization')?.replace(/^Bearer\s+/i, '');
-    
+
+    const token = req.cookies?.token;
+
     if (!token) {
       res.status(401).json({ error: 'Access denied. No token provided.' });
-      return; 
+      return;
     }
 
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
-    
+
     const db = await connectToDatabase();
 
     const user = await db.collection('User').findOne(

@@ -8,6 +8,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
+import cookieParser from 'cookie-parser';
 import path from "path";
 // Import routes
 import authRoutes from './routes/auth';
@@ -46,6 +47,7 @@ app.use(cors({
   },
   credentials: true
 }));
+app.use(cookieParser());
 app.use(compression());
 app.use(limiter);
 app.use(express.json({ limit: '10mb' }));

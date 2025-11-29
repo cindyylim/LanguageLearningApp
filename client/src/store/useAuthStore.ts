@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
+// Configure axios to send cookies with requests
+axios.defaults.withCredentials = true;
+
 interface User {
     id: string;
     name: string;
@@ -39,10 +42,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     login: async (email, password) => {
         try {
             const response = await axios.post(`${process.env.REACT_APP_API_URL}/auth/login`, { email, password });
-            const { user, token } = response.data;
+            const { user } = response.data;
 
-            localStorage.setItem('token', token);
-            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+            // Token is now in httpOnly cookie, no need to store it
             set({ user, isAuthenticated: true });
 
             toast.success('Login successful!');
@@ -56,10 +58,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     register: async (userData) => {
         try {
             const response = await axios.post(`${process.env.REACT_APP_API_URL}/auth/register`, userData);
-            const { user, token } = response.data;
+            const { user } = response.data;
 
-            localStorage.setItem('token', token);
-            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+            // Token is now in httpOnly cookie, no need to store it
             set({ user, isAuthenticated: true });
 
             toast.success('Registration successful!');
@@ -70,11 +71,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
     },
 
-    logout: () => {
-        localStorage.removeItem('token');
-        delete axios.defaults.headers.common['Authorization'];
-        set({ user: null, isAuthenticated: false });
-        toast.success('Logged out successfully');
+    logout: async () => {
+        try {
+            // Call logout endpoint to clear httpOnly cookie
+            await axios.post(`${process.env.REACT_APP_API_URL}/auth/logout`);
+            set({ user: null, isAuthenticated: false });
+            toast.success('Logged out successfully');
+        } catch (error) {
+            // Even if the request fails, clear local state
+            set({ user: null, isAuthenticated: false });
+            toast.success('Logged out successfully');
+        }
     },
 
     updateUser: (userData) => {
@@ -85,18 +92,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     },
 
     initialize: async () => {
-        const token = localStorage.getItem('token');
-        if (token) {
-            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-            try {
-                const response = await axios.get(`${process.env.REACT_APP_API_URL}/auth/profile`);
-                set({ user: response.data.user, isAuthenticated: true });
-            } catch (error) {
-                localStorage.removeItem('token');
-                delete axios.defaults.headers.common['Authorization'];
-                set({ user: null, isAuthenticated: false });
-            }
-        } else {
+        // Token is in httpOnly cookie, just try to get profile
+        try {
+            const response = await axios.get(`${process.env.REACT_APP_API_URL}/auth/profile`);
+            set({ user: response.data.user, isAuthenticated: true });
+        } catch (error) {
+            // No valid session
             set({ user: null, isAuthenticated: false });
         }
         set({ loading: false });
