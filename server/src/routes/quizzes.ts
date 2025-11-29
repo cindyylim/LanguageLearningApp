@@ -61,7 +61,7 @@ router.post('/generate', async (req: AuthRequest, res: Response) => {
       title: `Quiz: ${vocabularyList.name}`,
       description: `AI-generated quiz from ${vocabularyList.name}`,
       difficulty,
-      questionCount, 
+      questionCount,
       userId: req.user!.id,
       createdAt: now,
       updatedAt: now
@@ -165,7 +165,7 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
 
     // Update word progress for each unique word (group by wordId to avoid duplicates)
     const wordProgressMap = new Map<string, { correct: number; total: number }>();
-    
+
     // Group answers by wordId
     processedAnswers.forEach((processedAnswer: Answer) => {
       if (processedAnswer.wordId) {
@@ -193,19 +193,19 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
         // Calculate average correctness for this word in this quiz
         const avgCorrectness = stats.total > 0 ? stats.correct / stats.total : 0;
         const isCorrect = avgCorrectness >= 0.5; // Consider correct if at least 50% correct
-          
+
         if (existingProgress) {
           // Update existing progress
           const newReviewCount = existingProgress.reviewCount + stats.total;
           const newStreak = isCorrect ? existingProgress.streak + 1 : 0;
-          
+
           // Calculate new mastery level (0-1 scale)
           // Increase mastery based on average correctness
           let newMastery = existingProgress.mastery;
           if (avgCorrectness > 0.5) {
-            newMastery = Math.min(1, newMastery + 0.05); 
+            newMastery = Math.min(1, newMastery + 0.05);
           } else {
-            newMastery = Math.max(0, newMastery - 0.2); 
+            newMastery = Math.max(0, newMastery - 0.2);
           }
 
           // Calculate next review date based on spaced repetition
@@ -217,7 +217,7 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
             {
               $set: {
                 mastery: newMastery,
-                status: newMastery < 1.0 ? 'learning': 'mastered',
+                status: newMastery < 1.0 ? 'learning' : 'mastered',
                 reviewCount: newReviewCount,
                 streak: newStreak,
                 lastReviewed: now,
@@ -236,7 +236,7 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
             userId: req.user!.id,
             wordId: wordId,
             mastery: initialMastery,
-            status: initialMastery < 1.0 ? 'learning': 'mastered',
+            status: initialMastery < 1.0 ? 'learning' : 'mastered',
             reviewCount: stats.total,
             streak: isCorrect ? 1 : 0,
             lastReviewed: now,
@@ -255,17 +255,20 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
       quizId: id,
       createdAt: new Date()
     });
-    
+
     // Update daily learning stats
     const today = new Date();
-    const startOfDay = today.setHours(0, 0, 0, 0);
-    const endOfDay = today.setHours(23, 59, 59, 999)
-    
+    const startOfDay = new Date(today);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const nextDay = new Date(startOfDay);
+    nextDay.setDate(nextDay.getDate() + 1);
+
     const existingStats = await db.collection('LearningStats').findOne({
       userId: req.user!.id,
-      date: { $gte: startOfDay, $lte: endOfDay }
+      date: { $gte: startOfDay, $lt: nextDay }
     });
-    
+
     if (existingStats) {
       await db.collection('LearningStats').updateOne(
         { _id: existingStats._id },
@@ -291,7 +294,7 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
         updatedAt: new Date()
       });
     }
-    
+
     // Store answers
     await Promise.all(
       processedAnswers.map(async (processedAnswer: Answer) => {
@@ -304,7 +307,7 @@ router.post('/:id/submit', async (req: AuthRequest, res: Response) => {
         });
       })
     );
-    
+
     return res.json({
       attempt: {
         id: attemptResult.insertedId.toString(),

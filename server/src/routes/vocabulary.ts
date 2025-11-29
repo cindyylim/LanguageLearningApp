@@ -559,12 +559,15 @@ router.post('/words/:wordId/progress', async (req: AuthRequest, res: Response) =
 
     // Update daily learning stats for manual progress updates
     const today = new Date();
-    const startOfDay = today.setHours(0, 0, 0, 0);
-    const endOfDay = today.setHours(23, 59, 59, 999)
+    const startOfDay = new Date(today);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const nextDay = new Date(startOfDay);
+    nextDay.setDate(nextDay.getDate() + 1);
 
     const existingStats = await db.collection('LearningStats').findOne({
       userId: req.user!.id,
-      date: { $gte: startOfDay, $lte: endOfDay }
+      date: { $gte: startOfDay, $lt: nextDay }
     });
 
     if (existingStats) {

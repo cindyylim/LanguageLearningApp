@@ -39,29 +39,49 @@ router.get('/progress', async (req: AuthRequest, res: Response) => {
     const allAttempts = await db.collection('QuizAttempt').find({ userId }).sort({ createdAt: -1 }).toArray() as unknown as QuizAttempt[];
     const recentAttempts = allAttempts.slice(0, 10);
 
-    // Calculate current streak (consecutive days with activity)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    interface LearningStatsDocument {
+      date: Date;
+    }
+
+    // Optimized streak calculation
+    const recentStats = await db.collection('LearningStats')
+      .find({ userId })
+      .sort({ date: -1 })
+      .limit(365) // Fetch enough history to calculate streak
+      .toArray() as unknown as LearningStatsDocument[];
+
     let currentStreak = 0;
-    let checkDate = new Date(today);
+    const today = new Date();
 
-    // Check for activity in the last 30 days to find current streak
-    for (let i = 0; i < 30; i++) {
-      const startOfDay = new Date(checkDate);
-      const endOfDay = new Date(checkDate);
-      endOfDay.setHours(23, 59, 59, 999);
-      
-      // Check if there was any activity on this day (quizzes or word progress updates)
-      const dayActivity = await db.collection('LearningStats').findOne({
-        userId,
-        date: { $gte: startOfDay, $lte: endOfDay }
-      });
+    const toMidnight = (d: Date) => {
+      const newD = new Date(d);
+      newD.setHours(0, 0, 0, 0);
+      return newD.getTime();
+    };
 
-      if (dayActivity) {
-        currentStreak++;
-        checkDate.setDate(checkDate.getDate() - 1);
-      } else {
-        break; // Streak broken
+    const todayTime = toMidnight(today);
+    const yesterdayTime = todayTime - 86400000;
+
+    if (recentStats.length > 0) {
+      const lastActivityDate = toMidnight(recentStats[0]!.date);
+
+      // Streak is valid if last activity was today or yesterday
+      if (lastActivityDate === todayTime || lastActivityDate === yesterdayTime) {
+        currentStreak = 1;
+        let previousDate = lastActivityDate;
+
+        for (let i = 1; i < recentStats.length; i++) {
+          const currentDate = toMidnight(recentStats[i]!.date);
+
+          if (currentDate === previousDate) continue;
+
+          if (previousDate - currentDate === 86400000) {
+            currentStreak++;
+            previousDate = currentDate;
+          } else {
+            break;
+          }
+        }
       }
     }
 
@@ -228,7 +248,7 @@ router.get('/spaced-repetition', async (req: AuthRequest, res: Response) => {
         }
       },
       { $unwind: { path: '$question', preserveNullAndEmptyArrays: true } },
-        {
+      {
         $match: {
           'question.wordId': { $in: wordsToReview.map((w: WordProgress) => new ObjectId(w.wordId)) }
         }
