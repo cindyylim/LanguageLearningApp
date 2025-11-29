@@ -75,6 +75,7 @@ const addWordSchema = z.object({
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const db = await connectToDatabase();
+
     const lists = await db.collection('VocabularyList').aggregate([
       { $match: { userId: req.user!.id } },
       {
@@ -86,6 +87,60 @@ router.get('/', async (req: AuthRequest, res: Response) => {
         }
       },
       {
+        $unwind: {
+          path: '$words',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $lookup: {
+          from: 'WordProgress',
+          let: { wordIdStr: { $toString: '$words._id' } },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$wordId', '$$wordIdStr'] },
+                    { $eq: ['$userId', req.user!.id] }
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'wordProgress'
+        }
+      },
+      {
+        $addFields: {
+          'words.progress': { $arrayElemAt: ['$wordProgress', 0] }
+        }
+      },
+      {
+        $group: {
+          _id: '$_id',
+          name: { $first: '$name' },
+          description: { $first: '$description' },
+          targetLanguage: { $first: '$targetLanguage' },
+          nativeLanguage: { $first: '$nativeLanguage' },
+          userId: { $first: '$userId' },
+          createdAt: { $first: '$createdAt' },
+          updatedAt: { $first: '$updatedAt' },
+          words: { $push: '$words' }
+        }
+      },
+      {
+        $addFields: {
+          words: {
+            $filter: {
+              input: '$words',
+              as: 'w',
+              cond: { $ifNull: ['$$w._id', false] }
+            }
+          }
+        }
+      },
+      {
         $addFields: {
           _count: { words: { $size: '$words' } }
         }
@@ -93,54 +148,35 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       { $sort: { updatedAt: -1 } }
     ]).toArray();
 
-    // Add progress data for each word
-    const listsWithProgress = await Promise.all(
-      (lists as unknown as VocabularyListWithWords[]).map(async (list: VocabularyListWithWords) => {
-        if (list.words && list.words.length > 0) {
-          const wordIds = list.words.map((w: WordDocument) => w._id.toString());
-          const progressData = await db.collection('WordProgress').find({
-            userId: req.user!.id,
-            wordId: { $in: wordIds }
-          }).toArray() as unknown as WordProgressDocument[];
-          
-          const progressMap = progressData.reduce((acc: ProgressMap, p: WordProgressDocument) => {
-            acc[p.wordId] = p;
-            return acc;
-          }, {} as ProgressMap);
+    // Format the response to match the interface
+    const formattedLists = lists.map(list => ({
+      ...list,
+      words: list.words.map((word: any) => ({
+        _id: word._id.toString(),
+        word: word.word,
+        translation: word.translation,
+        partOfSpeech: word.partOfSpeech || '',
+        difficulty: word.difficulty,
+        vocabularyListId: word.vocabularyListId.toString(),
+        createdAt: word.createdAt instanceof Date ? word.createdAt.toISOString() : String(word.createdAt),
+        updatedAt: word.updatedAt instanceof Date ? word.updatedAt.toISOString() : String(word.updatedAt),
+        progress: word.progress ? {
+          _id: word.progress._id.toString(),
+          wordId: word.progress.wordId,
+          userId: word.progress.userId,
+          mastery: word.progress.mastery,
+          status: word.progress.status,
+          reviewCount: word.progress.reviewCount,
+          streak: word.progress.streak,
+          lastReviewed: word.progress.lastReviewed,
+          nextReview: word.progress.nextReview,
+          createdAt: word.progress.createdAt,
+          updatedAt: word.progress.updatedAt
+        } : null
+      }))
+    }));
 
-          const wordsWithProgress = list.words.map((word: WordDocument) => {
-            const progress = progressMap[word._id.toString()] || null;
-            return {
-              _id: word._id.toString(),
-              word: word.word,
-              translation: word.translation,
-              partOfSpeech: word.partOfSpeech || '',
-              difficulty: word.difficulty,
-              vocabularyListId: word.vocabularyListId.toString(),
-              createdAt: word.createdAt instanceof Date ? word.createdAt.toISOString() : String(word.createdAt),
-              updatedAt: word.updatedAt instanceof Date ? word.updatedAt.toISOString() : String(word.updatedAt),
-              progress: progress ? {
-                _id: progress._id.toString(),
-                wordId: progress.wordId,
-                userId: progress.userId,
-                mastery: progress.mastery,
-                status: progress.status,
-                reviewCount: progress.reviewCount,
-                streak: progress.streak,
-                lastReviewed: progress.lastReviewed,
-                nextReview: progress.nextReview,
-                createdAt: progress.createdAt,
-                updatedAt: progress.updatedAt
-              } : null
-            } as Word;
-          });
-          return { ...list, words: wordsWithProgress };
-        }
-        return list;
-      })
-    );
-
-    return res.json({ vocabularyLists: listsWithProgress });
+    return res.json({ vocabularyLists: formattedLists });
   } catch (error) {
     console.error('Error fetching vocabulary lists:', error);
     return res.status(500).json({ error: 'Internal server error' });
@@ -152,11 +188,11 @@ router.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const { name, description, targetLanguage, nativeLanguage } = createVocabularyListSchema.parse(req.body);
     const db = await connectToDatabase();
-    
+
     // Get user's language preferences if not provided
     let userTargetLanguage = targetLanguage;
     let userNativeLanguage = nativeLanguage;
-    
+
     if (!userTargetLanguage || !userNativeLanguage) {
       const user = await db.collection('User').findOne({ _id: new ObjectId(req.user!.id) });
       if (user) {
@@ -164,7 +200,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
         userNativeLanguage = userNativeLanguage || user.nativeLanguage;
       }
     }
-    
+
     const now = new Date();
     const result = await db.collection('VocabularyList').insertOne({
       name,
@@ -322,22 +358,22 @@ router.post('/:id/words', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { word, translation, partOfSpeech, difficulty } = addWordSchema.parse(req.body);
-    
+
     console.log('Adding word - Request params:', { id, word, translation, partOfSpeech, difficulty });
     console.log('User ID:', req.user!.id);
-    
+
     const db = await connectToDatabase();
     console.log('Connected to database');
-    
+
     // Verify vocabulary list belongs to user
     const list = await db.collection('VocabularyList').findOne({ _id: new ObjectId(id), userId: req.user!.id });
     console.log('Found vocabulary list:', list ? 'Yes' : 'No');
-    
+
     if (!list) {
       console.log('Vocabulary list not found for id:', id, 'user:', req.user!.id);
       return res.status(404).json({ error: 'Vocabulary list not found' });
     }
-    
+
     const now = new Date();
     const wordData = {
       word,
@@ -348,15 +384,15 @@ router.post('/:id/words', async (req: AuthRequest, res: Response) => {
       createdAt: now,
       updatedAt: now
     };
-    
+
     console.log('Inserting word data:', wordData);
-    
+
     const result = await db.collection('Word').insertOne(wordData);
     console.log('Word inserted with ID:', result.insertedId);
-    
+
     const newWord = await db.collection('Word').findOne({ _id: result.insertedId });
     console.log('Retrieved new word:', newWord);
-    
+
     return res.status(201).json({ word: newWord });
   } catch (error) {
     console.error('Error in add word route:', error);
@@ -468,33 +504,33 @@ router.post('/words/:wordId/progress', async (req: AuthRequest, res: Response) =
   try {
     const { wordId } = req.params;
     const { mastery, status } = req.body; // mastery: 0-1, status: 'learning', 'mastered'
-    
+
     const db = await connectToDatabase();
     const now = new Date();
-    
+
     // Verify the word exists and belongs to user's vocabulary
     const word = await db.collection('Word').findOne({ _id: new ObjectId(wordId) });
     if (!word) {
       return res.status(404).json({ error: 'Word not found' });
     }
-    
+
     // Check if user has access to this word's vocabulary list
-    const vocabularyList = await db.collection('VocabularyList').findOne({ 
-      _id: new ObjectId(word.vocabularyListId), 
-      userId: req.user!.id 
+    const vocabularyList = await db.collection('VocabularyList').findOne({
+      _id: new ObjectId(word.vocabularyListId),
+      userId: req.user!.id
     });
     if (!vocabularyList) {
       return res.status(403).json({ error: 'Access denied' });
     }
-    
+
     const existingProgress = await db.collection('WordProgress').findOne({
       userId: req.user!.id,
       wordId: wordId
     });
-    
+
     let newMastery = mastery || 0;
     let newStatus = status || 'learning';
-    
+
     // Auto-calculate mastery based on status if not provided
     if (!mastery && status) {
       switch (status) {
@@ -508,11 +544,11 @@ router.post('/words/:wordId/progress', async (req: AuthRequest, res: Response) =
           newMastery = 0;
       }
     }
-    
+
     // Calculate next review date based on mastery
     const interval = Math.min(1, Math.floor(newMastery * 7));
     const nextReview = new Date(now.getTime() + interval * 24 * 60 * 60 * 1000);
-    
+
     if (existingProgress) {
       // Update existing progress
       await db.collection('WordProgress').updateOne(
@@ -543,22 +579,22 @@ router.post('/words/:wordId/progress', async (req: AuthRequest, res: Response) =
         updatedAt: now
       });
     }
-    
+
     const updatedProgress = await db.collection('WordProgress').findOne({
       userId: req.user!.id,
       wordId: wordId
     });
-    
+
     // Update daily learning stats for manual progress updates
     const today = new Date();
     const startOfDay = today.setHours(0, 0, 0, 0);
     const endOfDay = today.setHours(23, 59, 59, 999)
-        
+
     const existingStats = await db.collection('LearningStats').findOne({
       userId: req.user!.id,
       date: { $gte: startOfDay, $lte: endOfDay }
     });
-    
+
     if (existingStats) {
       await db.collection('LearningStats').updateOne(
         { _id: existingStats._id },
@@ -583,8 +619,8 @@ router.post('/words/:wordId/progress', async (req: AuthRequest, res: Response) =
         updatedAt: new Date()
       });
     }
-    
-    return res.json({ 
+
+    return res.json({
       message: 'Word progress updated successfully',
       progress: updatedProgress
     });
@@ -599,13 +635,13 @@ router.get('/words/:wordId/progress', async (req: AuthRequest, res: Response) =>
   try {
     const { wordId } = req.params;
     const db = await connectToDatabase();
-    
+
     const progress = await db.collection('WordProgress').findOne({
       userId: req.user!.id,
       wordId: wordId
     });
-    
-    return res.json({ 
+
+    return res.json({
       progress: progress || {
         mastery: 0,
         status: 'not_started',
