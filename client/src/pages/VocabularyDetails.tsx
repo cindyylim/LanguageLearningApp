@@ -2,12 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { ListVocabulary, Word } from './Vocabulary';
+import { ListVocabulary, Word } from '../types/vocabulary';
 
 const VocbularyDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [list, setList] = useState<ListVocabulary|null>(null);
+  const [list, setList] = useState<ListVocabulary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEditListModal, setShowEditListModal] = useState(false);

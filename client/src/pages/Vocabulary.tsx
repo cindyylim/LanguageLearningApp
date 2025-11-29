@@ -1,180 +1,41 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import LanguageDropdown from '../components/LanguageDropdown';
+import { useVocabulary } from '../hooks/useVocabulary';
+import { ListVocabulary, Word } from '../types/vocabulary';
 
-export interface ListVocabulary {
-  _id: string;
-  name: string;
-  description: string;
-  targetLanguage: string;
-  nativeLanguage: string;
-  createdAt: string;
-  updatedAt: string;
-  userId: string;
-  _count: { words: number };
-  words: Word[];
-}
-
-export interface Word {
-  _id: string;
-  word: string;
-  translation: string;
-  partOfSpeech: string;
-  difficulty: string;
-  vocabularyListId: string;
-  createdAt: string;
-  updatedAt: string;
-  progress: WordProgress | null;
-}
-
-export interface WordProgress {
-  _id: string;
-  wordId: string;
-  userId: string;
-  mastery: number;
-  status: string;
-  reviewCount: number;
-  streak: number;
-  lastReviewed: string;
-  nextReview: string;
-  createdAt: string;
-  updatedAt: string;
-}
 const Vocabulary: React.FC = () => {
   const { user } = useAuth();
-  const [lists, setLists] = useState<ListVocabulary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showListModal, setShowListModal] = useState(false);
-  const [showWordModal, setShowWordModal] = useState<string | null>(null); // listId or null
-  const [listForm, setListForm] = useState({ 
-    name: '', 
-    description: '', 
-    targetLanguage: 'en',
-    nativeLanguage: 'en'
-  });
-  const [wordForm, setWordForm] = useState({ word: '', translation: '', partOfSpeech: '', difficulty: 'medium' });
-  const [saving, setSaving] = useState(false);
-  const [showAIModal, setShowAIModal] = useState(false);
-  const [aiForm, setAIForm] = useState({
-    name: '',
-    description: '',
-    targetLanguage: 'en',
-    nativeLanguage: 'en',
-    prompt: '',
-    wordCount: 10
-  });
-  const [aiLoading, setAILoading] = useState(false);
-  // State to hold the selected code received from the child
-  const [targetLanguageCode, setTargetLanguageCode] = useState('en');
-  const [nativeLanguageCode, setNativeLanguageCode] = useState('en');
+  const navigate = useNavigate();
+  const {
+    state,
+    dispatch,
+    handleAddList,
+    handleAddWord,
+    handleAIGenerate,
+    updateWordProgress,
+  } = useVocabulary(user);
+
+  const {
+    lists,
+    loading,
+    error,
+    showListModal,
+    showWordModal,
+    listForm,
+    wordForm,
+    saving,
+    showAIModal,
+    aiForm,
+    aiLoading,
+  } = state;
 
   const handleTargetLanguageChange = (code: string) => {
-    setTargetLanguageCode(code);
-    setAIForm({...aiForm, targetLanguage: targetLanguageCode});
+    dispatch({ type: 'UPDATE_AI_FORM', payload: { targetLanguage: code } });
   };
   const handleNativeLanguageChange = (code: string) => {
-    setNativeLanguageCode(code);
-    setAIForm({...aiForm, nativeLanguage: nativeLanguageCode});
-};
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    fetchLists();
-    // eslint-disable-next-line
-  }, []);
-
-  // Update form when user data changes
-  useEffect(() => {
-    if (user) {
-      setListForm(prev => ({
-        ...prev,
-        targetLanguage: 'en',
-        nativeLanguage: 'en'
-      }));
-    }
-  }, [user]);
-
-  const fetchLists = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary`);
-      setLists(res.data.vocabularyLists || []);
-    } catch (err: any) {
-      setError('Failed to load vocabulary lists');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAddList = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary`, listForm);
-      setShowListModal(false);
-      setListForm({ 
-        name: '', 
-        description: '', 
-        targetLanguage: 'en',
-        nativeLanguage: 'en'
-      });
-      fetchLists();
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to add list');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleAddWord = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!showWordModal) return;
-    setSaving(true);
-    try {
-      await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/${showWordModal}/words`, wordForm);
-      setShowWordModal(null);
-      setWordForm({ word: '', translation: '', partOfSpeech: '', difficulty: 'medium' });
-      fetchLists();
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to add word');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleAIGenerate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAILoading(true);
-    try {
-      await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/generate-ai-list`, aiForm);
-      setShowAIModal(false);
-      setAIForm({
-        name: '',
-        description: '',
-        targetLanguage: 'en',
-        nativeLanguage: 'en',
-        prompt: '',
-        wordCount: 10
-      });
-      fetchLists();
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to generate vocabulary list');
-    } finally {
-      setAILoading(false);
-    }
-  };
-
-  const updateWordProgress = async (wordId: string, status: 'learning' | 'mastered') => {
-    try {
-      await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/words/${wordId}/progress`, { status });
-      fetchLists(); // Refresh to show updated progress
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to update word progress');
-    }
+    dispatch({ type: 'UPDATE_AI_FORM', payload: { nativeLanguage: code } });
   };
 
   const getProgressColor = (mastery: number) => {
@@ -200,23 +61,23 @@ const Vocabulary: React.FC = () => {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Vocabulary</h1>
         <div className="flex gap-2">
-          <button className="btn-primary" onClick={() => setShowListModal(true)}>+ Add New List</button>
-          <button className="btn-secondary" onClick={() => setShowAIModal(true)}>✨ Generate with AI</button>
+          <button className="btn-primary" onClick={() => dispatch({ type: 'OPEN_LIST_MODAL' })}>+ Add New List</button>
+          <button className="btn-secondary" onClick={() => dispatch({ type: 'OPEN_AI_MODAL' })}>✨ Generate with AI</button>
         </div>
       </div>
       {showListModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
           <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative">
-            <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setShowListModal(false)}>&times;</button>
+            <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => dispatch({ type: 'CLOSE_LIST_MODAL' })}>&times;</button>
             <h2 className="text-lg font-bold mb-4">Add New Vocabulary List</h2>
             <form onSubmit={handleAddList} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Name</label>
-                <input className="input-field" required value={listForm.name} onChange={e => setListForm(f => ({ ...f, name: e.target.value }))} />
+                <input className="input-field" required value={listForm.name} onChange={e => dispatch({ type: 'UPDATE_LIST_FORM', payload: { name: e.target.value } })} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Description</label>
-                <input className="input-field" value={listForm.description} onChange={e => setListForm(f => ({ ...f, description: e.target.value }))} />
+                <input className="input-field" value={listForm.description} onChange={e => dispatch({ type: 'UPDATE_LIST_FORM', payload: { description: e.target.value } })} />
               </div>
               <button type="submit" className="btn-primary w-full" disabled={saving}>{saving ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div> : 'Add List'}</button>
             </form>
@@ -226,24 +87,24 @@ const Vocabulary: React.FC = () => {
       {showWordModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
           <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative">
-            <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setShowWordModal(null)}>&times;</button>
+            <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => dispatch({ type: 'CLOSE_WORD_MODAL' })}>&times;</button>
             <h2 className="text-lg font-bold mb-4">Add Word</h2>
             <form onSubmit={handleAddWord} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Word</label>
-                <input className="input-field" required value={wordForm.word} onChange={e => setWordForm(f => ({ ...f, word: e.target.value }))} />
+                <input className="input-field" required value={wordForm.word} onChange={e => dispatch({ type: 'UPDATE_WORD_FORM', payload: { word: e.target.value } })} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Translation</label>
-                <input className="input-field" required value={wordForm.translation} onChange={e => setWordForm(f => ({ ...f, translation: e.target.value }))} />
+                <input className="input-field" required value={wordForm.translation} onChange={e => dispatch({ type: 'UPDATE_WORD_FORM', payload: { translation: e.target.value } })} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Part of Speech</label>
-                <input className="input-field" value={wordForm.partOfSpeech} onChange={e => setWordForm(f => ({ ...f, partOfSpeech: e.target.value }))} />
+                <input className="input-field" value={wordForm.partOfSpeech} onChange={e => dispatch({ type: 'UPDATE_WORD_FORM', payload: { partOfSpeech: e.target.value } })} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Difficulty</label>
-                <select className="input-field" value={wordForm.difficulty} onChange={e => setWordForm(f => ({ ...f, difficulty: e.target.value }))}>
+                <select className="input-field" value={wordForm.difficulty} onChange={e => dispatch({ type: 'UPDATE_WORD_FORM', payload: { difficulty: e.target.value } })}>
                   <option value="easy">Easy</option>
                   <option value="medium">Medium</option>
                   <option value="hard">Hard</option>
@@ -257,32 +118,32 @@ const Vocabulary: React.FC = () => {
       {showAIModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
           <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative">
-            <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setShowAIModal(false)}>&times;</button>
+            <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => dispatch({ type: 'CLOSE_AI_MODAL' })}>&times;</button>
             <h2 className="text-lg font-bold mb-4">Generate Vocabulary List with AI</h2>
             <form onSubmit={handleAIGenerate} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">List Name</label>
-                <input className="input-field" required value={aiForm.name} onChange={e => setAIForm(f => ({ ...f, name: e.target.value }))} />
+                <input className="input-field" required value={aiForm.name} onChange={e => dispatch({ type: 'UPDATE_AI_FORM', payload: { name: e.target.value } })} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Description</label>
-                <input className="input-field" value={aiForm.description} onChange={e => setAIForm(f => ({ ...f, description: e.target.value }))} />
+                <input className="input-field" value={aiForm.description} onChange={e => dispatch({ type: 'UPDATE_AI_FORM', payload: { description: e.target.value } })} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Target Language</label>
-                <LanguageDropdown onCodeSelect={handleTargetLanguageChange}/>
+                <LanguageDropdown onCodeSelect={handleTargetLanguageChange} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Native Language</label>
-                <LanguageDropdown onCodeSelect={handleNativeLanguageChange}/>
+                <LanguageDropdown onCodeSelect={handleNativeLanguageChange} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Topic / Keywords</label>
-                <input className="input-field" required value={aiForm.prompt} onChange={e => setAIForm(f => ({ ...f, prompt: e.target.value }))} placeholder="e.g. travel, food, business" />
+                <input className="input-field" required value={aiForm.prompt} onChange={e => dispatch({ type: 'UPDATE_AI_FORM', payload: { prompt: e.target.value } })} placeholder="e.g. travel, food, business" />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Number of Words</label>
-                <input className="input-field" type="number" min={5} max={50} value={aiForm.wordCount} onChange={e => setAIForm(f => ({ ...f, wordCount: Number(e.target.value) }))} />
+                <input className="input-field" type="number" min={5} max={50} value={aiForm.wordCount} onChange={e => dispatch({ type: 'UPDATE_AI_FORM', payload: { wordCount: Number(e.target.value) } })} />
               </div>
               <button type="submit" className="btn-primary w-full disabled:bg-gray-500" disabled={aiLoading || !aiForm.targetLanguage || !aiForm.nativeLanguage || !aiForm.name || !aiForm.wordCount || !aiForm.prompt}>{aiLoading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div> : 'Generate List'}</button>
             </form>
@@ -323,7 +184,7 @@ const Vocabulary: React.FC = () => {
                         <div className="text-sm text-gray-500">{w.translation}</div>
                         <div className="flex items-center gap-2 mt-1">
                           <div className="flex-1 bg-gray-200 rounded-full h-2">
-                            <div 
+                            <div
                               className={`h-2 rounded-full ${getProgressBarColor(mastery)}`}
                               style={{ width: `${mastery * 100}%` }}
                             ></div>
@@ -351,7 +212,7 @@ const Vocabulary: React.FC = () => {
                 {list.words && list.words.length > 8 && (
                   <span className="badge badge-warning">+{list.words.length - 8} more</span>
                 )}
-                <button className="btn-secondary text-xs ml-2" onClick={e => { e.stopPropagation(); setShowWordModal(list._id.toString()); }}>+ Add Word</button>
+                <button className="btn-secondary text-xs ml-2" onClick={e => { e.stopPropagation(); dispatch({ type: 'OPEN_WORD_MODAL', payload: list._id.toString() }); }}>+ Add Word</button>
               </div>
             </div>
           ))}
