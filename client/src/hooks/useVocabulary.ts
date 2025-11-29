@@ -165,7 +165,7 @@ function vocabularyReducer(state: VocabularyState, action: Action): VocabularySt
                                     reviewCount: word.progress?.reviewCount || 0,
                                     streak: word.progress?.streak || 0,
                                     lastReviewed: new Date().toISOString(),
-                                    nextReview: new Date().toISOString() + (Math.max(1, word.progress?.mastery || 0) * 24 * 7 * 60 * 60 * 1000).toString(),
+                                    nextReview: new Date(new Date().getTime() + (Math.max(1, word.progress?.mastery || 0) * 24 * 7 * 60 * 60 * 1000)).toISOString(),
                                     createdAt: word.progress?.createdAt || new Date().toISOString(),
                                     updatedAt: new Date().toISOString()
                                 }
@@ -271,7 +271,6 @@ export const useVocabulary = (user: any) => {
 
         try {
             await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/words/${wordId}/progress`, { status });
-            console.log(state.lists)
             // No need to fetch lists, we already updated state
         } catch (err: any) {
             alert(err.response?.data?.error || 'Failed to update word progress');
