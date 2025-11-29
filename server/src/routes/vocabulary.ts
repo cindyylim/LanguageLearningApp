@@ -483,19 +483,21 @@ router.post('/words/:wordId/progress', async (req: AuthRequest, res: Response) =
     const db = await connectToDatabase();
     const now = new Date();
 
-    // Verify the word exists and belongs to user's vocabulary
-    const word = await db.collection('Word').findOne({ _id: new ObjectId(wordId) });
+    const word = await db.collection('Word').aggregate([
+      { $match: { _id: new ObjectId(wordId) } },
+      {
+        $lookup: {
+          from: 'VocabularyList',
+          localField: 'vocabularyListId',
+          foreignField: '_id',
+          as: 'list'
+        }
+      },
+      { $match: { 'list.userId': req.user!.id } }
+    ]).toArray();
+
     if (!word) {
       return res.status(404).json({ error: 'Word not found' });
-    }
-
-    // Check if user has access to this word's vocabulary list
-    const vocabularyList = await db.collection('VocabularyList').findOne({
-      _id: new ObjectId(word.vocabularyListId),
-      userId: req.user!.id
-    });
-    if (!vocabularyList) {
-      return res.status(403).json({ error: 'Access denied' });
     }
 
     const existingProgress = await db.collection('WordProgress').findOne({
