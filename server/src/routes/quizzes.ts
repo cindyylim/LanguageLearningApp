@@ -168,6 +168,15 @@ router.post('/:id/submit', asyncHandler(async (req: AuthRequest, res: Response) 
   const now = new Date();
   await Promise.all(
     Array.from(wordProgressMap.entries()).map(async ([wordId, stats]) => {
+      // Check if the word exists in the Word database
+      const wordExists = await db.collection('Word').findOne({ _id: new ObjectId(wordId) });
+
+      // Skip if word doesn't exist (may have been deleted)
+      if (!wordExists) {
+        console.warn(`Skipping progress update for non-existent word: ${wordId}`);
+        return;
+      }
+
       const existingProgress = await db.collection('WordProgress').findOne({
         userId: req.user!.id,
         wordId: wordId

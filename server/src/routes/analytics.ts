@@ -7,7 +7,6 @@ import { WordProgress } from '../interface/WordProgress';
 import { WordSchedule } from '../interface/WordSchedule';
 import { Quiz, QuizAttempt, QuizAnswerWithQuestion } from '../interface/Quiz';
 import { asyncHandler } from '../utils/asyncHandler';
-import { AppError } from '../utils/AppError';
 
 const router = Router();
 
@@ -21,9 +20,19 @@ router.get('/progress', asyncHandler(async (req: AuthRequest, res: Response) => 
   // Get user's learning statistics
   const learningStats = await db.collection('LearningStats').find({ userId }).sort({ date: -1 }).limit(30).toArray();
 
-  // Get word progress
+  // Get word progress - grouped by wordId to get the most recent progress for each word
   const wordProgress = await db.collection('WordProgress').aggregate<WordProgress>([
     { $match: { userId } },
+    { $sort: { lastReviewed: -1 } },
+    {
+      $group: {
+        _id: '$wordId',
+        doc: { $first: '$$ROOT' }
+      }
+    },
+    {
+      $replaceRoot: { newRoot: '$doc' }
+    },
     {
       $lookup: {
         from: 'Word',
@@ -32,8 +41,7 @@ router.get('/progress', asyncHandler(async (req: AuthRequest, res: Response) => 
         as: 'word'
       }
     },
-    { $unwind: { path: '$word', preserveNullAndEmptyArrays: true } },
-    { $sort: { lastReviewed: -1 } }
+    { $unwind: { path: '$word', preserveNullAndEmptyArrays: true } }
   ]).toArray();
 
   // Get all quiz attempts
