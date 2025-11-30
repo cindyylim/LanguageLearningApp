@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { getErrorMessage } from '../types/errors';
+import { sanitizeText } from '../utils/sanitize';
 
 export interface QuizQuestion {
   _id: string;
@@ -110,10 +111,10 @@ const Quiz: React.FC = () => {
             const isCorrect = userAnswer?.isCorrect;
             return (
               <div key={q._id} className="mb-4 p-4 rounded border bg-gray-50">
-                <div className="font-semibold mb-1">Q{idx + 1}. {q.question}</div>
-                {q.context && <div className="mb-1 text-xs text-gray-500">{q.context}</div>}
+                <div className="font-semibold mb-1">Q{idx + 1}. {sanitizeText(q.question)}</div>
+                {q.context && <div className="mb-1 text-xs text-gray-500">{sanitizeText(q.context)}</div>}
                 <div className="mb-1">
-                  <span className="font-medium">Your answer:</span> {userAnswer?.answer || <span className="italic text-gray-400">No answer</span>}
+                  <span className="font-medium">Your answer:</span> {userAnswer?.answer ? sanitizeText(userAnswer.answer) : <span className="italic text-gray-400">No answer</span>}
                   {isCorrect !== undefined && (
                     <span className={isCorrect ? 'ml-2 text-success-600 font-bold' : 'ml-2 text-red-600 font-bold'}>
                       {isCorrect ? 'Correct' : 'Incorrect'}
@@ -121,7 +122,7 @@ const Quiz: React.FC = () => {
                   )}
                 </div>
                 <div className="mb-1">
-                  <span className="font-medium">Correct answer:</span> {q.correctAnswer}
+                  <span className="font-medium">Correct answer:</span> {sanitizeText(q.correctAnswer)}
                 </div>
               </div>
             );
@@ -134,13 +135,13 @@ const Quiz: React.FC = () => {
 
   return (
     <div className="max-w-xl mx-auto">
-      <h1 className="text-2xl font-bold mb-2">{quiz.title}</h1>
-      <div className="mb-4 text-gray-600">{quiz.description}</div>
+      <h1 className="text-2xl font-bold mb-2">{sanitizeText(quiz.title)}</h1>
+      <div className="mb-4 text-gray-600">{sanitizeText(quiz.description)}</div>
       <form onSubmit={handleSubmit} className="space-y-6">
         {quiz.questions.map((q: QuizQuestion, idx: number) => (
           <div key={q._id} className="card">
-            <div className="mb-2 font-semibold">Q{idx + 1}. {q.question}</div>
-            {q.context && <div className="mb-2 text-xs text-gray-500">{q.context}</div>}
+            <div className="mb-2 font-semibold">Q{idx + 1}. {sanitizeText(q.question)}</div>
+            {q.context && <div className="mb-2 text-xs text-gray-500">{sanitizeText(q.context)}</div>}
             {q.type === 'multiple_choice' && q.options ? (
               <div className="space-y-1">
                 {JSON.parse(q.options).map((opt: string, i: number) => (
@@ -153,7 +154,7 @@ const Quiz: React.FC = () => {
                       onChange={() => handleChange(q._id, opt)}
                       className="form-radio"
                     />
-                    {opt}
+                    {sanitizeText(opt)}
                   </label>
                 ))}
               </div>
@@ -175,4 +176,3 @@ const Quiz: React.FC = () => {
 };
 
 export default Quiz;
-

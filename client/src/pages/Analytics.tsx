@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Word, WordProgress } from '../types/vocabulary';
 import { getErrorMessage } from '../types/errors';
+import { SkeletonCard } from '../components/SkeletonCard';
 
 export interface QuizAttempt {
   _id: string;
@@ -75,7 +76,16 @@ const Analytics: React.FC = () => {
       <h1 className="text-2xl font-bold mb-2">Analytics</h1>
       <p className="text-gray-600 mb-6">Track your learning progress and get personalized recommendations.</p>
       {loading ? (
-        <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="space-y-4">
+            <SkeletonCard className="h-48" />
+            <SkeletonCard className="h-48" />
+          </div>
+          <div className="space-y-4">
+            <SkeletonCard className="h-64" />
+            <SkeletonCard className="h-32" />
+          </div>
+        </div>
       ) : error ? (
         <div className="text-red-500 text-center">{error}</div>
       ) : progress && recommendations ? (

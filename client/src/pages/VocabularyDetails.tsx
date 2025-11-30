@@ -4,6 +4,7 @@ import axios from 'axios';
 import { PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { ListVocabulary, Word } from '../types/vocabulary';
 import { getErrorMessage } from '../types/errors';
+import { SkeletonCard } from '../components/SkeletonCard';
 
 const VocbularyDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -233,7 +234,11 @@ const VocbularyDetails: React.FC = () => {
         </div>
       )}
       {loading ? (
-        <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div></div>
+        <div className="space-y-4">
+          {[...Array(5)].map((_, i) => (
+            <SkeletonCard key={i} className="h-24" />
+          ))}
+        </div>
       ) : error ? (
         <div className="text-red-500 text-center py-8">{error}</div>
       ) : list ? (

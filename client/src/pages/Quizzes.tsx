@@ -5,6 +5,7 @@ import { ListVocabulary } from '../types/vocabulary';
 import { QuizAttempt } from './Analytics';
 import { QuizQuestion } from './Quiz';
 import { getErrorMessage } from '../types/errors';
+import { SkeletonCard } from '../components/SkeletonCard';
 
 interface Quiz {
   _id: string;
@@ -129,7 +130,11 @@ const Quizzes: React.FC = () => {
         </div>
       )}
       {loading ? (
-        <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <SkeletonCard key={i} className="h-48" />
+          ))}
+        </div>
       ) : error ? (
         <div className="text-red-500 text-center">{error}</div>
       ) : quizzes.length === 0 ? (

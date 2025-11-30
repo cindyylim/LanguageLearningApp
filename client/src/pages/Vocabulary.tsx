@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import LanguageDropdown from '../components/LanguageDropdown';
 import { useVocabulary } from '../hooks/useVocabulary';
 import { ListVocabulary, Word } from '../types/vocabulary';
+import { SkeletonCard } from '../components/SkeletonCard';
 
 const Vocabulary: React.FC = () => {
   const { user } = useAuthStore();
@@ -152,7 +153,11 @@ const Vocabulary: React.FC = () => {
         </div>
       )}
       {loading ? (
-        <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <SkeletonCard key={i} className="h-64" />
+          ))}
+        </div>
       ) : error ? (
         <div className="text-red-500 text-center">{error}</div>
       ) : lists.length === 0 ? (

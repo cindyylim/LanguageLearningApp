@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { CircuitBreaker } from "../utils/CircuitBreaker";
 import { RequestQueue } from "../utils/RequestQueue";
+import { z } from "zod";
 
 const gemini = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
 
@@ -32,6 +33,48 @@ export interface UserProgress {
   streak: number;
   lastReviewed?: Date;
 }
+
+// Zod Schemas for Validation
+const QuestionSchema = z.object({
+  question: z.string().min(1),
+  type: z.enum(["multiple_choice", "fill_blank", "sentence_completion"]),
+  correctAnswer: z.string().min(1),
+  options: z.array(z.string()).optional(),
+  context: z.string().optional(),
+  difficulty: z.string(),
+  wordId: z.string().optional(),
+});
+
+const QuestionsArraySchema = z.array(QuestionSchema);
+
+const ContextualSentenceSchema = z.object({
+  wordId: z.string(),
+  sentences: z.array(z.string()),
+});
+
+const ContextualSentencesArraySchema = z.array(ContextualSentenceSchema);
+
+const TextComplexitySchema = z.object({
+  complexity: z.enum(["easy", "medium", "hard"]),
+  score: z.number().min(0).max(1),
+  suggestions: z.array(z.string()),
+});
+
+const RecommendationsSchema = z.object({
+  focusAreas: z.array(z.string()),
+  recommendedWords: z.array(z.string()),
+  studyPlan: z.string(),
+  estimatedTime: z.number(),
+});
+
+const VocabularyWordSchema = z.object({
+  word: z.string(),
+  translation: z.string(),
+  partOfSpeech: z.string().optional(),
+  difficulty: z.string().optional(),
+});
+
+const VocabularyListSchema = z.array(VocabularyWordSchema);
 
 export class AIService {
   private static readonly MODEL = gemini.getGenerativeModel({
@@ -112,7 +155,8 @@ Return the response as a JSON array with the following structure:
           .replace(/^\[?/, "[")
           .replace(/\]?$/, "]");
 
-        const questions = JSON.parse(cleaned) as Question[];
+        const parsed = JSON.parse(cleaned);
+        const questions = QuestionsArraySchema.parse(parsed) as Question[];
         return questions.slice(0, questionCount);
       } catch (error) {
         console.error(
@@ -173,7 +217,8 @@ Return as JSON:
         );
         const responseText = result.response.text();
         const cleaned = responseText.replace(/```[a-z]*\n?|```/gi, "").trim();
-        return JSON.parse(cleaned);
+        const parsed = JSON.parse(cleaned);
+        return ContextualSentencesArraySchema.parse(parsed);
       } catch (error) {
         console.error(
           `Attempt ${attempt} failed for generating sentences.`,
@@ -235,7 +280,12 @@ Consider:
         );
         const responseText = result.response.text();
         const cleaned = responseText.replace(/```[a-z]*\n?|```/gi, "").trim();
-        return JSON.parse(cleaned); // Success!
+        const parsed = JSON.parse(cleaned);
+        return TextComplexitySchema.parse(parsed) as {
+          complexity: "easy" | "medium" | "hard";
+          score: number;
+          suggestions: string[];
+        };
       } catch (error) {
         console.error(
           `Attempt ${attempt} failed for analyzing complexity.`,
@@ -306,12 +356,16 @@ Consider:
 
       const estimatedTime = focusAreas.length * 15; // 15 minutes per focus area
 
-      return {
+      // Validate the generated recommendations structure (even though it's manually constructed here, 
+      // in a real AI scenario we'd validate the AI output)
+      const recommendations = {
         focusAreas,
         recommendedWords: weakWords,
         studyPlan,
         estimatedTime,
       };
+
+      return RecommendationsSchema.parse(recommendations);
     } catch (error) {
       console.error("Error generating recommendations:", error);
       return {
@@ -367,7 +421,8 @@ Return the result as a JSON array with this structure:
         const responseText = response.text();
         // Remove Markdown code block if present
         const cleaned = responseText.replace(/```[a-z]*\n?|```/gi, "").trim();
-        return JSON.parse(cleaned);
+        const parsed = JSON.parse(cleaned);
+        return VocabularyListSchema.parse(parsed);
       } catch (error) {
         console.error('Error generating vocabulary list:', error);
 

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { connectToDatabase } from '../utils/mongo';
 import { ObjectId } from 'mongodb';
 import { asyncHandler } from '../utils/asyncHandler';
+import { validate } from '../middleware/validate';
 
 interface jwtToken {
   userId: string;
@@ -28,8 +29,8 @@ const loginSchema = z.object({
 });
 
 // Register new user
-router.post('/register', asyncHandler(async (req: Request, res: Response) => {
-  const { name, email, password, nativeLanguage, targetLanguage, proficiencyLevel } = registerSchema.parse(req.body);
+router.post('/register', validate(registerSchema), asyncHandler(async (req: Request, res: Response) => {
+  const { name, email, password, nativeLanguage, targetLanguage, proficiencyLevel } = req.body;
   const db = await connectToDatabase();
 
   // Check if user already exists
@@ -86,8 +87,8 @@ router.post('/register', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 // Login user
-router.post('/login', asyncHandler(async (req: Request, res: Response) => {
-  const { email, password } = loginSchema.parse(req.body);
+router.post('/login', validate(loginSchema), asyncHandler(async (req: Request, res: Response) => {
+  const { email, password } = req.body;
   const db = await connectToDatabase();
 
   // Find user

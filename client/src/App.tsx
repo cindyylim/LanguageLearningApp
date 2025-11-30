@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './store/useAuthStore';
 import Layout from './components/Layout';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -36,70 +37,72 @@ function App() {
   }, [initializeAuth]);
 
   return (
-    <Router>
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            background: '#363636',
-            color: '#fff',
-          },
-          success: {
-            duration: 3000,
-            iconTheme: {
-              primary: '#22c55e',
-              secondary: '#fff',
+    <ErrorBoundary>
+      <Router>
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: '#363636',
+              color: '#fff',
             },
-          },
-          error: {
-            duration: 5000,
-            iconTheme: {
-              primary: '#ef4444',
-              secondary: '#fff',
+            success: {
+              duration: 3000,
+              iconTheme: {
+                primary: '#22c55e',
+                secondary: '#fff',
+              },
             },
-          },
-        }}
-      />
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Home />} />
-          <Route path="/dashboard" element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          } />
-          <Route path="/vocabulary" element={
-            <ProtectedRoute>
-              <Vocabulary />
-            </ProtectedRoute>
-          } />
-          <Route path="/vocabulary/:id" element={
-            <ProtectedRoute>
-              <VocabularyDetails />
-            </ProtectedRoute>
-          } />
-          <Route path="/quizzes" element={
-            <ProtectedRoute>
-              <Quizzes />
-            </ProtectedRoute>
-          } />
-          <Route path="/quizzes/:id" element={
-            <ProtectedRoute>
-              <Quiz />
-            </ProtectedRoute>
-          } />
-          <Route path="/analytics" element={
-            <ProtectedRoute>
-              <Analytics />
-            </ProtectedRoute>
-          } />
-        </Route>
-        <Route path="*" element={<Home />} />
-      </Routes>
-    </Router>
+            error: {
+              duration: 5000,
+              iconTheme: {
+                primary: '#ef4444',
+                secondary: '#fff',
+              },
+            },
+          }}
+        />
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Home />} />
+            <Route path="/dashboard" element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/vocabulary" element={
+              <ProtectedRoute>
+                <Vocabulary />
+              </ProtectedRoute>
+            } />
+            <Route path="/vocabulary/:id" element={
+              <ProtectedRoute>
+                <VocabularyDetails />
+              </ProtectedRoute>
+            } />
+            <Route path="/quizzes" element={
+              <ProtectedRoute>
+                <Quizzes />
+              </ProtectedRoute>
+            } />
+            <Route path="/quizzes/:id" element={
+              <ProtectedRoute>
+                <Quiz />
+              </ProtectedRoute>
+            } />
+            <Route path="/analytics" element={
+              <ProtectedRoute>
+                <Analytics />
+              </ProtectedRoute>
+            } />
+          </Route>
+          <Route path="*" element={<Home />} />
+        </Routes>
+      </Router>
+    </ErrorBoundary>
   );
 }
 
