@@ -33,6 +33,8 @@ interface VocabularyState {
         wordCount: number;
     };
     aiLoading: boolean;
+    page: number;
+    hasMore: boolean;
 }
 
 // Initial State
@@ -65,12 +67,14 @@ const initialState: VocabularyState = {
         wordCount: 10,
     },
     aiLoading: false,
+    page: 1,
+    hasMore: true,
 };
 
 // Action Types
 type Action =
     | { type: 'FETCH_START' }
-    | { type: 'FETCH_SUCCESS'; payload: ListVocabulary[] }
+    | { type: 'FETCH_SUCCESS'; payload: { lists: ListVocabulary[]; hasMore: boolean; page: number } }
     | { type: 'FETCH_ERROR'; payload: string }
     | { type: 'OPEN_LIST_MODAL' }
     | { type: 'CLOSE_LIST_MODAL' }
@@ -89,7 +93,7 @@ type Action =
     | { type: 'AI_GENERATE_START' }
     | { type: 'AI_GENERATE_END' }
     | { type: 'ADD_WORD_SUCCESS'; payload: { listId: string; word: Word } }
-    | { type: 'UPDATE_WORD_PROGRESS'; payload: { wordId: string; status: 'learning' | 'mastered'; mastery: number } };
+    | { type: 'UPDATE_WORD_PROGRESS'; payload: { wordId: string; status: 'learning' | 'mastered'; mastery: number } }
 
 // Reducer
 function vocabularyReducer(state: VocabularyState, action: Action): VocabularyState {
@@ -97,7 +101,13 @@ function vocabularyReducer(state: VocabularyState, action: Action): VocabularySt
         case 'FETCH_START':
             return { ...state, loading: true, error: null };
         case 'FETCH_SUCCESS':
-            return { ...state, loading: false, lists: action.payload };
+            return {
+                ...state,
+                loading: false,
+                lists: action.payload.lists,
+                hasMore: action.payload.hasMore,
+                page: action.payload.page
+            };
         case 'FETCH_ERROR':
             return { ...state, loading: false, error: action.payload };
         case 'OPEN_LIST_MODAL':
@@ -192,11 +202,19 @@ interface User {
 export const useVocabulary = (user: User | null) => {
     const [state, dispatch] = useReducer(vocabularyReducer, initialState);
 
-    const fetchLists = useCallback(async (signal?: AbortSignal) => {
+    const fetchLists = useCallback(async (page: number = 1, signal?: AbortSignal) => {
         dispatch({ type: 'FETCH_START' });
         try {
-            const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary`, { signal });
-            dispatch({ type: 'FETCH_SUCCESS', payload: res.data.vocabularyLists || [] });
+            const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary?page=${page}&limit=20`, { signal });
+            const lists = res.data.vocabularyLists || [];
+            dispatch({
+                type: 'FETCH_SUCCESS',
+                payload: {
+                    lists,
+                    hasMore: lists.length >= page * 20,
+                    page
+                }
+            });
         } catch (err: unknown) {
             if (!axios.isCancel(err)) {
                 dispatch({ type: 'FETCH_ERROR', payload: 'Failed to load vocabulary lists' });
@@ -206,7 +224,7 @@ export const useVocabulary = (user: User | null) => {
 
     useEffect(() => {
         const controller = new AbortController();
-        fetchLists(controller.signal);
+        fetchLists(1, controller.signal);
         return () => controller.abort();
     }, [fetchLists]);
 
@@ -219,6 +237,10 @@ export const useVocabulary = (user: User | null) => {
         }
     }, [user]);
 
+    const handlePageChange = (newPage: number) => {
+        fetchLists(newPage);
+    };
+
     const handleAddList = async (e: React.FormEvent) => {
         e.preventDefault();
         dispatch({ type: 'SAVE_START' });
@@ -226,7 +248,7 @@ export const useVocabulary = (user: User | null) => {
             await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary`, state.listForm);
             dispatch({ type: 'CLOSE_LIST_MODAL' });
             dispatch({ type: 'RESET_LIST_FORM' });
-            fetchLists();
+            fetchLists(1);
         } catch (err: unknown) {
             alert(getErrorMessage(err) || 'Failed to add list');
         } finally {
@@ -263,7 +285,7 @@ export const useVocabulary = (user: User | null) => {
             await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/generate-ai-list`, state.aiForm);
             dispatch({ type: 'CLOSE_AI_MODAL' });
             dispatch({ type: 'RESET_AI_FORM' });
-            fetchLists();
+            fetchLists(1);
         } catch (err: unknown) {
             alert(getErrorMessage(err) || 'Failed to generate vocabulary list');
         } finally {
@@ -284,7 +306,7 @@ export const useVocabulary = (user: User | null) => {
         } catch (err: unknown) {
             alert(getErrorMessage(err) || 'Failed to update word progress');
             // Ideally revert state here, but for now just alerting
-            fetchLists(); // Re-fetch to sync state on error
+            fetchLists(state.page); // Re-fetch to sync state on error
         }
     };
 
@@ -295,5 +317,6 @@ export const useVocabulary = (user: User | null) => {
         handleAddWord,
         handleAIGenerate,
         updateWordProgress,
+        handlePageChange
     };
 };

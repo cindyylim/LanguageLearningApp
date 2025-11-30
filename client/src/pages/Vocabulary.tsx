@@ -16,6 +16,7 @@ const Vocabulary: React.FC = () => {
     handleAddWord,
     handleAIGenerate,
     updateWordProgress,
+    handlePageChange
   } = useVocabulary(user);
 
   const {
@@ -222,6 +223,25 @@ const Vocabulary: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+      {!loading && !error && lists.length > 0 && (
+        <div className="flex justify-center gap-4 mt-8">
+          <button
+            className="btn-secondary disabled:opacity-50"
+            disabled={state.page === 1}
+            onClick={() => handlePageChange(state.page - 1)}
+          >
+            Previous
+          </button>
+          <span className="flex items-center text-gray-600">Page {state.page}</span>
+          <button
+            className="btn-secondary disabled:opacity-50"
+            disabled={!state.hasMore}
+            onClick={() => handlePageChange(state.page + 1)}
+          >
+            Next
+          </button>
         </div>
       )}
     </div>

@@ -45,6 +45,7 @@ export const errorHandler = (err: unknown, req: Request, res: Response, next: Ne
             message,
             stack
         });
+        next();
     } else {
         let error: AppError | Error = err instanceof Error ? err : new Error(String(err));
 
@@ -68,5 +69,6 @@ export const errorHandler = (err: unknown, req: Request, res: Response, next: Ne
                 message: 'Something went very wrong!'
             });
         }
+        next();
     }
 };

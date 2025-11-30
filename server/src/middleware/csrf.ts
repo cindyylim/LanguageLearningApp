@@ -2,6 +2,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
+import { AuthRequest } from './auth';
 
 // Store for CSRF tokens (in production, use Redis or similar)
 const csrfTokens = new Map<string, { token: string; expires: number }>();
@@ -44,7 +45,7 @@ export const setCSRFToken = (req: Request, res: Response, next: NextFunction): v
     }
 
     // Store token with expiration
-    const userId = (req as any).user?.id || req.ip || 'anonymous';
+    const userId = (req as AuthRequest).user?.id || req.ip || 'anonymous';
     csrfTokens.set(userId, {
         token,
         expires: Date.now() + 24 * 60 * 60 * 1000
@@ -80,7 +81,7 @@ export const verifyCSRFToken = (req: Request, res: Response, next: NextFunction)
     }
 
     // Verify token exists in our store
-    const userId = (req as any).user?.id || req.ip || 'anonymous';
+    const userId = (req as AuthRequest).user?.id || req.ip || 'anonymous';
     const storedToken = csrfTokens.get(userId);
 
     if (!storedToken || storedToken.token !== cookieToken) {

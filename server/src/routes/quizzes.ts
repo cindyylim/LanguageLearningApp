@@ -6,10 +6,14 @@ import { validateObjectId } from '../middleware/validateObjectId';
 import { validate } from '../middleware/validate';
 import { QuizService } from '../services/quiz.service';
 import { AppError } from '../utils/AppError';
+import { createUserRateLimiter } from '../middleware/rateLimit';
 
 const router = Router();
 
 router.use(authMiddleware);
+
+// Rate limiter for quiz generation
+const quizGenerationLimiter = createUserRateLimiter(10, 60 * 1000); // 10 requests per minute
 
 const generateQuizSchema = z.object({
   vocabularyListId: z.string(),
@@ -25,7 +29,7 @@ const submitQuizSchema = z.object({
 });
 
 // Generate AI-powered quiz
-router.post('/generate', validate(generateQuizSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
+router.post('/generate', validate(generateQuizSchema), quizGenerationLimiter, asyncHandler(async (req: AuthRequest, res: Response) => {
   const { vocabularyListId, questionCount, difficulty } = req.body;
 
   const quiz = await QuizService.generateQuiz(vocabularyListId, { questionCount, difficulty }, req.user!.id);

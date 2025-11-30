@@ -18,19 +18,10 @@ export class AnalyticsService {
         // Get user's learning statistics
         const learningStats = await db.collection('LearningStats').find({ userId }).sort({ date: -1 }).limit(30).toArray();
 
-        // Get word progress - grouped by wordId to get the most recent progress for each word
+        // Get word progress - sorted by last reviewed
         const wordProgress = await db.collection('WordProgress').aggregate<WordProgress>([
             { $match: { userId } },
             { $sort: { lastReviewed: -1 } },
-            {
-                $group: {
-                    _id: '$wordId',
-                    doc: { $first: '$$ROOT' }
-                }
-            },
-            {
-                $replaceRoot: { newRoot: '$doc' }
-            },
             {
                 $lookup: {
                     from: 'Word',
@@ -152,8 +143,10 @@ export class AnalyticsService {
             {
                 $lookup: {
                     from: 'Word',
-                    localField: 'wordId',
-                    foreignField: '_id',
+                    let: { wordId: { $toObjectId: '$wordId' } },
+                    pipeline: [
+                        { $match: { $expr: { $eq: ['$_id', '$$wordId'] } } }
+                    ],
                     as: 'word'
                 }
             },

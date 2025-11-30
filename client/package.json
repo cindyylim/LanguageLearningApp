@@ -54,9 +54,14 @@
     ]
   },
   "devDependencies": {
+    "@eslint/js": "^8.57.1",
     "@types/dompurify": "^3.0.5",
     "@types/jest": "^29.5.8",
-    "@types/js-cookie": "^3.0.6"
+    "@types/js-cookie": "^3.0.6",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "globals": "^16.5.0",
+    "typescript-eslint": "^8.48.0"
   },
   "proxy": "http://localhost:5000"
 }

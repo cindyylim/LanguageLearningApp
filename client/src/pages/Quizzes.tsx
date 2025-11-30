@@ -55,7 +55,9 @@ const Quizzes: React.FC = () => {
       try {
         const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary`);
         setVocabLists(res.data.vocabularyLists || []);
-      } catch { }
+      } catch (err) {
+        console.error('Failed to fetch vocabulary lists', err);
+      }
     }
   };
 

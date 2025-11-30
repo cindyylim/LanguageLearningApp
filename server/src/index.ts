@@ -19,6 +19,8 @@ import analyticsRoutes from './routes/analytics';
 // Import security middleware
 import { setCSRFToken, verifyCSRFToken, getCSRFToken } from './middleware/csrf';
 import { sanitizeInput } from './middleware/sanitize';
+import { connectToDatabase } from './utils/mongo';
+import { AIService } from './services/ai';
 
 const app = express();
 app.set('trust proxy', 1); // Trust first proxy (fixes express-rate-limit error)
@@ -93,12 +95,42 @@ app.use(sanitizeInput);
 app.use(setCSRFToken);
 
 // Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({
+// Detailed health check endpoint
+app.get('/health', async (req, res) => {
+  const health = {
     status: 'OK',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
-  });
+    environment: process.env.NODE_ENV || 'development',
+    uptime: process.uptime(),
+    checks: {
+      database: 'unknown',
+      ai: 'unknown'
+    }
+  };
+
+  // Check database
+  try {
+    const db = await connectToDatabase();
+    await db.admin().ping();
+    health.checks.database = 'healthy';
+  } catch (error) {
+    console.error('Health check - Database failed:', error);
+    health.checks.database = 'unhealthy';
+    health.status = 'DEGRADED';
+  }
+
+  // Check AI service
+  try {
+    await AIService.healthCheck();
+    health.checks.ai = 'healthy';
+  } catch (error) {
+    console.error('Health check - AI failed:', error);
+    health.checks.ai = 'unhealthy';
+    health.status = 'DEGRADED';
+  }
+
+  const statusCode = health.status === 'OK' ? 200 : 503;
+  res.status(statusCode).json(health);
 });
 
 // CSRF token endpoint

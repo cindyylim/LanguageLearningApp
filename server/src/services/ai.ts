@@ -185,7 +185,6 @@ Return the response as a JSON array with the following structure:
   static async generateContextualSentences(
     words: Word[],
     targetLanguage: string,
-    nativeLanguage: string
   ): Promise<{ wordId: string; sentences: string[] }[]> {
     // ... Prompt construction (omitted for brevity) ...
     const prompt = `
@@ -436,5 +435,23 @@ Return the result as a JSON array with this structure:
       }
     }
     return [];
+  }
+  /**
+   * Check if the AI service is healthy
+   */
+  static async healthCheck(): Promise<boolean> {
+    try {
+      const prompt = "Say 'OK'";
+      const result = await AIService.requestQueue.add(() =>
+        AIService.circuitBreaker.execute(() =>
+          AIService.MODEL.generateContent(prompt)
+        )
+      );
+      const response = await result.response;
+      return !!response.text();
+    } catch (error) {
+      console.error("AI Service health check failed:", error);
+      throw error;
+    }
   }
 }

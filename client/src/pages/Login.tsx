@@ -20,6 +20,7 @@ const Login: React.FC = () => {
       await login(email, password);
       navigate('/dashboard');
     } catch (error) {
+      console.log(error);
       // Error is handled by the auth context
     } finally {
       setLoading(false);

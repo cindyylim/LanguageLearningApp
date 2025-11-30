@@ -41,79 +41,55 @@ export class VocabularyService {
     /**
      * Get all vocabulary lists for a user with word counts
      */
-    static async getUserLists(userId: string) {
+    static async getUserLists(userId: string, page: number = 1, limit: number = 20) {
         const db = await connectToDatabase();
+        const skip = (page - 1) * limit;
 
         const lists = await db.collection('VocabularyList').aggregate([
             { $match: { userId } },
+            { $sort: { updatedAt: -1 } },
+            { $skip: skip },
+            { $limit: limit },
             {
                 $lookup: {
                     from: 'Word',
-                    localField: '_id',
-                    foreignField: 'vocabularyListId',
-                    as: 'words'
-                }
-            },
-            {
-                $unwind: {
-                    path: '$words',
-                    preserveNullAndEmptyArrays: true
-                }
-            },
-            {
-                $lookup: {
-                    from: 'WordProgress',
-                    let: { wordIdStr: { $toString: '$words._id' } },
+                    let: { listId: '$_id' },
                     pipeline: [
+                        { $match: { $expr: { $eq: ['$vocabularyListId', '$$listId'] } } },
                         {
-                            $match: {
-                                $expr: {
-                                    $and: [
-                                        { $eq: ['$wordId', '$$wordIdStr'] },
-                                        { $eq: ['$userId', userId] }
-                                    ]
-                                }
+                            $lookup: {
+                                from: 'WordProgress',
+                                let: { wordIdStr: { $toString: '$_id' } },
+                                pipeline: [
+                                    {
+                                        $match: {
+                                            $expr: {
+                                                $and: [
+                                                    { $eq: ['$wordId', '$$wordIdStr'] },
+                                                    { $eq: ['$userId', userId] }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                ],
+                                as: 'progressDocs'
                             }
-                        }
+                        },
+                        {
+                            $addFields: {
+                                progress: { $arrayElemAt: ['$progressDocs', 0] }
+                            }
+                        },
+                        { $project: { progressDocs: 0 } }
                     ],
-                    as: 'wordProgress'
-                }
-            },
-            {
-                $addFields: {
-                    'words.progress': { $arrayElemAt: ['$wordProgress', 0] }
-                }
-            },
-            {
-                $group: {
-                    _id: '$_id',
-                    name: { $first: '$name' },
-                    description: { $first: '$description' },
-                    targetLanguage: { $first: '$targetLanguage' },
-                    nativeLanguage: { $first: '$nativeLanguage' },
-                    userId: { $first: '$userId' },
-                    createdAt: { $first: '$createdAt' },
-                    updatedAt: { $first: '$updatedAt' },
-                    words: { $push: '$words' }
-                }
-            },
-            {
-                $addFields: {
-                    words: {
-                        $filter: {
-                            input: '$words',
-                            as: 'w',
-                            cond: { $ifNull: ['$$w._id', false] }
-                        }
-                    }
+                    as: 'words'
                 }
             },
             {
                 $addFields: {
                     _count: { words: { $size: '$words' } }
                 }
-            },
-            { $sort: { updatedAt: -1 } }
+            }
         ]).toArray();
 
         return lists;
@@ -415,8 +391,7 @@ export class VocabularyService {
                 partOfSpeech: w.partOfSpeech || undefined,
                 difficulty: w.difficulty
             })),
-            list.targetLanguage,
-            list.nativeLanguage
+            list.targetLanguage
         );
 
         return sentences;
@@ -491,22 +466,21 @@ export class VocabularyService {
         const db = await connectToDatabase();
         const now = new Date();
 
-        const word = await db.collection('Word').aggregate([
-            { $match: { _id: new ObjectId(wordId) } },
-            {
-                $lookup: {
-                    from: 'VocabularyList',
-                    localField: 'vocabularyListId',
-                    foreignField: '_id',
-                    as: 'list'
-                }
-            },
-            { $match: { 'list.userId': userId } }
-        ]).toArray();
-
-        if (!word || word.length === 0) {
+        const word = await db.collection('Word').findOne({ _id: new ObjectId(wordId) });
+        if (!word) {
             return null;
         }
+
+        const list = await db.collection('VocabularyList').findOne({
+            _id: word.vocabularyListId,
+            userId
+        });
+
+        if (!list) {
+            return null;
+        }
+
+        // Word and List existence checked above
 
         const existingProgress = await db.collection('WordProgress').findOne({
             userId,
@@ -514,7 +488,7 @@ export class VocabularyService {
         });
 
         let newMastery = progressData.mastery || 0;
-        let newStatus = progressData.status || 'learning';
+        const newStatus = progressData.status || 'learning';
 
         // Auto-calculate mastery based on status if not provided
         if (!progressData.mastery && progressData.status) {
