@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { ListVocabulary } from '../types/vocabulary';
 import { QuizAttempt } from './Analytics';
 import { QuizQuestion } from './Quiz';
+import { getErrorMessage } from '../types/errors';
 
 interface Quiz {
   _id: string;
@@ -38,8 +39,8 @@ const Quizzes: React.FC = () => {
       try {
         const res = await axios.get(`${process.env.REACT_APP_API_URL}/quizzes`);
         setQuizzes(res.data.quizzes || []);
-      } catch (err: any) {
-        setError('Failed to load quizzes');
+      } catch (err: unknown) {
+        setError(getErrorMessage(err) || 'Failed to load quizzes');
       } finally {
         setLoading(false);
       }
@@ -64,8 +65,8 @@ const Quizzes: React.FC = () => {
       const res = await axios.post(`${process.env.REACT_APP_API_URL}/quizzes/generate`, form);
       setQuizzes([res.data.quiz, ...quizzes]);
       setShowModal(false);
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to generate quiz');
+    } catch (err: unknown) {
+      alert(getErrorMessage(err) || 'Failed to generate quiz');
     } finally {
       setGenerating(false);
     }
@@ -145,7 +146,7 @@ const Quizzes: React.FC = () => {
               <div className="text-xs text-gray-400">Created: {new Date(quiz.createdAt).toLocaleDateString()}</div>
               <div className="mt-2">
                 {quiz.attempts && quiz.attempts.length > 0 ? (
-                  <span className="badge badge-success">Last Score: {Math.round((quiz.attempts[0].score ?? 0) * 100)}%</span>
+                  <span className="badge badge-success">Last Score: {Math.round((quiz.attempts[0]?.score ?? 0) * 100)}%</span>
                 ) : (
                   <span className="badge badge-warning">Not Attempted</span>
                 )}

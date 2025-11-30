@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { getErrorMessage } from '../types/errors';
 
 // Configure axios to send cookies with requests
 axios.defaults.withCredentials = true;
@@ -48,8 +49,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             set({ user, isAuthenticated: true });
 
             toast.success('Login successful!');
-        } catch (error: any) {
-            const message = error.response?.data?.error || 'Login failed';
+        } catch (error: unknown) {
+            const message = getErrorMessage(error) || 'Login failed';
             toast.error(message);
             throw error;
         }
@@ -64,8 +65,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             set({ user, isAuthenticated: true });
 
             toast.success('Registration successful!');
-        } catch (error: any) {
-            const message = error.response?.data?.error || 'Registration failed';
+        } catch (error: unknown) {
+            const message = getErrorMessage(error) || 'Registration failed';
             toast.error(message);
             throw error;
         }
@@ -103,3 +104,4 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ loading: false });
     }
 }));
+

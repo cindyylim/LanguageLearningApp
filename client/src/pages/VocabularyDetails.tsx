@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { ListVocabulary, Word } from '../types/vocabulary';
+import { getErrorMessage } from '../types/errors';
 
 const VocbularyDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -25,8 +26,8 @@ const VocbularyDetails: React.FC = () => {
       try {
         const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
         setList(res.data.vocabularyList);
-      } catch (err: any) {
-        setError('Failed to load vocabulary list');
+      } catch (err: unknown) {
+        setError(getErrorMessage(err) || 'Failed to load vocabulary list');
       } finally {
         setLoading(false);
       }
@@ -49,8 +50,8 @@ const VocbularyDetails: React.FC = () => {
       // Refresh list
       const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
       setList(res.data.vocabularyList);
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to update list');
+    } catch (err: unknown) {
+      alert(getErrorMessage(err) || 'Failed to update list');
     } finally {
       setSaving(false);
     }
@@ -61,8 +62,8 @@ const VocbularyDetails: React.FC = () => {
     try {
       await axios.delete(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
       navigate('/vocabulary');
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to delete list');
+    } catch (err: unknown) {
+      alert(getErrorMessage(err) || 'Failed to delete list');
     } finally {
       setDeleting(false);
     }
@@ -88,8 +89,8 @@ const VocbularyDetails: React.FC = () => {
       // Refresh list
       const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
       setList(res.data.vocabularyList);
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to update word');
+    } catch (err: unknown) {
+      alert(getErrorMessage(err) || 'Failed to update word');
     } finally {
       setSaving(false);
     }
@@ -104,8 +105,8 @@ const VocbularyDetails: React.FC = () => {
       // Refresh list
       const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
       setList(res.data.vocabularyList);
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to delete word');
+    } catch (err: unknown) {
+      alert(getErrorMessage(err) || 'Failed to delete word');
     } finally {
       setDeleting(false);
     }
@@ -120,8 +121,8 @@ const VocbularyDetails: React.FC = () => {
         const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
         setList(res.data.vocabularyList);
       }
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to update word progress');
+    } catch (err: unknown) {
+      alert(getErrorMessage(err) || 'Failed to update word progress');
     }
   };
 

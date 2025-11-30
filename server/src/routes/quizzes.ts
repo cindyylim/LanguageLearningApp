@@ -9,6 +9,7 @@ import { Word } from '../interface/Word';
 import { Answer } from '../interface/Answer';
 import { asyncHandler } from '../utils/asyncHandler';
 import { AppError } from '../utils/AppError';
+import { validateObjectId } from '../middleware/validateObjectId';
 
 const router = Router();
 
@@ -110,7 +111,7 @@ router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
 }));
 
 // Get specific quiz
-router.get('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
+router.get('/:id', validateObjectId(), asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
   const db = await connectToDatabase();
   const quiz = await db.collection('Quiz').findOne({ _id: new ObjectId(id), userId: req.user!.id });
@@ -122,7 +123,7 @@ router.get('/:id', asyncHandler(async (req: AuthRequest, res: Response) => {
 }));
 
 // Submit quiz answers
-router.post('/:id/submit', asyncHandler(async (req: AuthRequest, res: Response) => {
+router.post('/:id/submit', validateObjectId(), asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
   const { answers } = submitQuizSchema.parse(req.body);
   const db = await connectToDatabase();
@@ -318,7 +319,7 @@ router.post('/:id/submit', asyncHandler(async (req: AuthRequest, res: Response) 
 }));
 
 // Get quiz results
-router.get('/:id/results', asyncHandler(async (req: AuthRequest, res: Response) => {
+router.get('/:id/results', validateObjectId(), asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
   const db = await connectToDatabase();
   const quiz = await db.collection('Quiz').findOne({ _id: new ObjectId(id), userId: req.user!.id });

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { getErrorMessage } from '../types/errors';
 
 export interface QuizQuestion {
   _id: string;
@@ -15,14 +16,14 @@ export interface QuizQuestion {
   wordId: string;
 }
 
-export interface Quiz {
+interface QuizData {
   _id: string;
   title: string;
   description: string;
   difficulty: string;
   questionCount: number;
   questions: QuizQuestion[];
-  createdAt: string;  
+  createdAt: string;
   updatedAt: string;
   userId: string;
 }
@@ -46,12 +47,12 @@ interface QuizResult {
 const Quiz: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [quiz, setQuiz] = useState<Quiz|null>(null);
+  const [quiz, setQuiz] = useState<QuizData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [answers, setAnswers] = useState<{ [key: string]: string }>({});
   const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<QuizResult|null>(null);
+  const [result, setResult] = useState<QuizResult | null>(null);
 
   useEffect(() => {
     const fetchQuiz = async () => {
@@ -60,8 +61,8 @@ const Quiz: React.FC = () => {
       try {
         const res = await axios.get(`${process.env.REACT_APP_API_URL}/quizzes/${id}`);
         setQuiz(res.data.quiz);
-      } catch (err: any) {
-        setError('Failed to load quiz');
+      } catch (err: unknown) {
+        setError(getErrorMessage(err) || 'Failed to load quiz');
       } finally {
         setLoading(false);
       }
@@ -85,8 +86,8 @@ const Quiz: React.FC = () => {
       };
       const res = await axios.post(`${process.env.REACT_APP_API_URL}/quizzes/${id}/submit`, payload);
       setResult(res.data.attempt);
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to submit quiz');
+    } catch (err: unknown) {
+      alert(getErrorMessage(err) || 'Failed to submit quiz');
     } finally {
       setSubmitting(false);
     }
@@ -175,4 +176,3 @@ const Quiz: React.FC = () => {
 
 export default Quiz;
 
- 

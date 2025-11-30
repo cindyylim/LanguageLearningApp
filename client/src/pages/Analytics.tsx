@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Word, WordProgress } from '../types/vocabulary';
+import { getErrorMessage } from '../types/errors';
 
 export interface QuizAttempt {
   _id: string;
@@ -60,8 +61,8 @@ const Analytics: React.FC = () => {
         ]);
         setProgress(progressRes.data);
         setRecommendations(recRes.data);
-      } catch (err: any) {
-        setError('Failed to load analytics');
+      } catch (err: unknown) {
+        setError(getErrorMessage(err) || 'Failed to load analytics');
       } finally {
         setLoading(false);
       }

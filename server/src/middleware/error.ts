@@ -1,13 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/AppError';
 import { ZodError } from 'zod';
+import { MongoError, isMongoError, isJWTError } from '../types/errors';
 
 const handleZodError = (err: ZodError) => {
     const message = `Invalid input data. ${err.errors.map(e => e.message).join('. ')}`;
     return new AppError(message, 400);
 };
 
-const handleCastError = (err: any) => {
+const handleCastError = (err: MongoError) => {
     const message = `Invalid ${err.path}: ${err.value}.`;
     return new AppError(message, 400);
 };
@@ -16,29 +17,48 @@ const handleJWTError = () => new AppError('Invalid token. Please log in again!',
 
 const handleJWTExpiredError = () => new AppError('Your token has expired! Please log in again.', 401);
 
-export const errorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
-    err.statusCode = err.statusCode || 500;
-    err.status = err.status || 'error';
+export const errorHandler = (err: unknown, req: Request, res: Response, next: NextFunction) => {
+    // Default error properties
+    let statusCode = 500;
+    let status = 'error';
+    let message = 'Something went wrong';
+    let stack: string | undefined;
+
+    // Extract error properties if it's an Error instance
+    if (err instanceof Error) {
+        message = err.message;
+        stack = err.stack;
+
+        // Check if it's an AppError with custom status code
+        if ('statusCode' in err && typeof err.statusCode === 'number') {
+            statusCode = err.statusCode;
+        }
+        if ('status' in err && typeof err.status === 'string') {
+            status = err.status;
+        }
+    }
 
     if (process.env.NODE_ENV === 'development') {
-        res.status(err.statusCode).json({
-            status: err.status,
+        res.status(statusCode).json({
+            status,
             error: err,
-            message: err.message,
-            stack: err.stack
+            message,
+            stack
         });
     } else {
-        let error = { ...err };
-        error.message = err.message;
+        let error: AppError | Error = err instanceof Error ? err : new Error(String(err));
 
         if (err instanceof ZodError) error = handleZodError(err);
-        if (err.name === 'CastError') error = handleCastError(err);
-        if (err.name === 'JsonWebTokenError') error = handleJWTError();
-        if (err.name === 'TokenExpiredError') error = handleJWTExpiredError();
+        if (isMongoError(err)) error = handleCastError(err);
+        if (isJWTError(err)) {
+            error = err.name === 'TokenExpiredError' ? handleJWTExpiredError() : handleJWTError();
+        }
 
-        if (error.isOperational) {
-            res.status(error.statusCode).json({
-                status: error.status,
+        const isOperational = error instanceof AppError && error.isOperational;
+
+        if (isOperational) {
+            res.status((error as AppError).statusCode).json({
+                status: (error as AppError).status,
                 message: error.message
             });
         } else {

@@ -1,6 +1,7 @@
 import { useReducer, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { ListVocabulary, Word } from '../types/vocabulary';
+import { getErrorMessage } from '../types/errors';
 
 // State Interface
 interface VocabularyState {
@@ -180,7 +181,15 @@ function vocabularyReducer(state: VocabularyState, action: Action): VocabularySt
     }
 }
 
-export const useVocabulary = (user: any) => {
+interface User {
+    id: string;
+    name: string;
+    email: string;
+    nativeLanguage: string;
+    targetLanguage: string;
+}
+
+export const useVocabulary = (user: User | null) => {
     const [state, dispatch] = useReducer(vocabularyReducer, initialState);
 
     const fetchLists = useCallback(async (signal?: AbortSignal) => {
@@ -188,7 +197,7 @@ export const useVocabulary = (user: any) => {
         try {
             const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary`, { signal });
             dispatch({ type: 'FETCH_SUCCESS', payload: res.data.vocabularyLists || [] });
-        } catch (err: any) {
+        } catch (err: unknown) {
             if (!axios.isCancel(err)) {
                 dispatch({ type: 'FETCH_ERROR', payload: 'Failed to load vocabulary lists' });
             }
@@ -218,8 +227,8 @@ export const useVocabulary = (user: any) => {
             dispatch({ type: 'CLOSE_LIST_MODAL' });
             dispatch({ type: 'RESET_LIST_FORM' });
             fetchLists();
-        } catch (err: any) {
-            alert(err.response?.data?.error || 'Failed to add list');
+        } catch (err: unknown) {
+            alert(getErrorMessage(err) || 'Failed to add list');
         } finally {
             dispatch({ type: 'SAVE_END' });
         }
@@ -240,8 +249,8 @@ export const useVocabulary = (user: any) => {
 
             dispatch({ type: 'CLOSE_WORD_MODAL' });
             dispatch({ type: 'RESET_WORD_FORM' });
-        } catch (err: any) {
-            alert(err.response?.data?.error || 'Failed to add word');
+        } catch (err: unknown) {
+            alert(getErrorMessage(err) || 'Failed to add word');
         } finally {
             dispatch({ type: 'SAVE_END' });
         }
@@ -255,8 +264,8 @@ export const useVocabulary = (user: any) => {
             dispatch({ type: 'CLOSE_AI_MODAL' });
             dispatch({ type: 'RESET_AI_FORM' });
             fetchLists();
-        } catch (err: any) {
-            alert(err.response?.data?.error || 'Failed to generate vocabulary list');
+        } catch (err: unknown) {
+            alert(getErrorMessage(err) || 'Failed to generate vocabulary list');
         } finally {
             dispatch({ type: 'AI_GENERATE_END' });
         }
@@ -272,8 +281,8 @@ export const useVocabulary = (user: any) => {
         try {
             await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/words/${wordId}/progress`, { status });
             // No need to fetch lists, we already updated state
-        } catch (err: any) {
-            alert(err.response?.data?.error || 'Failed to update word progress');
+        } catch (err: unknown) {
+            alert(getErrorMessage(err) || 'Failed to update word progress');
             // Ideally revert state here, but for now just alerting
             fetchLists(); // Re-fetch to sync state on error
         }

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useAuthStore } from "../store/useAuthStore";
 import { Link } from "react-router-dom";
+import { getErrorMessage } from '../types/errors';
 
 interface Summary {
   avgScore: number;
@@ -27,8 +28,8 @@ const Dashboard: React.FC = () => {
           `${process.env.REACT_APP_API_URL}/analytics/progress`
         );
         setSummary(res.data.summary);
-      } catch (err: any) {
-        setError("Failed to load dashboard data");
+      } catch (err: unknown) {
+        setError(getErrorMessage(err) || "Failed to load dashboard data");
       } finally {
         setLoading(false);
       }
