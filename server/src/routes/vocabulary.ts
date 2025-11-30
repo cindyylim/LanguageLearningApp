@@ -6,19 +6,6 @@ import { AIService } from '../services/ai';
 import { ObjectId } from 'mongodb';
 import { Word } from '../interface/Word';
 
-interface VocabularyListWithWords {
-  _id: ObjectId;
-  name: string;
-  description?: string;
-  targetLanguage: string;
-  nativeLanguage: string;
-  userId: string;
-  createdAt: Date;
-  updatedAt: Date;
-  words: WordDocument[];
-  _count: { words: number };
-}
-
 interface WordDocument {
   _id: ObjectId;
   word: string;
@@ -183,7 +170,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       createdAt: now,
       updatedAt: now
     });
-    const list = await db.collection('VocabularyList').findOne({ _id: result.insertedId });
+    const list = await db.collection('VocabularyList').findOne({ _id: result.insertedId, userId: req.user!.id });
     return res.status(201).json({ vocabularyList: list });
   } catch (error) {
     if (error instanceof z.ZodError) {

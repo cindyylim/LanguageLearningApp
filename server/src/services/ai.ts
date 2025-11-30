@@ -12,12 +12,6 @@ export interface Word {
   difficulty: string;
 }
 
-export interface AdaptiveMetrics {
-  avgMastery: number;
-  avgStreak: number;
-  avgReviewCount: number;
-}
-
 export type Difficulty = "easy" | "medium" | "hard";
 
 export interface Question {
@@ -267,116 +261,6 @@ Consider:
     throw new Error(
       "Failed to analyze text complexity due to unexpected flow."
     );
-  }
-
-  static calculateAdaptiveDifficulty = async (
-    userProgress: UserProgress[],
-    targetScore: number = 0.8
-  ): Promise<{
-    recommendedDifficulty: string;
-    nextReviewDate: Date;
-  }> => {
-    try {
-      if (userProgress.length === 0) {
-        // Default for new users
-        return {
-          recommendedDifficulty: "easy",
-          nextReviewDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
-        };
-      }
-
-      // --- 1. Calculate Core Metrics ---
-      const metrics: AdaptiveMetrics = userProgress.reduce(
-        (acc, p) => ({
-          avgMastery: acc.avgMastery + p.mastery,
-          avgStreak: acc.avgStreak + p.streak,
-          avgReviewCount: acc.avgReviewCount + p.reviewCount,
-        }),
-        { avgMastery: 0, avgStreak: 0, avgReviewCount: 0 }
-      );
-
-      metrics.avgMastery /= userProgress.length;
-      metrics.avgStreak /= userProgress.length;
-      metrics.avgReviewCount /= userProgress.length;
-
-      // --- 2. Determine Recommended Difficulty ---
-
-      let recommendedDifficulty: string;
-      const mastery = metrics.avgMastery;
-
-      // Use targetScore and a lower threshold (e.g., targetScore * 0.75) for grading
-      const hardThreshold = targetScore; // 0.8
-      const mediumThreshold = targetScore * 0.75; // 0.6
-
-      if (mastery >= hardThreshold) {
-        recommendedDifficulty = "hard";
-      } else if (mastery >= mediumThreshold) {
-        recommendedDifficulty = "medium";
-      } else {
-        recommendedDifficulty = "easy";
-      }
-
-      // --- 3. Calculate Next Review Date (Spaced Repetition) ---
-
-      let intervalMultiplier: number;
-
-      switch (recommendedDifficulty) {
-        case "hard":
-          // Mastering well, use a higher interval multiplier (e.g., 3x the base)
-          intervalMultiplier = 3;
-          break;
-        case "medium":
-          // Solid but not perfect, use a standard multiplier
-          intervalMultiplier = 1.5;
-          break;
-        case "easy":
-        default:
-          // Struggling, review sooner
-          intervalMultiplier = 1;
-          break;
-      }
-
-      // Base interval uses the exponential approach, scaled by difficulty
-      const baseInterval = Math.pow(2, metrics.avgReviewCount);
-      const daysUntilNextReview = Math.min(
-        baseInterval * intervalMultiplier,
-        30
-      ); // Cap at 30 days
-
-      const nextReviewDate = new Date();
-      nextReviewDate.setDate(nextReviewDate.getDate() + daysUntilNextReview);
-
-      return {
-        recommendedDifficulty,
-        nextReviewDate,
-      };
-    } catch (error) {
-      console.error("Error calculating adaptive difficulty:", error);
-      return {
-        recommendedDifficulty: "medium",
-        nextReviewDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      };
-    }
-  };
-  /**
-   * Optimize spaced repetition intervals using an SM-2-like algorithm.
-   */
-  static async optimizeSpacedRepetition(
-    userProgress: UserProgress,
-    performanceHistory: { score: number; date: Date }[]
-  ): Promise<{
-    nextReviewDate: Date;
-    interval: number; // days
-  }> {
-    const interval = Math.min(1, userProgress.mastery * 7)
-    // Calculate the next review date
-    const nextReviewDate = new Date();
-    nextReviewDate.setDate(nextReviewDate.getDate() + interval);
-
-    return {
-      nextReviewDate: nextReviewDate,
-      interval: interval, // days
-    };
   }
 
   /**

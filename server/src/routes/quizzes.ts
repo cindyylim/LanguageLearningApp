@@ -168,6 +168,10 @@ router.post('/:id/submit', asyncHandler(async (req: AuthRequest, res: Response) 
   const now = new Date();
   await Promise.all(
     Array.from(wordProgressMap.entries()).map(async ([wordId, stats]) => {
+      if (typeof wordId !== 'string' || wordId.length !== 24) {
+        console.warn(`Skipping progress update due to invalid wordId format: ${wordId}`);
+        return;
+      }
       // Check if the word exists in the Word database
       const wordExists = await db.collection('Word').findOne({ _id: new ObjectId(wordId) });
 
@@ -295,6 +299,7 @@ router.post('/:id/submit', asyncHandler(async (req: AuthRequest, res: Response) 
         isCorrect: processedAnswer.isCorrect,
         attemptId: attemptResult.insertedId.toString(),
         questionId: processedAnswer.questionId,
+        userId: req.user!.id,
         createdAt: new Date()
       });
     })

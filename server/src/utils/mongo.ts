@@ -1,4 +1,5 @@
 import { MongoClient, Db } from 'mongodb';
+import { ensureIndexes } from './indexes';
 
 const MONGODB_URI = process.env.MONGODB_URI as string;
 
@@ -16,6 +17,9 @@ let cachedDb: Db | null = null;
 
 // This variable will hold the promise of the connection
 let connectionPromise: Promise<{ client: MongoClient; db: Db }> | null = null;
+
+// Track if indexes have been created
+let indexesCreated = false;
 
 export async function connectToDatabase(): Promise<Db> {
   // A. If we are already connected, return the cached DB immediately.
@@ -44,6 +48,7 @@ export async function connectToDatabase(): Promise<Db> {
           cachedClient = null;
           cachedDb = null;
           connectionPromise = null;
+          indexesCreated = false;
         });
       }
       await cachedClient.connect();
@@ -51,6 +56,12 @@ export async function connectToDatabase(): Promise<Db> {
 
       // Save to cache for future use
       cachedDb = db;
+
+      // Create indexes on first connection
+      if (!indexesCreated) {
+        await ensureIndexes(db);
+        indexesCreated = true;
+      }
 
       return { client: cachedClient, db };
     } catch (error) {
