@@ -3,6 +3,7 @@ import axios from "axios";
 import { useAuthStore } from "../store/useAuthStore";
 import { Link } from "react-router-dom";
 import { getErrorMessage } from '../types/errors';
+import { SkeletonCard } from '../components/SkeletonCard';
 
 interface Summary {
   avgScore: number;
@@ -46,8 +47,10 @@ const Dashboard: React.FC = () => {
         Here’s a quick overview of your language learning journey.
       </p>
       {loading ? (
-        <div className="flex justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-8">
+          {[...Array(6)].map((_, i) => (
+            <SkeletonCard key={i} className="h-32" />
+          ))}
         </div>
       ) : error ? (
         <div className="text-red-500 text-center">{error}</div>

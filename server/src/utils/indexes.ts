@@ -1,4 +1,5 @@
 import { Db } from 'mongodb';
+import logger from './logger';
 
 /**
  * Creates all necessary database indexes for optimal query performance.
@@ -11,7 +12,7 @@ import { Db } from 'mongodb';
  * - routes/auth.ts
  */
 export async function ensureIndexes(db: Db): Promise<void> {
-    console.log('📊 Creating database indexes...');
+    logger.info('📊 Creating database indexes...');
 
     try {
         // ============================================
@@ -22,7 +23,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
             { email: 1 },
             { unique: true, name: 'idx_user_email' }
         );
-        console.log('✅ User indexes created');
+        logger.info('✅ User indexes created');
 
         // ============================================
         // VOCABULARY LIST COLLECTION INDEXES
@@ -38,7 +39,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
             { _id: 1, userId: 1 },
             { name: 'idx_vocablist_id_user' }
         );
-        console.log('✅ VocabularyList indexes created');
+        logger.info('✅ VocabularyList indexes created');
 
         // ============================================
         // WORD COLLECTION INDEXES
@@ -65,7 +66,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
             { word: 'text', translation: 'text' },
             { name: 'idx_word_text_search' }
         );
-        console.log('✅ Word indexes created');
+        logger.info('✅ Word indexes created');
 
         // ============================================
         // WORD PROGRESS COLLECTION INDEXES
@@ -94,7 +95,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
             { name: 'idx_wordprogress_user_mastery' }
         );
 
-        console.log('✅ WordProgress indexes created');
+        logger.info('✅ WordProgress indexes created');
 
         // ============================================
         // QUIZ COLLECTION INDEXES
@@ -110,7 +111,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
             { _id: 1, userId: 1 },
             { name: 'idx_quiz_id_user' }
         );
-        console.log('✅ Quiz indexes created');
+        logger.info('✅ Quiz indexes created');
 
         // ============================================
         // QUIZ QUESTION COLLECTION INDEXES
@@ -121,7 +122,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
             { name: 'idx_quizquestion_quiz' }
         );
 
-        console.log('✅ QuizQuestion indexes created');
+        logger.info('✅ QuizQuestion indexes created');
 
         // ============================================
         // QUIZ ATTEMPT COLLECTION INDEXES
@@ -137,7 +138,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
             { quizId: 1, userId: 1, createdAt: -1 },
             { name: 'idx_quizattempt_quiz_user_created' }
         );
-        console.log('✅ QuizAttempt indexes created');
+        logger.info('✅ QuizAttempt indexes created');
 
         // ============================================
         // QUIZ ANSWER COLLECTION INDEXES
@@ -152,7 +153,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
             { userId: 1 },
             { name: 'idx_quizanswer_user' }
         );
-        console.log('✅ QuizAnswer indexes created');
+        logger.info('✅ QuizAnswer indexes created');
 
         // ============================================
         // LEARNING STATS COLLECTION INDEXES
@@ -162,12 +163,12 @@ export async function ensureIndexes(db: Db): Promise<void> {
             { userId: 1, date: -1 },
             { name: 'idx_learningstats_user_date' }
         );
-        console.log('✅ LearningStats indexes created');
+        logger.info('✅ LearningStats indexes created');
 
-        console.log('✅ All database indexes created successfully!');
-        console.log('📈 Performance optimization complete');
+        logger.info('✅ All database indexes created successfully!');
+        logger.info('📈 Performance optimization complete');
     } catch (error) {
-        console.error('❌ Error creating indexes:', error);
+        logger.error('❌ Error creating indexes:', { error });
         throw error;
     }
 }

@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/AppError';
 import { ZodError } from 'zod';
 import { MongoError, isMongoError, isJWTError } from '../types/errors';
+import logger from '../utils/logger';
 
 const handleZodError = (err: ZodError) => {
     const message = `Invalid input data. ${err.errors.map(e => e.message).join('. ')}`;
@@ -39,12 +40,17 @@ export const errorHandler = (err: unknown, req: Request, res: Response, next: Ne
     }
 
     if (process.env.NODE_ENV === 'development') {
+        // Use request-scoped logger if available, otherwise use base logger
+        const log = req.logger || logger;
+        log.error(`Error:`, { error: err, stack });
         res.status(statusCode).json({
             status,
             error: err,
             message,
-            stack
+            stack,
+            requestId: req.id
         });
+        next();
     } else {
         let error: AppError | Error = err instanceof Error ? err : new Error(String(err));
 
@@ -59,14 +65,19 @@ export const errorHandler = (err: unknown, req: Request, res: Response, next: Ne
         if (isOperational) {
             res.status((error as AppError).statusCode).json({
                 status: (error as AppError).status,
-                message: error.message
+                message: error.message,
+                requestId: req.id
             });
         } else {
-            console.error('ERROR 💥', err);
+            // Use request-scoped logger if available, otherwise use base logger
+            const log = req.logger || logger;
+            log.error(`ERROR 💥`, { error: err });
             res.status(500).json({
                 status: 'error',
-                message: 'Something went very wrong!'
+                message: 'Something went very wrong!',
+                requestId: req.id
             });
         }
+        next();
     }
 };

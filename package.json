@@ -15,9 +15,21 @@
     "start:server": "cd server && npm start",
     "client": "cd client && npm start",
     "server": "cd server && npm run dev",
-    "dev": "concurrently \"npm run server\" \"npm run client\""
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "dev:debug": "concurrently \"npm run server:debug\" \"npm run client\"",
+    "server:debug": "cd server && nodemon --inspect src/index.ts",
+    "lint": "npm run lint:server && npm run lint:client",
+    "lint:server": "cd server && eslint src/**/*.ts",
+    "lint:client": "cd client && eslint src/**/*.{ts,tsx}",
+    "type-check": "npm run type-check:server && npm run type-check:client",
+    "type-check:server": "cd server && tsc --noEmit",
+    "type-check:client": "cd client && tsc --noEmit"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
+  },
+  "dependencies": {
+    "eslint": "^9.39.1",
+    "typescript": "^5.9.3"
   }
 }

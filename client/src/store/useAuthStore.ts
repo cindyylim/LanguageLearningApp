@@ -81,7 +81,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         } catch (error) {
             // Even if the request fails, clear local state
             set({ user: null, isAuthenticated: false });
-            toast.success('Logged out successfully');
+            toast.error('Logged out failed ' + error);
         }
     },
 
@@ -99,6 +99,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             set({ user: response.data.user, isAuthenticated: true });
         } catch (error) {
             // No valid session
+            console.log(error);
             set({ user: null, isAuthenticated: false });
         }
         set({ loading: false });

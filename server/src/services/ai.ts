@@ -1,6 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { CircuitBreaker } from "../utils/CircuitBreaker";
 import { RequestQueue } from "../utils/RequestQueue";
+import { z } from "zod";
+import logger from '../utils/logger';
 
 const gemini = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
 
@@ -33,6 +35,58 @@ export interface UserProgress {
   lastReviewed?: Date;
 }
 
+// Zod Schemas for Validation
+const QuestionSchema = z.object({
+  question: z.string().min(1),
+  type: z.enum(["multiple_choice", "fill_blank", "sentence_completion"]),
+  correctAnswer: z.string().min(1),
+  options: z.array(z.string()).optional(),
+  context: z.string().optional(),
+  difficulty: z.string(),
+  wordId: z.string().optional(),
+});
+
+const QuestionsArraySchema = z.array(QuestionSchema);
+
+const ContextualSentenceSchema = z.object({
+  wordId: z.string(),
+  sentences: z.array(z.string()),
+});
+
+const ContextualSentencesArraySchema = z.array(ContextualSentenceSchema);
+
+const TextComplexitySchema = z.object({
+  complexity: z.enum(["easy", "medium", "hard"]),
+  score: z.number().min(0).max(1),
+  suggestions: z.array(z.string()),
+});
+
+const RecommendationsSchema = z.object({
+  focusAreas: z.array(z.string()),
+  recommendedWords: z.array(z.string()),
+  studyPlan: z.string(),
+  estimatedTime: z.number(),
+});
+
+const VocabularyWordSchema = z.object({
+  word: z.string(),
+  translation: z.string(),
+  partOfSpeech: z.string().optional(),
+  difficulty: z.string().optional(),
+});
+
+const VocabularyListSchema = z.array(VocabularyWordSchema);
+
+// Metrics tracking
+interface AIMetrics {
+  operation: string;
+  startTime: number;
+  retryCount: number;
+  errorType?: string;
+  statusCode?: number;
+  responseTimeMs?: number;
+}
+
 export class AIService {
   private static readonly MODEL = gemini.getGenerativeModel({
     model: "gemini-2.0-flash",
@@ -51,6 +105,61 @@ export class AIService {
     interval: 60000,
   });
 
+  /**
+   * Log AI operation metrics and errors
+   */
+  private static logMetrics(metrics: AIMetrics, error?: Error): void {
+    const logData = {
+      operation: metrics.operation,
+      durationMs: Date.now() - metrics.startTime,
+      retryCount: metrics.retryCount,
+      errorType: metrics.errorType,
+      statusCode: metrics.statusCode,
+      responseTimeMs: metrics.responseTimeMs,
+    };
+
+    if (error) {
+      logger.error(`AI Operation Failed: ${metrics.operation}`, {
+        ...logData,
+        errorMessage: error.message,
+        errorStack: error.stack,
+      });
+    } else {
+      logger.info(`AI Operation Success: ${metrics.operation}`, logData);
+    }
+  }
+
+  /**
+   * Categorize error types for better monitoring
+   */
+  private static categorizeError(error: unknown): string {
+    if (error instanceof z.ZodError) {
+      return 'VALIDATION_ERROR';
+    }
+    if (error instanceof SyntaxError) {
+      return 'JSON_PARSE_ERROR';
+    }
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (errorMessage.includes('quota') || errorMessage.includes('rate limit')) {
+      return 'RATE_LIMIT_ERROR';
+    }
+    if (errorMessage.includes('timeout')) {
+      return 'TIMEOUT_ERROR';
+    }
+    if (errorMessage.includes('network') || errorMessage.includes('ECONNREFUSED')) {
+      return 'NETWORK_ERROR';
+    }
+    if (errorMessage.includes('API key')) {
+      return 'AUTHENTICATION_ERROR';
+    }
+    if (errorMessage.includes('circuit breaker')) {
+      return 'CIRCUIT_BREAKER_OPEN';
+    }
+
+    return 'UNKNOWN_ERROR';
+  }
+
   static async generateQuestions(
     words: Word[],
     targetLanguage: string,
@@ -67,8 +176,25 @@ export class AIService {
       )
       .join("\n");
 
+    const metrics: AIMetrics = {
+      operation: 'generateQuestions',
+      startTime: Date.now(),
+      retryCount: 0,
+    };
+
     for (let attempt = 1; attempt <= AIService.MAX_RETRIES; attempt++) {
+      metrics.retryCount = attempt - 1;
+      const attemptStartTime = Date.now();
+
       try {
+        logger.debug(`Generating questions - Attempt ${attempt}/${AIService.MAX_RETRIES}`, {
+          wordCount: words.length,
+          targetLanguage,
+          nativeLanguage,
+          questionCount,
+          difficulty,
+        });
+
         const prompt = `
 Generate ${questionCount} language learning questions for the following vocabulary words.
 Target language: ${targetLanguage}
@@ -104,6 +230,7 @@ Return the response as a JSON array with the following structure:
           )
         );
         const responseText = result.response.text();
+        metrics.responseTimeMs = Date.now() - attemptStartTime;
 
         // Safer JSON cleanup
         const cleaned = responseText
@@ -112,28 +239,50 @@ Return the response as a JSON array with the following structure:
           .replace(/^\[?/, "[")
           .replace(/\]?$/, "]");
 
-        const questions = JSON.parse(cleaned) as Question[];
+        const parsed = JSON.parse(cleaned);
+        const questions = QuestionsArraySchema.parse(parsed) as Question[];
+
+        AIService.logMetrics(metrics);
+        logger.info('Questions generated successfully', {
+          questionCount: questions.length,
+          attemptNumber: attempt,
+          responseTimeMs: metrics.responseTimeMs,
+        });
+
         return questions.slice(0, questionCount);
       } catch (error) {
-        console.error(
-          `Attempt ${attempt} failed for generating questions.`,
-          error
-        );
+        const errorType = AIService.categorizeError(error);
+        metrics.errorType = errorType;
+        metrics.responseTimeMs = Date.now() - attemptStartTime;
+
+        logger.warn(`Question generation attempt ${attempt} failed`, {
+          attempt,
+          maxRetries: AIService.MAX_RETRIES,
+          errorType,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          wordCount: words.length,
+          responseTimeMs: metrics.responseTimeMs,
+        });
 
         if (attempt === AIService.MAX_RETRIES) {
-          // Final attempt failed, throw the specific error.
+          // Final attempt failed, log error metrics and throw
+          AIService.logMetrics(metrics, error instanceof Error ? error : new Error(String(error)));
+          logger.error(`Attempt ${attempt} failed for generating questions.`, { error, attempt });
           throw new Error(
-            "Failed to generate questions after multiple retries."
+            `Failed to generate questions after ${AIService.MAX_RETRIES} retries. Error type: ${errorType}`
           );
         }
 
         // Exponential backoff: Wait longer on each failure (1s, 2s, 4s...)
         const delay = AIService.INITIAL_DELAY_MS * Math.pow(2, attempt - 1);
+        logger.debug(`Retrying in ${delay}ms...`, { attempt, delay });
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
     // Should never be reached if logic is correct, but required for type safety
-    throw new Error("Failed to generate questions due to unexpected flow.");
+    const finalError = new Error("Failed to generate questions due to unexpected flow.");
+    AIService.logMetrics(metrics, finalError);
+    throw finalError;
   }
   /**
    * Generate contextual sentences for vocabulary words
@@ -141,7 +290,6 @@ Return the response as a JSON array with the following structure:
   static async generateContextualSentences(
     words: Word[],
     targetLanguage: string,
-    nativeLanguage: string
   ): Promise<{ wordId: string; sentences: string[] }[]> {
     // ... Prompt construction (omitted for brevity) ...
     const prompt = `
@@ -164,35 +312,76 @@ Return as JSON:
 ]
 `;
 
+    const metrics: AIMetrics = {
+      operation: 'generateContextualSentences',
+      startTime: Date.now(),
+      retryCount: 0,
+    };
+
     for (let attempt = 1; attempt <= AIService.MAX_RETRIES; attempt++) {
+      metrics.retryCount = attempt - 1;
+      const attemptStartTime = Date.now();
+
       try {
+        logger.debug(`Generating contextual sentences - Attempt ${attempt}/${AIService.MAX_RETRIES}`, {
+          wordCount: words.length,
+          targetLanguage,
+        });
+
         const result = await AIService.requestQueue.add(() =>
           AIService.circuitBreaker.execute(() =>
             AIService.MODEL.generateContent(prompt)
           )
         );
         const responseText = result.response.text();
+        metrics.responseTimeMs = Date.now() - attemptStartTime;
+
         const cleaned = responseText.replace(/```[a-z]*\n?|```/gi, "").trim();
-        return JSON.parse(cleaned);
+        const parsed = JSON.parse(cleaned);
+        const sentences = ContextualSentencesArraySchema.parse(parsed);
+
+        AIService.logMetrics(metrics);
+        logger.info('Contextual sentences generated successfully', {
+          wordCount: words.length,
+          sentenceCount: sentences.length,
+          attemptNumber: attempt,
+          responseTimeMs: metrics.responseTimeMs,
+        });
+
+        return sentences;
       } catch (error) {
-        console.error(
-          `Attempt ${attempt} failed for generating sentences.`,
-          error
-        );
+        const errorType = AIService.categorizeError(error);
+        metrics.errorType = errorType;
+        metrics.responseTimeMs = Date.now() - attemptStartTime;
+
+        logger.warn(`Contextual sentence generation attempt ${attempt} failed`, {
+          attempt,
+          maxRetries: AIService.MAX_RETRIES,
+          errorType,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          wordCount: words.length,
+          responseTimeMs: metrics.responseTimeMs,
+        });
 
         if (attempt === AIService.MAX_RETRIES) {
+          AIService.logMetrics(metrics, error instanceof Error ? error : new Error(String(error)));
+          logger.error(`Attempt ${attempt} failed for generating contextual sentences.`, { error, attempt });
           throw new Error(
-            "Failed to generate contextual sentences after multiple retries."
+            `Failed to generate contextual sentences after ${AIService.MAX_RETRIES} retries. Error type: ${errorType}`
           );
         }
 
         const delay = AIService.INITIAL_DELAY_MS * Math.pow(2, attempt - 1);
+        logger.debug(`Retrying in ${delay}ms...`, { attempt, delay });
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
-    throw new Error(
+
+    const finalError = new Error(
       "Failed to generate contextual sentences due to unexpected flow."
     );
+    AIService.logMetrics(metrics, finalError);
+    throw finalError;
   }
 
   /**
@@ -226,24 +415,69 @@ Consider:
 - Cultural context
 `;
 
+    const metrics: AIMetrics = {
+      operation: 'analyzeTextComplexity',
+      startTime: Date.now(),
+      retryCount: 0,
+    };
+
     for (let attempt = 1; attempt <= AIService.MAX_RETRIES; attempt++) {
+      metrics.retryCount = attempt - 1;
+      const attemptStartTime = Date.now();
+
       try {
+        logger.debug(`Analyzing text complexity - Attempt ${attempt}/${AIService.MAX_RETRIES}`, {
+          textLength: text.length,
+          targetLanguage,
+        });
+
         const result = await AIService.requestQueue.add(() =>
           AIService.circuitBreaker.execute(() =>
             AIService.MODEL.generateContent(prompt)
           )
         );
         const responseText = result.response.text();
+        metrics.responseTimeMs = Date.now() - attemptStartTime;
+
         const cleaned = responseText.replace(/```[a-z]*\n?|```/gi, "").trim();
-        return JSON.parse(cleaned); // Success!
+        const parsed = JSON.parse(cleaned);
+        const analysis = TextComplexitySchema.parse(parsed) as {
+          complexity: "easy" | "medium" | "hard";
+          score: number;
+          suggestions: string[];
+        };
+
+        AIService.logMetrics(metrics);
+        logger.info('Text complexity analyzed successfully', {
+          complexity: analysis.complexity,
+          score: analysis.score,
+          attemptNumber: attempt,
+          responseTimeMs: metrics.responseTimeMs,
+        });
+
+        return analysis;
       } catch (error) {
-        console.error(
-          `Attempt ${attempt} failed for analyzing complexity.`,
-          error
-        );
+        const errorType = AIService.categorizeError(error);
+        metrics.errorType = errorType;
+        metrics.responseTimeMs = Date.now() - attemptStartTime;
+
+        logger.warn(`Text complexity analysis attempt ${attempt} failed`, {
+          attempt,
+          maxRetries: AIService.MAX_RETRIES,
+          errorType,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          textLength: text.length,
+          responseTimeMs: metrics.responseTimeMs,
+        });
 
         if (attempt === AIService.MAX_RETRIES) {
-          // Final attempt failed, use the fallback data
+          // Final attempt failed, log and use fallback data
+          AIService.logMetrics(metrics, error instanceof Error ? error : new Error(String(error)));
+          logger.error(`Attempt ${attempt} failed for analyzing complexity.`, { error, attempt });
+          logger.warn('Using fallback complexity analysis', {
+            errorType,
+            textLength: text.length,
+          });
           return {
             complexity: "medium",
             score: 0.5,
@@ -254,13 +488,16 @@ Consider:
         }
 
         const delay = AIService.INITIAL_DELAY_MS * Math.pow(2, attempt - 1);
+        logger.debug(`Retrying in ${delay}ms...`, { attempt, delay });
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
     // Should be caught by the fallback above, but here for absolute type safety
-    throw new Error(
+    const finalError = new Error(
       "Failed to analyze text complexity due to unexpected flow."
     );
+    AIService.logMetrics(metrics, finalError);
+    throw finalError;
   }
 
   /**
@@ -306,14 +543,28 @@ Consider:
 
       const estimatedTime = focusAreas.length * 15; // 15 minutes per focus area
 
-      return {
+      // Validate the generated recommendations structure (even though it's manually constructed here,
+      // in a real AI scenario we'd validate the AI output)
+      const recommendations = {
         focusAreas,
         recommendedWords: weakWords,
         studyPlan,
         estimatedTime,
       };
+
+      return RecommendationsSchema.parse(recommendations);
     } catch (error) {
-      console.error("Error generating recommendations:", error);
+      const errorType = AIService.categorizeError(error);
+
+      logger.error("Error generating recommendations:", {
+        operation: 'generateRecommendations',
+        userId,
+        progressCount: userProgress.length,
+        performanceCount: recentPerformance.length,
+        errorType,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+
       return {
         focusAreas: ["general_practice"],
         recommendedWords: [],
@@ -339,8 +590,24 @@ Consider:
       difficulty?: string;
     }[]
   > {
+    const metrics: AIMetrics = {
+      operation: 'generateVocabularyList',
+      startTime: Date.now(),
+      retryCount: 0,
+    };
+
     for (let attempt = 1; attempt <= AIService.MAX_RETRIES; attempt++) {
+      metrics.retryCount = attempt - 1;
+      const attemptStartTime = Date.now();
+
       try {
+        logger.debug(`Generating vocabulary list - Attempt ${attempt}/${AIService.MAX_RETRIES}`, {
+          prompt,
+          wordCount,
+          targetLanguage,
+          nativeLanguage,
+        });
+
         const aiPrompt = `
 Generate a list of ${wordCount} useful vocabulary words for language learners based on the following topic or keywords: "${prompt}".
 Target language: ${targetLanguage}
@@ -365,21 +632,90 @@ Return the result as a JSON array with this structure:
         );
         const response = await result.response;
         const responseText = response.text();
+        metrics.responseTimeMs = Date.now() - attemptStartTime;
+
         // Remove Markdown code block if present
         const cleaned = responseText.replace(/```[a-z]*\n?|```/gi, "").trim();
-        return JSON.parse(cleaned);
+        const parsed = JSON.parse(cleaned);
+        const vocabularyList = VocabularyListSchema.parse(parsed);
+
+        AIService.logMetrics(metrics);
+        logger.info('Vocabulary list generated successfully', {
+          wordCount: vocabularyList.length,
+          prompt,
+          attemptNumber: attempt,
+          responseTimeMs: metrics.responseTimeMs,
+        });
+
+        return vocabularyList;
       } catch (error) {
-        console.error('Error generating vocabulary list:', error);
+        const errorType = AIService.categorizeError(error);
+        metrics.errorType = errorType;
+        metrics.responseTimeMs = Date.now() - attemptStartTime;
+
+        logger.warn(`Vocabulary list generation attempt ${attempt} failed`, {
+          attempt,
+          maxRetries: AIService.MAX_RETRIES,
+          errorType,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          prompt,
+          wordCount,
+          responseTimeMs: metrics.responseTimeMs,
+        });
 
         if (attempt === AIService.MAX_RETRIES) {
-          console.error('Error generating vocabulary list:', error);
+          AIService.logMetrics(metrics, error instanceof Error ? error : new Error(String(error)));
+          logger.error('Failed to generate vocabulary list - returning empty array', {
+            errorType,
+            prompt,
+            wordCount,
+          });
           return [];
         }
 
         const delay = AIService.INITIAL_DELAY_MS * Math.pow(2, attempt - 1);
+        logger.debug(`Retrying in ${delay}ms...`, { attempt, delay });
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
     return [];
+  }
+  /**
+   * Check if the AI service is healthy
+   */
+  static async healthCheck(): Promise<boolean> {
+    const startTime = Date.now();
+
+    try {
+      logger.debug('Running AI service health check');
+
+      const prompt = "Say 'OK'";
+      const result = await AIService.requestQueue.add(() =>
+        AIService.circuitBreaker.execute(() =>
+          AIService.MODEL.generateContent(prompt)
+        )
+      );
+      const response = await result.response;
+      const isHealthy = !!response.text();
+      const duration = Date.now() - startTime;
+
+      logger.info('AI service health check completed', {
+        isHealthy,
+        durationMs: duration,
+      });
+
+      return isHealthy;
+    } catch (error) {
+      const errorType = AIService.categorizeError(error);
+      const duration = Date.now() - startTime;
+
+      logger.error("AI Service health check failed:", {
+        errorType,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        durationMs: duration,
+      });
+
+      throw error;
+    }
   }
 }

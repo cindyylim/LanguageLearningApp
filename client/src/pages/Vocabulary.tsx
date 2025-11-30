@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import LanguageDropdown from '../components/LanguageDropdown';
 import { useVocabulary } from '../hooks/useVocabulary';
 import { ListVocabulary, Word } from '../types/vocabulary';
+import { SkeletonCard } from '../components/SkeletonCard';
 
 const Vocabulary: React.FC = () => {
   const { user } = useAuthStore();
@@ -15,6 +16,7 @@ const Vocabulary: React.FC = () => {
     handleAddWord,
     handleAIGenerate,
     updateWordProgress,
+    handlePageChange
   } = useVocabulary(user);
 
   const {
@@ -56,7 +58,7 @@ const Vocabulary: React.FC = () => {
     if (mastery >= 0) return 'bg-yellow-500';
     return 'bg-red-500';
   };
-  console.log(state.lists)
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -152,7 +154,11 @@ const Vocabulary: React.FC = () => {
         </div>
       )}
       {loading ? (
-        <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <SkeletonCard key={i} className="h-64" />
+          ))}
+        </div>
       ) : error ? (
         <div className="text-red-500 text-center">{error}</div>
       ) : lists.length === 0 ? (
@@ -217,6 +223,25 @@ const Vocabulary: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+      {!loading && !error && lists.length > 0 && (
+        <div className="flex justify-center gap-4 mt-8">
+          <button
+            className="btn-secondary disabled:opacity-50"
+            disabled={state.page === 1}
+            onClick={() => handlePageChange(state.page - 1)}
+          >
+            Previous
+          </button>
+          <span className="flex items-center text-gray-600">Page {state.page}</span>
+          <button
+            className="btn-secondary disabled:opacity-50"
+            disabled={!state.hasMore}
+            onClick={() => handlePageChange(state.page + 1)}
+          >
+            Next
+          </button>
         </div>
       )}
     </div>
