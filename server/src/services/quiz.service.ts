@@ -3,6 +3,7 @@ import { ObjectId } from 'mongodb';
 import { AIService, Question } from './ai';
 import { Quiz, QuizQuestion } from '../interface/Quiz';
 import { Answer } from '../interface/Answer';
+import logger from '../utils/logger';
 
 export class QuizService {
     /**
@@ -262,7 +263,7 @@ export class QuizService {
         await Promise.all(
             Array.from(wordProgressMap.entries()).map(async ([wordId, stats]) => {
                 if (typeof wordId !== 'string' || wordId.length !== 24) {
-                    console.warn(`Skipping progress update due to invalid wordId format: ${wordId}`);
+                    logger.warn(`Skipping progress update due to invalid wordId format: ${wordId}`);
                     return;
                 }
 
@@ -271,7 +272,7 @@ export class QuizService {
 
                 // Skip if word doesn't exist (may have been deleted)
                 if (!wordExists) {
-                    console.warn(`Skipping progress update for non-existent word: ${wordId}`);
+                    logger.warn(`Skipping progress update for non-existent word: ${wordId}`);
                     return;
                 }
 

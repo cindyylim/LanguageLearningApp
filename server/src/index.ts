@@ -19,8 +19,11 @@ import analyticsRoutes from './routes/analytics';
 // Import security middleware
 import { setCSRFToken, verifyCSRFToken, getCSRFToken } from './middleware/csrf';
 import { sanitizeInput } from './middleware/sanitize';
+import { requestIdMiddleware } from './middleware/requestId';
+import { requestLoggerMiddleware } from './middleware/requestLogger';
 import { connectToDatabase } from './utils/mongo';
 import { AIService } from './services/ai';
+import logger from './utils/logger';
 
 const app = express();
 app.set('trust proxy', 1); // Trust first proxy (fixes express-rate-limit error)
@@ -50,7 +53,15 @@ app.use(helmet({
     }
   },
   crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  hsts: {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true
+  },
+  noSniff: true,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  xssFilter: true
 }));
 
 const allowedOrigins = [
@@ -71,16 +82,30 @@ app.use(cors({
   credentials: true
 }));
 app.use(cookieParser());
-app.use(compression());
+// Request ID tracking - must be early in the middleware stack
+app.use(requestIdMiddleware);
+// Request/response logging with request ID
+app.use(requestLoggerMiddleware);
+// Compression with filter
+app.use(compression({
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  },
+  level: 6 // Balance between speed and compression ratio
+}));
 app.use(limiter);
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+// Request size limits (prevent DoS)
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
 // Sanitize data to prevent NoSQL injection
 app.use(mongoSanitize({
   replaceWith: '_',  // Replace prohibited characters with underscore
   onSanitize: ({ req, key }) => {
-    console.warn(`Sanitized key "${key}" from request`, {
+    logger.warn(`Sanitized key "${key}" from request`, {
       ip: req.ip,
       path: req.path,
       method: req.method
@@ -114,7 +139,7 @@ app.get('/health', async (req, res) => {
     await db.admin().ping();
     health.checks.database = 'healthy';
   } catch (error) {
-    console.error('Health check - Database failed:', error);
+    logger.error('Health check - Database failed:', error);
     health.checks.database = 'unhealthy';
     health.status = 'DEGRADED';
   }
@@ -124,7 +149,7 @@ app.get('/health', async (req, res) => {
     await AIService.healthCheck();
     health.checks.ai = 'healthy';
   } catch (error) {
-    console.error('Health check - AI failed:', error);
+    logger.error('Health check - AI failed:', error);
     health.checks.ai = 'unhealthy';
     health.status = 'DEGRADED';
   }
@@ -161,24 +186,24 @@ async function startServer() {
   try {
     // Test database connection
     app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`📊 Health check: http://localhost:${PORT}/health`);
-      console.log(`🔒 Security: XSS & CSRF protection enabled`);
+      logger.info(`🚀 Server running on port ${PORT}`);
+      logger.info(`📊 Health check: http://localhost:${PORT}/health`);
+      logger.info(`🔒 Security: XSS & CSRF protection enabled`);
     });
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    logger.error('❌ Failed to start server:', error);
     process.exit(1);
   }
 }
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('\n🛑 Shutting down server...');
+  logger.info('\n🛑 Shutting down server...');
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  console.log('\n🛑 Shutting down server...');
+  logger.info('\n🛑 Shutting down server...');
   process.exit(0);
 });
 

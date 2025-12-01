@@ -459,55 +459,31 @@ export class VocabularyService {
     /**
      * Update word progress
      */
-    static async updateWordProgress(wordId: string, progressData: {
-        mastery?: number;
-        status?: string;
-    }, userId: string) {
+    static async updateWordProgress(wordId: string, status: string, userId: string) {
         const db = await connectToDatabase();
         const now = new Date();
-
-        const word = await db.collection('Word').findOne({ _id: new ObjectId(wordId) });
-        if (!word) {
-            return null;
-        }
-
-        const list = await db.collection('VocabularyList').findOne({
-            _id: word.vocabularyListId,
-            userId
-        });
-
-        if (!list) {
-            return null;
-        }
-
-        // Word and List existence checked above
 
         const existingProgress = await db.collection('WordProgress').findOne({
             userId,
             wordId: wordId
         });
 
-        let newMastery = progressData.mastery || 0;
-        const newStatus = progressData.status || 'learning';
-
-        // Auto-calculate mastery based on status if not provided
-        if (!progressData.mastery && progressData.status) {
-            switch (progressData.status) {
-                case 'learning':
-                    newMastery = 0;
-                    break;
-                case 'mastered':
-                    newMastery = 1.0;
-                    break;
-                default:
-                    newMastery = 0;
-            }
+        let newMastery = 0;
+        switch (status) {
+            case 'learning':
+                newMastery = 0;
+                break;
+            case 'mastered':
+                newMastery = 1.0;
+                break;
+            default:
+                newMastery = 0;
         }
 
         // Calculate next review date based on mastery
         const interval = Math.min(1, Math.floor(newMastery * 7));
         const nextReview = new Date(now.getTime() + interval * 24 * 60 * 60 * 1000);
-
+        let insertedId = existingProgress?._id.toString();
         if (existingProgress) {
             // Update existing progress
             await db.collection('WordProgress').updateOne(
@@ -515,7 +491,7 @@ export class VocabularyService {
                 {
                     $set: {
                         mastery: newMastery,
-                        status: newStatus,
+                        status: status,
                         lastReviewed: now,
                         nextReview: nextReview,
                         updatedAt: now
@@ -525,11 +501,11 @@ export class VocabularyService {
             );
         } else {
             // Create new progress record
-            await db.collection('WordProgress').insertOne({
+            const document = await db.collection('WordProgress').insertOne({
                 userId,
                 wordId: wordId,
                 mastery: newMastery,
-                status: newStatus,
+                status: status,
                 reviewCount: 1,
                 streak: 0,
                 lastReviewed: now,
@@ -537,16 +513,13 @@ export class VocabularyService {
                 createdAt: now,
                 updatedAt: now
             });
+            insertedId = document.insertedId.toString();
         }
-
         const updatedProgress = await db.collection('WordProgress').findOne({
-            userId,
-            wordId: wordId
+            _id: new ObjectId(insertedId)
         });
-
         // Update daily learning stats
         await this.updateLearningStats(userId, { wordsReviewed: 1 });
-
         return updatedProgress;
     }
 

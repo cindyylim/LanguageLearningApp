@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Frontend for language learning quiz generator",
   "private": true,
+  "type": "module",
   "dependencies": {
     "@headlessui/react": "^1.7.17",
     "@heroicons/react": "^2.0.18",

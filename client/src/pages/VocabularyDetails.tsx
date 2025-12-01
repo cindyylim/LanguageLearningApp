@@ -1,131 +1,38 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import React from 'react';
 import { PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { ListVocabulary, Word } from '../types/vocabulary';
-import { getErrorMessage } from '../types/errors';
+import { Word } from '../types/vocabulary';
 import { SkeletonCard } from '../components/SkeletonCard';
+import { useVocabularyDetails } from '../hooks/useVocabularyDetails';
+import { useNavigate } from 'react-router-dom';
+
 
 const VocbularyDetails: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [list, setList] = useState<ListVocabulary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showEditListModal, setShowEditListModal] = useState(false);
-  const [editListForm, setEditListForm] = useState({ name: '', description: '' });
-  const [showEditWordModal, setShowEditWordModal] = useState<string | null>(null);
-  const [editWordForm, setEditWordForm] = useState({ word: '', translation: '', partOfSpeech: '', difficulty: 'medium' });
-  const [deleting, setDeleting] = useState(false);
-  const [deleteWordId, setDeleteWordId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    const fetchList = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
-        setList(res.data.vocabularyList);
-      } catch (err: unknown) {
-        setError(getErrorMessage(err) || 'Failed to load vocabulary list');
-      } finally {
-        setLoading(false);
-      }
-    };
-    if (id) fetchList();
-  }, [id]);
+  const {
+    state,
+    dispatch,
+    handleEditList,
+    handleDeleteList,
+    openEditWord,
+    handleEditWord,
+    handleDeleteWord,
+    updateWordProgress
+  } = useVocabularyDetails();
 
-  useEffect(() => {
-    if (list) {
-      setEditListForm({ name: list.name || '', description: list.description || '' });
-    }
-  }, [list]);
+  const {
+    list,
+    loading,
+    error,
+    showEditListModal,
+    editListForm,
+    showEditWordModal,
+    editWordForm,
+    deleting,
+    deleteWordId,
+    saving,
+  } = state;
 
-  const handleEditList = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      await axios.put(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`, editListForm);
-      setShowEditListModal(false);
-      // Refresh list
-      const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
-      setList(res.data.vocabularyList);
-    } catch (err: unknown) {
-      alert(getErrorMessage(err) || 'Failed to update list');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDeleteList = async () => {
-    setDeleting(true);
-    try {
-      await axios.delete(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
-      navigate('/vocabulary');
-    } catch (err: unknown) {
-      alert(getErrorMessage(err) || 'Failed to delete list');
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const openEditWord = (w: Word) => {
-    setEditWordForm({
-      word: w.word,
-      translation: w.translation,
-      partOfSpeech: w.partOfSpeech || '',
-      difficulty: w.difficulty || 'medium',
-    });
-    setShowEditWordModal(w._id);
-  };
-
-  const handleEditWord = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!showEditWordModal) return;
-    setSaving(true);
-    try {
-      await axios.put(`${process.env.REACT_APP_API_URL}/vocabulary/${id}/words/${showEditWordModal}`, editWordForm);
-      setShowEditWordModal(null);
-      // Refresh list
-      const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
-      setList(res.data.vocabularyList);
-    } catch (err: unknown) {
-      alert(getErrorMessage(err) || 'Failed to update word');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDeleteWord = async () => {
-    if (!deleteWordId) return;
-    setDeleting(true);
-    try {
-      await axios.delete(`${process.env.REACT_APP_API_URL}/vocabulary/${id}/words/${deleteWordId}`);
-      setDeleteWordId(null);
-      // Refresh list
-      const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
-      setList(res.data.vocabularyList);
-    } catch (err: unknown) {
-      alert(getErrorMessage(err) || 'Failed to delete word');
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  // Add function to update word progress
-  const updateWordProgress = async (wordId: string, status: 'learning' | 'mastered') => {
-    try {
-      await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/words/${wordId}/progress`, { status });
-      // Refresh list
-      if (id) {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
-        setList(res.data.vocabularyList);
-      }
-    } catch (err: unknown) {
-      alert(getErrorMessage(err) || 'Failed to update word progress');
-    }
-  };
 
   // Calculate progress stats
   const totalWords = list?.words?.length || 0;
@@ -142,13 +49,13 @@ const VocbularyDetails: React.FC = () => {
         </button>
         <button
           className="btn-primary flex items-center gap-2"
-          onClick={() => setShowEditListModal(true)}
+          onClick={() => dispatch({ type: 'OPEN_EDIT_LIST_MODAL' })}
         >
           <PencilSquareIcon className="h-5 w-5" /> Edit List
         </button>
         <button
           className="btn-danger flex items-center gap-2"
-          onClick={() => setDeleteWordId('LIST')}
+          onClick={() => dispatch({ type: 'SET_DELETE_WORD_ID', payload: 'LIST' })}
         >
           <TrashIcon className="h-5 w-5" /> Delete List
         </button>
@@ -157,16 +64,16 @@ const VocbularyDetails: React.FC = () => {
       {showEditListModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
           <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative">
-            <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setShowEditListModal(false)}>&times;</button>
+            <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => dispatch({ type: 'CLOSE_EDIT_LIST_MODAL' })}>&times;</button>
             <h2 className="text-lg font-bold mb-4">Edit Vocabulary List</h2>
             <form onSubmit={handleEditList} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Name</label>
-                <input className="input-field" required value={editListForm.name} onChange={e => setEditListForm(f => ({ ...f, name: e.target.value }))} />
+                <input className="input-field" required value={editListForm.name} onChange={e => dispatch({ type: 'UPDATE_EDIT_LIST_FORM', payload: { name: e.target.value } })} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Description</label>
-                <input className="input-field" value={editListForm.description} onChange={e => setEditListForm(f => ({ ...f, description: e.target.value }))} />
+                <input className="input-field" value={editListForm.description} onChange={e => dispatch({ type: 'UPDATE_EDIT_LIST_FORM', payload: { description: e.target.value } })} />
               </div>
               <button type="submit" className="btn-primary w-full" disabled={saving}>{saving ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div> : 'Save Changes'}</button>
             </form>
@@ -177,12 +84,12 @@ const VocbularyDetails: React.FC = () => {
       {deleteWordId === 'LIST' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
           <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative">
-            <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setDeleteWordId(null)}>&times;</button>
+            <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => dispatch({ type: 'SET_DELETE_WORD_ID', payload: null })}>&times;</button>
             <h2 className="text-lg font-bold mb-4">Delete Vocabulary List</h2>
             <p>Are you sure you want to delete this list? This cannot be undone.</p>
             <div className="flex gap-2 mt-4">
               <button className="btn-danger flex-1" onClick={handleDeleteList} disabled={deleting}>{deleting ? 'Deleting...' : 'Delete'}</button>
-              <button className="btn-secondary flex-1" onClick={() => setDeleteWordId(null)}>Cancel</button>
+              <button className="btn-secondary flex-1" onClick={() => dispatch({ type: 'SET_DELETE_WORD_ID', payload: null })}>Cancel</button>
             </div>
           </div>
         </div>
@@ -191,24 +98,24 @@ const VocbularyDetails: React.FC = () => {
       {showEditWordModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
           <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative">
-            <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setShowEditWordModal(null)}>&times;</button>
+            <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => dispatch({ type: 'CLOSE_EDIT_WORD_MODAL' })}>&times;</button>
             <h2 className="text-lg font-bold mb-4">Edit Word</h2>
             <form onSubmit={handleEditWord} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Word</label>
-                <input className="input-field" required value={editWordForm.word} onChange={e => setEditWordForm(f => ({ ...f, word: e.target.value }))} />
+                <input className="input-field" required value={editWordForm.word} onChange={e => dispatch({ type: 'UPDATE_EDIT_WORD_FORM', payload: { word: e.target.value } })} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Translation</label>
-                <input className="input-field" required value={editWordForm.translation} onChange={e => setEditWordForm(f => ({ ...f, translation: e.target.value }))} />
+                <input className="input-field" required value={editWordForm.translation} onChange={e => dispatch({ type: 'UPDATE_EDIT_WORD_FORM', payload: { translation: e.target.value } })} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Part of Speech</label>
-                <input className="input-field" value={editWordForm.partOfSpeech} onChange={e => setEditWordForm(f => ({ ...f, partOfSpeech: e.target.value }))} />
+                <input className="input-field" value={editWordForm.partOfSpeech} onChange={e => dispatch({ type: 'UPDATE_EDIT_WORD_FORM', payload: { partOfSpeech: e.target.value } })} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Difficulty</label>
-                <select className="input-field" value={editWordForm.difficulty} onChange={e => setEditWordForm(f => ({ ...f, difficulty: e.target.value }))}>
+                <select className="input-field" value={editWordForm.difficulty} onChange={e => dispatch({ type: 'UPDATE_EDIT_WORD_FORM', payload: { difficulty: e.target.value } })}>
                   <option value="easy">Easy</option>
                   <option value="medium">Medium</option>
                   <option value="hard">Hard</option>
@@ -223,12 +130,12 @@ const VocbularyDetails: React.FC = () => {
       {deleteWordId && deleteWordId !== 'LIST' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
           <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative">
-            <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => setDeleteWordId(null)}>&times;</button>
+            <button className="absolute top-2 right-2 text-gray-400 hover:text-gray-600" onClick={() => dispatch({ type: 'SET_DELETE_WORD_ID', payload: null })}>&times;</button>
             <h2 className="text-lg font-bold mb-4">Delete Word</h2>
             <p>Are you sure you want to delete this word?</p>
             <div className="flex gap-2 mt-4">
               <button className="btn-danger flex-1" onClick={handleDeleteWord} disabled={deleting}>{deleting ? 'Deleting...' : 'Delete'}</button>
-              <button className="btn-secondary flex-1" onClick={() => setDeleteWordId(null)}>Cancel</button>
+              <button className="btn-secondary flex-1" onClick={() => dispatch({ type: 'SET_DELETE_WORD_ID', payload: null })}>Cancel</button>
             </div>
           </div>
         </div>
@@ -288,14 +195,14 @@ const VocbularyDetails: React.FC = () => {
                     <button
                       className="p-2 rounded hover:bg-blue-100 text-blue-600"
                       title="Edit Word"
-                      onClick={() => openEditWord(w)}
+                      onClick={() => openEditWord(w, w._id)}
                     >
                       <PencilSquareIcon className="h-5 w-5" />
                     </button>
                     <button
                       className="p-2 rounded hover:bg-red-100 text-red-600"
                       title="Delete Word"
-                      onClick={() => setDeleteWordId(w._id)}
+                      onClick={() => dispatch({ type: 'SET_DELETE_WORD_ID', payload: w._id })}
                     >
                       <TrashIcon className="h-5 w-5" />
                     </button>

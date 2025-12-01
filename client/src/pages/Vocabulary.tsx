@@ -58,7 +58,7 @@ const Vocabulary: React.FC = () => {
     if (mastery >= 0) return 'bg-yellow-500';
     return 'bg-red-500';
   };
-  console.log(state.lists)
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">

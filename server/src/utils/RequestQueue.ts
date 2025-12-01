@@ -11,7 +11,7 @@ interface RequestQueueOptions {
 }
 
 export class RequestQueue {
-    private queue: QueueItem<any>[] = [];
+    private queue: Array<QueueItem<unknown>> = [];
     private activeCount: number = 0;
     private requestTimestamps: number[] = [];
     private options: RequestQueueOptions;
@@ -21,8 +21,8 @@ export class RequestQueue {
     }
 
     public add<T>(task: () => Promise<T>): Promise<T> {
-        return new Promise((resolve, reject) => {
-            this.queue.push({ task, resolve, reject });
+        return new Promise<T>((resolve, reject) => {
+            this.queue.push({ task, resolve, reject } as QueueItem<unknown>);
             this.processQueue();
         });
     }

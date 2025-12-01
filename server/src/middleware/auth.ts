@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { connectToDatabase } from '../utils/mongo';
 import { ObjectId } from 'mongodb';
+import logger from '../utils/logger';
 
 interface JwtPayload {
   userId: string;
@@ -54,7 +55,8 @@ export const authMiddleware = async (
 
     next();
   } catch (error) {
-    console.log(error);
+    const log = req.logger || logger;
+    log.error('Authentication error:', { error });
     res.status(401).json({ error: 'Invalid token.' });
   }
 };

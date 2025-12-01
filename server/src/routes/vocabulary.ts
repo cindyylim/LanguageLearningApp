@@ -1,6 +1,5 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
-import NodeCache from 'node-cache';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
 import { asyncHandler } from '../utils/asyncHandler';
 import { validateObjectId } from '../middleware/validateObjectId';
@@ -8,9 +7,10 @@ import { validate } from '../middleware/validate';
 import { VocabularyService } from '../services/vocabulary.service';
 import { AppError } from '../utils/AppError';
 import { createUserRateLimiter } from '../middleware/rateLimit';
+import { vocabularyCache, getCacheKey, invalidateListCache, warmCacheForUser } from '../utils/cache';
+import { sanitizeVocabularyListName, sanitizeWordInput, sanitizeDescription } from '../utils/sanitize';
 
 const router = Router();
-const cache = new NodeCache({ stdTTL: 300 }); // Cache for 5 minutes
 
 router.use(authMiddleware);
 
@@ -43,37 +43,50 @@ const updateWordSchema = z.object({
   difficulty: z.enum(['easy', 'medium', 'hard']).optional()
 });
 
-// Helper to invalidate user's vocabulary list cache
-const invalidateUserCache = (userId: string) => {
-  const keys = cache.keys();
-  const userKeys = keys.filter(k => k.startsWith(`vocab_lists_${userId}`));
-  if (userKeys.length > 0) {
-    cache.del(userKeys);
-  }
-};
+const generateAIListSchema = z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().optional(),
+  targetLanguage: z.string().min(1),
+  nativeLanguage: z.string().min(1),
+  prompt: z.string().min(1),
+  wordCount: z.number().min(1).max(50).optional().default(10)
+});
+
 
 // Get all vocabulary lists for user
 router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 20;
 
-  const cacheKey = `vocab_lists_${req.user!.id}_${page}_${limit}`;
-  const cached = cache.get(cacheKey);
+  const cacheKey = getCacheKey.userLists(req.user!.id, page, limit);
+  const cached = vocabularyCache.get(cacheKey);
 
   if (cached) {
     return res.json({ vocabularyLists: cached, page, limit });
   }
 
   const lists = await VocabularyService.getUserLists(req.user!.id, page, limit);
-  cache.set(cacheKey, lists);
+  vocabularyCache.set(cacheKey, lists);
 
   return res.json({ vocabularyLists: lists, page, limit });
 }));
 
 // Create new vocabulary list
 router.post('/', validate(createVocabularyListSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
-  const list = await VocabularyService.createList(req.body, req.user!.id);
-  invalidateUserCache(req.user!.id);
+  // Sanitize inputs
+  const sanitizedData = {
+    name: sanitizeVocabularyListName(req.body.name),
+    description: sanitizeDescription(req.body.description),
+    targetLanguage: req.body.targetLanguage,
+    nativeLanguage: req.body.nativeLanguage
+  };
+
+  const list = await VocabularyService.createList(sanitizedData, req.user!.id);
+  invalidateListCache(req.user!.id);
+
+  // Warm cache for user after creating first list
+  warmCacheForUser(req.user!.id).catch(err => console.error('Cache warming failed:', err));
+
   return res.status(201).json({ vocabularyList: list });
 }));
 
@@ -92,13 +105,20 @@ router.get('/:id', validateObjectId(), asyncHandler(async (req: AuthRequest, res
 // Update vocabulary list
 router.put('/:id', validateObjectId(), validate(createVocabularyListSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
-  const success = await VocabularyService.updateList(id as string, req.body, req.user!.id);
+
+  // Sanitize inputs
+  const sanitizedData = {
+    name: sanitizeVocabularyListName(req.body.name),
+    description: sanitizeDescription(req.body.description)
+  };
+
+  const success = await VocabularyService.updateList(id as string, sanitizedData, req.user!.id);
 
   if (!success) {
     throw new AppError('Vocabulary list not found', 404);
   }
 
-  invalidateUserCache(req.user!.id);
+  invalidateListCache(req.user!.id, id as string);
   return res.json({ message: 'Vocabulary list updated successfully' });
 }));
 
@@ -111,7 +131,7 @@ router.delete('/:id', validateObjectId(), asyncHandler(async (req: AuthRequest, 
     throw new AppError('Vocabulary list not found', 404);
   }
 
-  invalidateUserCache(req.user!.id);
+  invalidateListCache(req.user!.id, id as string);
   return res.json({
     message: 'Vocabulary list deleted successfully',
     deletedWords: result.deletedWords,
@@ -122,13 +142,22 @@ router.delete('/:id', validateObjectId(), asyncHandler(async (req: AuthRequest, 
 // Add word to vocabulary list
 router.post('/:id/words', validateObjectId(), validate(addWordSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
-  const newWord = await VocabularyService.addWord(id as string, req.body, req.user!.id);
+
+  // Sanitize word inputs
+  const sanitizedWordData = {
+    word: sanitizeWordInput(req.body.word),
+    translation: sanitizeWordInput(req.body.translation),
+    partOfSpeech: sanitizeWordInput(req.body.partOfSpeech),
+    difficulty: req.body.difficulty
+  };
+
+  const newWord = await VocabularyService.addWord(id as string, sanitizedWordData, req.user!.id);
 
   if (!newWord) {
     throw new AppError('Vocabulary list not found', 404);
   }
 
-  invalidateUserCache(req.user!.id);
+  invalidateListCache(req.user!.id, id as string);
   return res.status(201).json({ word: newWord });
 }));
 
@@ -144,21 +173,6 @@ router.post('/:id/generate-sentences', validateObjectId(), aiGenerationLimiter, 
   return res.json({ sentences });
 }));
 
-// Update word progress manually
-router.post('/words/:wordId/progress', validateObjectId('wordId'), validate(updateProgressSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { wordId } = req.params;
-  const updatedProgress = await VocabularyService.updateWordProgress(wordId as string, req.body, req.user!.id);
-
-  if (!updatedProgress) {
-    throw new AppError('Word not found', 404);
-  }
-
-  return res.json({
-    message: 'Word progress updated successfully',
-    progress: updatedProgress
-  });
-}));
-
 // Get word progress for a specific word
 router.get('/words/:wordId/progress', validateObjectId('wordId'), asyncHandler(async (req: AuthRequest, res: Response) => {
   const { wordId } = req.params;
@@ -166,15 +180,37 @@ router.get('/words/:wordId/progress', validateObjectId('wordId'), asyncHandler(a
   return res.json({ progress });
 }));
 
+// Update word progress manually
+router.post('/words/:wordId/progress', validateObjectId('wordId'), validate(updateProgressSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { wordId } = req.params;
+  const updatedProgress = await VocabularyService.updateWordProgress(wordId as string, req.body.status, req.user!.id);
+
+  if (!updatedProgress) {
+    throw new AppError('Word not found', 404);
+  }
+  return res.json({
+    message: 'Word progress updated successfully',
+    progress: updatedProgress
+  });
+}));
 // Edit a word in a vocabulary list
 router.put('/:listId/words/:wordId', validateObjectId('listId'), validateObjectId('wordId'), validate(updateWordSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
   const { listId, wordId } = req.params;
-  const updatedWord = await VocabularyService.updateWord(listId as string, wordId as string, req.body, req.user!.id);
+
+  // Sanitize word inputs
+  const sanitizedWordData = {
+    word: sanitizeWordInput(req.body.word),
+    translation: sanitizeWordInput(req.body.translation),
+    partOfSpeech: sanitizeWordInput(req.body.partOfSpeech),
+    difficulty: req.body.difficulty
+  };
+
+  const updatedWord = await VocabularyService.updateWord(listId as string, wordId as string, sanitizedWordData, req.user!.id);
 
   if (!updatedWord) {
     throw new AppError('Vocabulary list or word not found', 404);
   }
-  invalidateUserCache(req.user!.id);
+  invalidateListCache(req.user!.id, listId as string);
 
   return res.json({ word: updatedWord });
 }));
@@ -188,8 +224,13 @@ router.delete('/:listId/words/:wordId', validateObjectId('listId'), validateObje
     throw new AppError('Vocabulary list or word not found', 404);
   }
 
-  invalidateUserCache(req.user!.id);
+  invalidateListCache(req.user!.id, listId as string);
   return res.json({ message: 'Word deleted successfully' });
 }));
 
+// Generate vocabulary list using AI
+router.post('/generate-ai-list', validate(generateAIListSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
+  const list = await VocabularyService.generateAIList(req.body, req.user!.id);
+  return res.status(201).json({ vocabularyList: list });
+}));
 export default router;

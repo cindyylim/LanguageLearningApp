@@ -1,5 +1,6 @@
 import { MongoClient, Db } from 'mongodb';
 import { ensureIndexes } from './indexes';
+import logger from './logger';
 
 const MONGODB_URI = process.env.MONGODB_URI as string;
 
@@ -41,10 +42,12 @@ export async function connectToDatabase(): Promise<Db> {
         cachedClient = new MongoClient(MONGODB_URI, {
           serverSelectionTimeoutMS: 5000,
           maxPoolSize: 10,
+          minPoolSize: 2,
+          maxIdleTimeMS: 30000,
         });
         // CLEAR CACHE ON ERROR
         cachedClient.on('topologyClosed', () => {
-          console.warn('MongoDB topology closed. Clearing cache.');
+          logger.warn('MongoDB topology closed. Clearing cache.');
           cachedClient = null;
           cachedDb = null;
           connectionPromise = null;

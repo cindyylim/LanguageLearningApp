@@ -72,3 +72,52 @@ export function sanitizeText(input: string): string {
     // Strip all HTML tags completely
     return input.replace(/<[^>]*>/g, '').trim();
 }
+
+/**
+ * Validate and sanitize user input for vocabulary list names
+ */
+export function sanitizeVocabularyListName(name: string): string {
+    if (!name || typeof name !== 'string') {
+        throw new Error('Invalid name');
+    }
+
+    const sanitized = sanitizeString(name);
+
+    if (sanitized.length === 0) {
+        throw new Error('Name cannot be empty');
+    }
+
+    if (sanitized.length > 100) {
+        throw new Error('Name cannot exceed 100 characters');
+    }
+
+    return sanitized;
+}
+
+/**
+ * Validate and sanitize word/translation inputs
+ */
+export function sanitizeWordInput(input: string): string {
+    if (!input || typeof input !== 'string') {
+        throw new Error('Invalid input');
+    }
+
+    const sanitized = sanitizeString(input);
+
+    if (sanitized.length === 0) {
+        throw new Error('Input cannot be empty');
+    }
+
+    return sanitized;
+}
+
+/**
+ * Sanitize user description/notes (allows more length)
+ */
+export function sanitizeDescription(description?: string): string | undefined {
+    if (!description) return undefined;
+    if (typeof description !== 'string') return undefined;
+
+    const sanitized = sanitizeString(description);
+    return sanitized.length > 0 ? sanitized : undefined;
+}
