@@ -1,7 +1,7 @@
 # Language Learning Quiz Generator
 
 An AI-powered language learning application that generates personalized quizzes using Google Gemini for adaptive learning experiences.
-Deployed with Render. Link: https://languagelearningapp-z0ca.onrender.com/login
+
 ## Features
 
 - 🤖 **AI-Powered Question Generation**: Uses Google Gemini to create contextual questions from vocabulary lists
