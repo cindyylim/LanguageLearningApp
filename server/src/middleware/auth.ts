@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { connectToDatabase } from '../utils/mongo';
+import { connectToTestDatabase } from '../utils/testMongo';
 import { ObjectId } from 'mongodb';
 import logger from '../utils/logger';
 
@@ -35,7 +36,7 @@ export const authMiddleware = async (
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
 
-    const db = await connectToDatabase();
+    const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
     const user = await db.collection('User').findOne(
       { _id: new ObjectId(decoded.userId) },

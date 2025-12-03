@@ -3,9 +3,6 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import { getErrorMessage } from '../types/errors';
 
-// Configure axios to send cookies with requests
-axios.defaults.withCredentials = true;
-
 interface User {
     id: string;
     name: string;
@@ -42,7 +39,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     login: async (email, password) => {
         try {
-            const response = await axios.post(`${process.env.REACT_APP_API_URL}/auth/login`, { email, password });
+            const response = await axios.post(`${process.env.REACT_APP_API_URL}/auth/login`, { email, password }, { withCredentials: true });
             const { user } = response.data;
 
             // Token is now in httpOnly cookie, no need to store it
@@ -58,7 +55,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     register: async (userData) => {
         try {
-            const response = await axios.post(`${process.env.REACT_APP_API_URL}/auth/register`, userData);
+            const response = await axios.post(`${process.env.REACT_APP_API_URL}/auth/register`, userData, { withCredentials: true });
             const { user } = response.data;
 
             // Token is now in httpOnly cookie, no need to store it
@@ -75,7 +72,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     logout: async () => {
         try {
             // Call logout endpoint to clear httpOnly cookie
-            await axios.post(`${process.env.REACT_APP_API_URL}/auth/logout`);
+            await axios.post(`${process.env.REACT_APP_API_URL}/auth/logout`, { withCredentials: true });
             set({ user: null, isAuthenticated: false });
             toast.success('Logged out successfully');
         } catch (error) {
@@ -95,11 +92,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     initialize: async () => {
         // Token is in httpOnly cookie, just try to get profile
         try {
-            const response = await axios.get(`${process.env.REACT_APP_API_URL}/auth/profile`);
+            const response = await axios.get(`${process.env.REACT_APP_API_URL}/auth/profile`, { withCredentials: true });
             set({ user: response.data.user, isAuthenticated: true });
         } catch (error) {
-            // No valid session
-            console.log(error);
+            // 401 is expected if not logged in
+            if (axios.isAxiosError(error) && error.response?.status !== 401) {
+                console.error('Initialization error:', error);
+            }
             set({ user: null, isAuthenticated: false });
         }
         set({ loading: false });

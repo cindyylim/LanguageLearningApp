@@ -39,7 +39,7 @@ export const setCSRFToken = (req: Request, res: Response, next: NextFunction): v
         res.cookie('XSRF-TOKEN', token, {
             httpOnly: false, // Must be false so client can read it
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' required for cross-origin
             maxAge: 24 * 60 * 60 * 1000 // 24 hours
         });
     }
@@ -62,21 +62,11 @@ export const verifyCSRFToken = (req: Request, res: Response, next: NextFunction)
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
         return next();
     }
-
-    // Get token from header (sent by client)
-    const headerToken = req.headers['x-csrf-token'] as string;
-
     // Get token from cookie
     const cookieToken = req.cookies?.['XSRF-TOKEN'];
 
-    if (!headerToken || !cookieToken) {
+    if (!cookieToken) {
         res.status(403).json({ error: 'CSRF token missing' });
-        return;
-    }
-
-    // Verify tokens match
-    if (headerToken !== cookieToken) {
-        res.status(403).json({ error: 'Invalid CSRF token' });
         return;
     }
 

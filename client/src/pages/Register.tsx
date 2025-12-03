@@ -172,13 +172,13 @@ const Register: React.FC = () => {
               <label htmlFor="nativeLanguage" className="block text-sm font-medium text-gray-700">
                 Native Language
               </label>
-              <LanguageDropdown onCodeSelect={handleNativeLanguageChange}></LanguageDropdown>
+              <LanguageDropdown name="nativeLanguage" onCodeSelect={handleNativeLanguageChange}></LanguageDropdown>
             </div>
             <div>
               <label htmlFor="targetLanguage" className="block text-sm font-medium text-gray-700">
                 Language You Want to Learn
               </label>
-              <LanguageDropdown onCodeSelect={handleTargetLanguageChange}></LanguageDropdown>
+              <LanguageDropdown name="targetLanguage" onCodeSelect={handleTargetLanguageChange}></LanguageDropdown>
             </div>
             <div>
               <label htmlFor="proficiencyLevel" className="block text-sm font-medium text-gray-700">

@@ -16,6 +16,7 @@ import authRoutes from './routes/auth';
 import vocabularyRoutes from './routes/vocabulary';
 import quizRoutes from './routes/quizzes';
 import analyticsRoutes from './routes/analytics';
+import testDbRoutes from './routes/testDb';
 // Import security middleware
 import { setCSRFToken, verifyCSRFToken, getCSRFToken } from './middleware/csrf';
 import { sanitizeInput } from './middleware/sanitize';
@@ -31,8 +32,8 @@ const PORT = process.env.PORT || 5000;
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 500, // limit each IP to 500 requests per windowMs
   message: 'Too many requests from this IP, please try again later.'
 });
 
@@ -64,21 +65,11 @@ app.use(helmet({
   xssFilter: true
 }));
 
-const allowedOrigins = [
-  'https://languagelearningapp-z0ca.onrender.com',
-  'http://localhost:3000'
-];
-
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps, curl, etc.)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    } else {
-      return callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: [
+    'https://languagelearningapp-z0ca.onrender.com',
+    'http://localhost:3000',
+  ],
   credentials: true
 }));
 app.use(cookieParser());
@@ -167,6 +158,9 @@ app.use('/api/vocabulary', verifyCSRFToken, vocabularyRoutes);
 app.use('/api/quizzes', verifyCSRFToken, quizRoutes);
 app.use('/api/analytics', verifyCSRFToken, analyticsRoutes);
 
+// Test database routes (only available in non-production environments)
+app.use('/api/test-db', testDbRoutes);
+
 // Error handling middleware
 import { errorHandler } from './middleware/error';
 app.use(errorHandler);
@@ -184,11 +178,19 @@ app.get('*', (req, res) => {
 // Start server
 async function startServer() {
   try {
-    // Test database connection
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       logger.info(`🚀 Server running on port ${PORT}`);
       logger.info(`📊 Health check: http://localhost:${PORT}/health`);
       logger.info(`🔒 Security: XSS & CSRF protection enabled`);
+    });
+
+    server.on('error', (error: any) => {
+      if (error.code === 'EADDRINUSE') {
+        logger.error(`❌ Port ${PORT} is already in use. Please kill the process using it and try again.`);
+      } else {
+        logger.error('❌ Server error:', error);
+      }
+      process.exit(1);
     });
   } catch (error) {
     logger.error('❌ Failed to start server:', error);

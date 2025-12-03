@@ -7,16 +7,15 @@ import { setupCSRFInterceptor, fetchCSRFToken } from './utils/csrf';
 // Setup CSRF protection
 setupCSRFInterceptor();
 
-// Fetch initial CSRF token
-fetchCSRFToken().catch(err => {
-  console.error('Failed to initialize CSRF protection:', err);
-});
-
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+
+// Fetch initial CSRF token before rendering
+fetchCSRFToken().finally(() => {
+  root.render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
+});

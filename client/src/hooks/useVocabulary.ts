@@ -17,7 +17,7 @@ export const useVocabulary = (user: User | null) => {
     const fetchLists = useCallback(async (page: number = 1, signal?: AbortSignal) => {
         dispatch({ type: 'FETCH_START' });
         try {
-            const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary?page=${page}&limit=20`, { signal });
+            const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary?page=${page}&limit=20`, { signal, withCredentials: true });
             const lists = res.data.vocabularyLists || [];
             dispatch({
                 type: 'FETCH_SUCCESS',
@@ -57,7 +57,7 @@ export const useVocabulary = (user: User | null) => {
         e.preventDefault();
         dispatch({ type: 'SAVE_START' });
         try {
-            await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary`, state.listForm);
+            await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary`, state.listForm, { withCredentials: true });
             dispatch({ type: 'CLOSE_LIST_MODAL' });
             dispatch({ type: 'RESET_LIST_FORM' });
             fetchLists(1);
@@ -73,7 +73,7 @@ export const useVocabulary = (user: User | null) => {
         if (!state.showWordModal) return;
         dispatch({ type: 'SAVE_START' });
         try {
-            const res = await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/${state.showWordModal}/words`, state.wordForm);
+            const res = await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/${state.showWordModal}/words`, state.wordForm, { withCredentials: true });
             const newWord = res.data.word;
 
             dispatch({
@@ -94,7 +94,7 @@ export const useVocabulary = (user: User | null) => {
         e.preventDefault();
         dispatch({ type: 'AI_GENERATE_START' });
         try {
-            await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/generate-ai-list`, state.aiForm);
+            await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/generate-ai-list`, state.aiForm, { withCredentials: true });
             dispatch({ type: 'CLOSE_AI_MODAL' });
             dispatch({ type: 'RESET_AI_FORM' });
             fetchLists(1);
@@ -113,7 +113,7 @@ export const useVocabulary = (user: User | null) => {
         });
 
         try {
-            await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/words/${wordId}/progress`, { status });
+            await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/words/${wordId}/progress`, { status }, { withCredentials: true });
             // No need to fetch lists, we already updated state
         } catch (err: unknown) {
             alert(getErrorMessage(err) || 'Failed to update word progress');

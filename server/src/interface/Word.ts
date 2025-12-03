@@ -1,3 +1,4 @@
+import { ObjectId } from "mongodb";
 import { WordProgress } from "./WordProgress";
 
 export interface Word {
