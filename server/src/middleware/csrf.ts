@@ -39,7 +39,7 @@ export const setCSRFToken = (req: Request, res: Response, next: NextFunction): v
         res.cookie('XSRF-TOKEN', token, {
             httpOnly: false, // Must be false so client can read it
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // 'none' required for cross-origin
             maxAge: 24 * 60 * 60 * 1000 // 24 hours
         });
     }
