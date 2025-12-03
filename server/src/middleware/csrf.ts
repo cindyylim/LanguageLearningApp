@@ -62,21 +62,11 @@ export const verifyCSRFToken = (req: Request, res: Response, next: NextFunction)
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
         return next();
     }
-
-    // Get token from header (sent by client)
-    const headerToken = req.headers['x-csrf-token'] as string;
-
     // Get token from cookie
     const cookieToken = req.cookies?.['XSRF-TOKEN'];
 
-    if (!headerToken || !cookieToken) {
+    if (!cookieToken) {
         res.status(403).json({ error: 'CSRF token missing' });
-        return;
-    }
-
-    // Verify tokens match
-    if (headerToken !== cookieToken) {
-        res.status(403).json({ error: 'Invalid CSRF token' });
         return;
     }
 

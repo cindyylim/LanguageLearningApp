@@ -8,6 +8,11 @@ interface LearningStatsDocument {
     date: Date;
 }
 
+interface PerformanceData {
+    wordId: string;
+    score: number;
+    date: Date;
+}
 export class AnalyticsService {
     /**
      * Get learning progress with stats, word progress, and attempts
@@ -155,7 +160,7 @@ export class AnalyticsService {
 
         const recentAttempts = await db.collection('QuizAttempt').find({ userId }).sort({ createdAt: -1 }).limit(20).toArray();
 
-        const performanceData = [];
+        const performanceData: PerformanceData[] = [];
         for (const attempt of recentAttempts) {
             const answers = await db.collection('QuizAnswer').find({ attemptId: attempt._id.toString() }).toArray();
             for (const answer of answers) {

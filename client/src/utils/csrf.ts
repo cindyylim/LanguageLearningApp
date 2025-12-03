@@ -21,6 +21,8 @@ export function setupCSRFInterceptor(): void {
                 const token = getCSRFToken();
                 if (token) {
                     config.headers['X-CSRF-Token'] = token;
+                } else {
+                    console.warn('CSRF token missing for request:', config.url);
                 }
             }
             return config;

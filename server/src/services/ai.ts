@@ -525,7 +525,7 @@ Consider:
           recentPerformance.length
           : 0.5;
 
-      const focusAreas = [];
+      const focusAreas: string[] = [];
       if (weakWords.length > 0) {
         focusAreas.push("vocabulary_review");
       }
