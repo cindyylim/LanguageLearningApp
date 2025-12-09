@@ -1,4 +1,5 @@
 import { connectToDatabase } from '../utils/mongo';
+import { connectToTestDatabase } from '../utils/testMongo';
 import { ObjectId } from 'mongodb';
 import { AIService, UserProgress } from './ai';
 import { WordProgress } from '../interface/WordProgress';
@@ -18,7 +19,7 @@ export class AnalyticsService {
      * Get learning progress with stats, word progress, and attempts
      */
     static async getProgress(userId: string) {
-        const db = await connectToDatabase();
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
         // Get user's learning statistics
         const learningStats = await db.collection('LearningStats').find({ userId }).sort({ date: -1 }).limit(30).toArray();
@@ -60,7 +61,7 @@ export class AnalyticsService {
      * Calculate current learning streak
      */
     static async calculateStreak(userId: string): Promise<number> {
-        const db = await connectToDatabase();
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
         const recentStats = await db.collection('LearningStats')
             .find({ userId })
@@ -141,7 +142,7 @@ export class AnalyticsService {
      * Get AI-powered recommendations
      */
     static async getRecommendations(userId: string) {
-        const db = await connectToDatabase();
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
         const userProgress = await db.collection('WordProgress').aggregate<WordProgress[]>([
             { $match: { userId } },

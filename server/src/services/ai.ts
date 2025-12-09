@@ -89,7 +89,7 @@ interface AIMetrics {
 
 export class AIService {
   private static readonly MODEL = gemini.getGenerativeModel({
-    model: "gemini-2.0-flash",
+    model: "gemini-2.5-flash",
   });
   private static readonly MAX_RETRIES = 3;
   private static readonly INITIAL_DELAY_MS = 1000; // 1 second
@@ -379,122 +379,6 @@ Return as JSON:
 
     const finalError = new Error(
       "Failed to generate contextual sentences due to unexpected flow."
-    );
-    AIService.logMetrics(metrics, finalError);
-    throw finalError;
-  }
-
-  /**
-   * Analyze text complexity and difficulty using Gemini
-   */
-  static async analyzeTextComplexity(
-    text: string,
-    targetLanguage: string
-  ): Promise<{
-    complexity: "easy" | "medium" | "hard";
-    score: number;
-    suggestions: string[];
-  }> {
-    // ... Prompt construction (omitted for brevity) ...
-    const prompt = `
-Analyze the complexity of this ${targetLanguage} text and provide a difficulty assessment.
-
-Text: "${text}"
-
-Provide analysis in JSON format:
-{
-"complexity": "easy|medium|hard",
-"score": 0.0-1.0,
-"suggestions": ["suggestion1", "suggestion2"]
-}
-
-Consider:
-- Vocabulary difficulty
-- Grammar complexity
-- Sentence structure
-- Cultural context
-`;
-
-    const metrics: AIMetrics = {
-      operation: 'analyzeTextComplexity',
-      startTime: Date.now(),
-      retryCount: 0,
-    };
-
-    for (let attempt = 1; attempt <= AIService.MAX_RETRIES; attempt++) {
-      metrics.retryCount = attempt - 1;
-      const attemptStartTime = Date.now();
-
-      try {
-        logger.debug(`Analyzing text complexity - Attempt ${attempt}/${AIService.MAX_RETRIES}`, {
-          textLength: text.length,
-          targetLanguage,
-        });
-
-        const result = await AIService.requestQueue.add(() =>
-          AIService.circuitBreaker.execute(() =>
-            AIService.MODEL.generateContent(prompt)
-          )
-        );
-        const responseText = result.response.text();
-        metrics.responseTimeMs = Date.now() - attemptStartTime;
-
-        const cleaned = responseText.replace(/```[a-z]*\n?|```/gi, "").trim();
-        const parsed = JSON.parse(cleaned);
-        const analysis = TextComplexitySchema.parse(parsed) as {
-          complexity: "easy" | "medium" | "hard";
-          score: number;
-          suggestions: string[];
-        };
-
-        AIService.logMetrics(metrics);
-        logger.info('Text complexity analyzed successfully', {
-          complexity: analysis.complexity,
-          score: analysis.score,
-          attemptNumber: attempt,
-          responseTimeMs: metrics.responseTimeMs,
-        });
-
-        return analysis;
-      } catch (error) {
-        const errorType = AIService.categorizeError(error);
-        metrics.errorType = errorType;
-        metrics.responseTimeMs = Date.now() - attemptStartTime;
-
-        logger.warn(`Text complexity analysis attempt ${attempt} failed`, {
-          attempt,
-          maxRetries: AIService.MAX_RETRIES,
-          errorType,
-          errorMessage: error instanceof Error ? error.message : String(error),
-          textLength: text.length,
-          responseTimeMs: metrics.responseTimeMs,
-        });
-
-        if (attempt === AIService.MAX_RETRIES) {
-          // Final attempt failed, log and use fallback data
-          AIService.logMetrics(metrics, error instanceof Error ? error : new Error(String(error)));
-          logger.error(`Attempt ${attempt} failed for analyzing complexity.`, { error, attempt });
-          logger.warn('Using fallback complexity analysis', {
-            errorType,
-            textLength: text.length,
-          });
-          return {
-            complexity: "medium",
-            score: 0.5,
-            suggestions: [
-              "Unable to analyze complexity after multiple retries.",
-            ],
-          };
-        }
-
-        const delay = AIService.INITIAL_DELAY_MS * Math.pow(2, attempt - 1);
-        logger.debug(`Retrying in ${delay}ms...`, { attempt, delay });
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
-    }
-    // Should be caught by the fallback above, but here for absolute type safety
-    const finalError = new Error(
-      "Failed to analyze text complexity due to unexpected flow."
     );
     AIService.logMetrics(metrics, finalError);
     throw finalError;

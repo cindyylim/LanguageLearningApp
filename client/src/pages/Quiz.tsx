@@ -101,8 +101,8 @@ const Quiz: React.FC = () => {
   if (result) {
     return (
       <div className="max-w-xl mx-auto">
-        <h1 className="text-2xl font-bold mb-2">Quiz Results</h1>
-        <div className="mb-4">Score: <span className="font-bold text-primary-600">{Math.round((result.score ?? 0) * 100)}%</span></div>
+        <h1 className="text-2xl font-bold mb-2 quiz-results">Quiz Results</h1>
+        <div className="mb-4 quiz-score">Score: <span className="font-bold text-primary-600">{Math.round((result.score ?? 0) * 100)}%</span></div>
         <div className="mb-4">Correct Answers: {result.correctAnswers} / {result.totalQuestions}</div>
         <div className="mb-6">
           <h2 className="text-lg font-semibold mb-2">Review Answers</h2>
@@ -110,7 +110,7 @@ const Quiz: React.FC = () => {
             const userAnswer = (result.answers && result.answers.find((a: Answer) => a.questionId === q._id)) || null;
             const isCorrect = userAnswer?.isCorrect;
             return (
-              <div key={q._id} className="mb-4 p-4 rounded border bg-gray-50">
+              <div key={q._id} className="quiz-question mb-4 p-4 rounded border bg-gray-50">
                 <div className="font-semibold mb-1">Q{idx + 1}. {sanitizeText(q.question)}</div>
                 {q.context && <div className="mb-1 text-xs text-gray-500">{sanitizeText(q.context)}</div>}
                 <div className="mb-1">
@@ -140,7 +140,7 @@ const Quiz: React.FC = () => {
       <form onSubmit={handleSubmit} className="space-y-6">
         {quiz.questions.map((q: QuizQuestion, idx: number) => (
           <div key={q._id} className="card">
-            <div className="mb-2 font-semibold">Q{idx + 1}. {sanitizeText(q.question)}</div>
+            <div className="mb-2 font-semibold quiz-question">Q{idx + 1}. {sanitizeText(q.question)}</div>
             {q.context && <div className="mb-2 text-xs text-gray-500">{sanitizeText(q.context)}</div>}
             {q.type === 'multiple_choice' && q.options ? (
               <div className="space-y-1">
@@ -162,6 +162,7 @@ const Quiz: React.FC = () => {
               <input
                 className="input-field"
                 type="text"
+                name="answer"
                 placeholder="Your answer"
                 value={answers[q._id] || ''}
                 onChange={e => handleChange(q._id, e.target.value)}

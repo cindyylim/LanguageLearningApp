@@ -69,11 +69,11 @@ const VocbularyDetails: React.FC = () => {
             <form onSubmit={handleEditList} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Name</label>
-                <input className="input-field" required value={editListForm.name} onChange={e => dispatch({ type: 'UPDATE_EDIT_LIST_FORM', payload: { name: e.target.value } })} />
+                <input className="input-field" name="name" required value={editListForm.name} onChange={e => dispatch({ type: 'UPDATE_EDIT_LIST_FORM', payload: { name: e.target.value } })} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Description</label>
-                <input className="input-field" value={editListForm.description} onChange={e => dispatch({ type: 'UPDATE_EDIT_LIST_FORM', payload: { description: e.target.value } })} />
+                <input className="input-field" name="description" value={editListForm.description} onChange={e => dispatch({ type: 'UPDATE_EDIT_LIST_FORM', payload: { description: e.target.value } })} />
               </div>
               <button type="submit" className="btn-primary w-full" disabled={saving}>{saving ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div> : 'Save Changes'}</button>
             </form>
@@ -178,7 +178,7 @@ const VocbularyDetails: React.FC = () => {
           <div className="mb-2 text-sm text-gray-500">{list.words.length} words</div>
           <div className="space-y-2">
             {list.words.map((w: Word) => (
-              <div key={w._id} className="p-3 bg-gray-50 rounded flex flex-col md:flex-row md:items-center md:justify-between">
+              <div key={w._id} className="word-item p-3 bg-gray-50 rounded flex flex-col md:flex-row md:items-center md:justify-between">
                 <div>
                   <div className="font-medium text-lg">{w.word}</div>
                   <div className="text-sm text-gray-500">{w.translation}</div>

@@ -1,4 +1,5 @@
 import { connectToDatabase } from '../utils/mongo';
+import { connectToTestDatabase } from '../utils/testMongo';
 import { ObjectId } from 'mongodb';
 import { AIService, Question } from './ai';
 import { Quiz, QuizQuestion } from '../interface/Quiz';
@@ -13,7 +14,7 @@ export class QuizService {
         questionCount?: number;
         difficulty?: 'easy' | 'medium' | 'hard';
     }, userId: string) {
-        const db = await connectToDatabase();
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
         // Get vocabulary list with words
         const vocabularyList = await db.collection('VocabularyList').findOne({
@@ -92,7 +93,7 @@ export class QuizService {
      * Get user's quizzes with attempts
      */
     static async getUserQuizzes(userId: string) {
-        const db = await connectToDatabase();
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
         const quizzes = await db.collection('Quiz').find({ userId }).sort({ createdAt: -1 }).toArray() as unknown as Quiz[];
 
@@ -117,7 +118,7 @@ export class QuizService {
      * Get specific quiz with questions
      */
     static async getQuizById(quizId: string, userId: string) {
-        const db = await connectToDatabase();
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
         const quiz = await db.collection('Quiz').findOne({ _id: new ObjectId(quizId), userId });
 
@@ -137,7 +138,7 @@ export class QuizService {
         questionId: string;
         answer: string;
     }>, userId: string) {
-        const db = await connectToDatabase();
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
         const quiz = await db.collection('Quiz').findOne({ _id: new ObjectId(quizId), userId });
 
@@ -172,6 +173,9 @@ export class QuizService {
         processedAnswers.forEach((processedAnswer: Answer) => {
             if (processedAnswer.wordId) {
                 const wordId = processedAnswer.wordId;
+                if (wordId == null || typeof wordId !== 'string' || wordId.length !== 24) {
+                    return;
+                }
                 if (!wordProgressMap.has(wordId)) {
                     wordProgressMap.set(wordId, { correct: 0, total: 0 });
                 }
@@ -182,7 +186,7 @@ export class QuizService {
                 }
             }
         });
-
+        const wordsReviewed = wordProgressMap.size;
         // Update progress for each word
         await this.updateWordProgressFromQuiz(wordProgressMap, userId);
 
@@ -199,7 +203,8 @@ export class QuizService {
         await this.updateLearningStats(userId, {
             quizzesTaken: 1,
             totalQuestions,
-            correctAnswers
+            correctAnswers,
+            wordsReviewed
         });
 
         // Store answers
@@ -230,7 +235,7 @@ export class QuizService {
      * Get quiz results with detailed answers
      */
     static async getQuizResults(quizId: string, userId: string) {
-        const db = await connectToDatabase();
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
         const quiz = await db.collection('Quiz').findOne({ _id: new ObjectId(quizId), userId });
 
@@ -257,15 +262,11 @@ export class QuizService {
         wordProgressMap: Map<string, { correct: number; total: number }>,
         userId: string
     ) {
-        const db = await connectToDatabase();
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
         const now = new Date();
 
         await Promise.all(
             Array.from(wordProgressMap.entries()).map(async ([wordId, stats]) => {
-                if (typeof wordId !== 'string' || wordId.length !== 24) {
-                    logger.warn(`Skipping progress update due to invalid wordId format: ${wordId}`);
-                    return;
-                }
 
                 // Check if the word exists in the Word database
                 const wordExists = await db.collection('Word').findOne({ _id: new ObjectId(wordId) });
@@ -306,7 +307,7 @@ export class QuizService {
                         { _id: existingProgress._id },
                         {
                             $set: {
-                                mastery: newMastery,
+                                mastery: parseFloat(newMastery.toFixed(2)),
                                 status: newMastery < 1.0 ? 'learning' : 'mastered',
                                 reviewCount: newReviewCount,
                                 streak: newStreak,
@@ -346,8 +347,9 @@ export class QuizService {
         quizzesTaken?: number;
         totalQuestions?: number;
         correctAnswers?: number;
+        wordsReviewed? : number;
     }) {
-        const db = await connectToDatabase();
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
         const today = new Date();
         const startOfDay = new Date(today);
         startOfDay.setHours(0, 0, 0, 0);
@@ -379,7 +381,7 @@ export class QuizService {
                 userId,
                 date: today,
                 quizzesTaken: stats.quizzesTaken || 0,
-                wordsReviewed: 0,
+                wordsReviewed: stats.wordsReviewed || 0,
                 totalQuestions: stats.totalQuestions || 0,
                 correctAnswers: stats.correctAnswers || 0,
                 createdAt: new Date(),

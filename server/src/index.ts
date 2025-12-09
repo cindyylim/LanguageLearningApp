@@ -16,6 +16,7 @@ import authRoutes from './routes/auth';
 import vocabularyRoutes from './routes/vocabulary';
 import quizRoutes from './routes/quizzes';
 import analyticsRoutes from './routes/analytics';
+import testDbRoutes from './routes/testDb';
 // Import security middleware
 import { setCSRFToken, verifyCSRFToken, getCSRFToken } from './middleware/csrf';
 import { sanitizeInput } from './middleware/sanitize';
@@ -31,8 +32,8 @@ const PORT = process.env.PORT || 5000;
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 500, // limit each IP to 500 requests per windowMs
   message: 'Too many requests from this IP, please try again later.'
 });
 
@@ -166,6 +167,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/vocabulary', verifyCSRFToken, vocabularyRoutes);
 app.use('/api/quizzes', verifyCSRFToken, quizRoutes);
 app.use('/api/analytics', verifyCSRFToken, analyticsRoutes);
+
+// Test database routes (only available in non-production environments)
+app.use('/api/test-db', testDbRoutes);
 
 // Error handling middleware
 import { errorHandler } from './middleware/error';

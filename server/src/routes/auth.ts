@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { connectToDatabase } from '../utils/mongo';
+import { connectToTestDatabase } from '../utils/testMongo';
 import { ObjectId } from 'mongodb';
 import { asyncHandler } from '../utils/asyncHandler';
 import { validate } from '../middleware/validate';
@@ -31,7 +32,8 @@ const loginSchema = z.object({
 // Register new user
 router.post('/register', validate(registerSchema), asyncHandler(async (req: Request, res: Response) => {
   const { name, email, password, nativeLanguage, targetLanguage, proficiencyLevel } = req.body;
-  const db = await connectToDatabase();
+  // Use test database in test environment, main database otherwise
+  const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
   // Check if user already exists
   const existingUser = await db.collection('User').findOne({ email });
@@ -89,7 +91,8 @@ router.post('/register', validate(registerSchema), asyncHandler(async (req: Requ
 // Login user
 router.post('/login', validate(loginSchema), asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = req.body;
-  const db = await connectToDatabase();
+  // Use test database in test environment, main database otherwise
+  const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
   // Find user
   const user = await db.collection('User').findOne({ email });
@@ -138,7 +141,8 @@ router.get('/profile', asyncHandler(async (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Access denied. No token provided.' });
   }
   const decoded = jwt.verify(token, process.env.JWT_SECRET!) as jwtToken;
-  const db = await connectToDatabase();
+  // Use test database in test environment, main database otherwise
+  const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
   const user = await db.collection('User').findOne({ _id: new ObjectId(decoded.userId) });
   if (!user) {
     return res.status(404).json({ error: 'User not found' });

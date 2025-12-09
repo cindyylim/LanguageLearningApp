@@ -85,7 +85,7 @@ router.post('/', validate(createVocabularyListSchema), asyncHandler(async (req: 
   invalidateListCache(req.user!.id);
 
   // Warm cache for user after creating first list
-  warmCacheForUser(req.user!.id).catch(err => console.error('Cache warming failed:', err));
+  await warmCacheForUser(req.user!.id).catch(err => console.error('Cache warming failed:', err));
 
   return res.status(201).json({ vocabularyList: list });
 }));

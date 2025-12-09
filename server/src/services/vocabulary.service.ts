@@ -1,4 +1,5 @@
 import { connectToDatabase } from '../utils/mongo';
+import { connectToTestDatabase } from '../utils/testMongo';
 import { ObjectId } from 'mongodb';
 import { AIService } from './ai';
 import { Word } from '../interface/Word';
@@ -42,7 +43,7 @@ export class VocabularyService {
      * Get all vocabulary lists for a user with word counts
      */
     static async getUserLists(userId: string, page: number = 1, limit: number = 20) {
-        const db = await connectToDatabase();
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
         const skip = (page - 1) * limit;
 
         const lists = await db.collection('VocabularyList').aggregate([
@@ -99,7 +100,7 @@ export class VocabularyService {
      * Get specific vocabulary list with words and progress
      */
     static async getListById(listId: string, userId: string) {
-        const db = await connectToDatabase();
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
         const list = await db.collection('VocabularyList').findOne({
             _id: new ObjectId(listId),
@@ -170,26 +171,14 @@ export class VocabularyService {
         targetLanguage?: string;
         nativeLanguage?: string;
     }, userId: string) {
-        const db = await connectToDatabase();
-
-        // Get user's language preferences if not provided
-        let userTargetLanguage = data.targetLanguage;
-        let userNativeLanguage = data.nativeLanguage;
-
-        if (!userTargetLanguage || !userNativeLanguage) {
-            const user = await db.collection('User').findOne({ _id: new ObjectId(userId) });
-            if (user) {
-                userTargetLanguage = userTargetLanguage || user.targetLanguage;
-                userNativeLanguage = userNativeLanguage || user.nativeLanguage;
-            }
-        }
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
         const now = new Date();
         const result = await db.collection('VocabularyList').insertOne({
             name: data.name,
             description: data.description,
-            targetLanguage: userTargetLanguage,
-            nativeLanguage: userNativeLanguage,
+            targetLanguage: data.targetLanguage,
+            nativeLanguage: data.nativeLanguage,
             userId,
             createdAt: now,
             updatedAt: now
@@ -210,7 +199,7 @@ export class VocabularyService {
         name: string;
         description?: string;
     }, userId: string) {
-        const db = await connectToDatabase();
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
         const result = await db.collection('VocabularyList').updateOne(
             { _id: new ObjectId(listId), userId },
@@ -224,7 +213,7 @@ export class VocabularyService {
      * Delete vocabulary list and cascade delete words and progress
      */
     static async deleteList(listId: string, userId: string) {
-        const db = await connectToDatabase();
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
         const listObjectId = new ObjectId(listId);
 
         const list = await db.collection('VocabularyList').findOne({
@@ -271,7 +260,7 @@ export class VocabularyService {
         partOfSpeech?: string;
         difficulty: string;
     }, userId: string) {
-        const db = await connectToDatabase();
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
         // Verify vocabulary list belongs to user
         const list = await db.collection('VocabularyList').findOne({
@@ -309,7 +298,7 @@ export class VocabularyService {
         partOfSpeech?: string;
         difficulty?: string;
     }, userId: string) {
-        const db = await connectToDatabase();
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
         // Check list ownership
         const list = await db.collection('VocabularyList').findOne({
@@ -339,7 +328,7 @@ export class VocabularyService {
      * Delete word from vocabulary list
      */
     static async deleteWord(listId: string, wordId: string, userId: string) {
-        const db = await connectToDatabase();
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
         // Check list ownership
         const list = await db.collection('VocabularyList').findOne({
@@ -364,7 +353,7 @@ export class VocabularyService {
      * Generate contextual sentences for vocabulary list
      */
     static async generateSentences(listId: string, userId: string) {
-        const db = await connectToDatabase();
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
         const list = await db.collection('VocabularyList').findOne({
             _id: new ObjectId(listId),
@@ -408,7 +397,7 @@ export class VocabularyService {
         prompt: string;
         wordCount?: number;
     }, userId: string) {
-        const db = await connectToDatabase();
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
         // Generate vocabulary words using AIService
         const aiWords = await AIService.generateVocabularyList(
@@ -460,7 +449,7 @@ export class VocabularyService {
      * Update word progress
      */
     static async updateWordProgress(wordId: string, status: string, userId: string) {
-        const db = await connectToDatabase();
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
         const now = new Date();
 
         const existingProgress = await db.collection('WordProgress').findOne({
@@ -527,7 +516,7 @@ export class VocabularyService {
      * Get word progress
      */
     static async getWordProgress(wordId: string, userId: string) {
-        const db = await connectToDatabase();
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
         const progress = await db.collection('WordProgress').findOne({
             userId,
@@ -551,7 +540,7 @@ export class VocabularyService {
         totalQuestions?: number;
         correctAnswers?: number;
     }) {
-        const db = await connectToDatabase();
+        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
         const today = new Date();
         const startOfDay = new Date(today);
         startOfDay.setHours(0, 0, 0, 0);

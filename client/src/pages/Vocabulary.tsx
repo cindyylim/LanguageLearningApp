@@ -76,11 +76,11 @@ const Vocabulary: React.FC = () => {
             <form onSubmit={handleAddList} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Name</label>
-                <input className="input-field" required value={listForm.name} onChange={e => dispatch({ type: 'UPDATE_LIST_FORM', payload: { name: e.target.value } })} />
+                <input className="input-field" name="name"required value={listForm.name} onChange={e => dispatch({ type: 'UPDATE_LIST_FORM', payload: { name: e.target.value } })} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Description</label>
-                <input className="input-field" value={listForm.description} onChange={e => dispatch({ type: 'UPDATE_LIST_FORM', payload: { description: e.target.value } })} />
+                <input className="input-field" name="description" value={listForm.description} onChange={e => dispatch({ type: 'UPDATE_LIST_FORM', payload: { description: e.target.value } })} />
               </div>
               <button type="submit" className="btn-primary w-full" disabled={saving}>{saving ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div> : 'Add List'}</button>
             </form>
@@ -95,15 +95,15 @@ const Vocabulary: React.FC = () => {
             <form onSubmit={handleAddWord} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Word</label>
-                <input className="input-field" required value={wordForm.word} onChange={e => dispatch({ type: 'UPDATE_WORD_FORM', payload: { word: e.target.value } })} />
+                <input className="input-field" name="word" required value={wordForm.word} onChange={e => dispatch({ type: 'UPDATE_WORD_FORM', payload: { word: e.target.value } })} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Translation</label>
-                <input className="input-field" required value={wordForm.translation} onChange={e => dispatch({ type: 'UPDATE_WORD_FORM', payload: { translation: e.target.value } })} />
+                <input className="input-field" name="translation" required value={wordForm.translation} onChange={e => dispatch({ type: 'UPDATE_WORD_FORM', payload: { translation: e.target.value } })} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Part of Speech</label>
-                <input className="input-field" value={wordForm.partOfSpeech} onChange={e => dispatch({ type: 'UPDATE_WORD_FORM', payload: { partOfSpeech: e.target.value } })} />
+                <input className="input-field" name="partOfSpeech" value={wordForm.partOfSpeech} onChange={e => dispatch({ type: 'UPDATE_WORD_FORM', payload: { partOfSpeech: e.target.value } })} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Difficulty</label>
@@ -126,19 +126,19 @@ const Vocabulary: React.FC = () => {
             <form onSubmit={handleAIGenerate} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">List Name</label>
-                <input className="input-field" required value={aiForm.name} onChange={e => dispatch({ type: 'UPDATE_AI_FORM', payload: { name: e.target.value } })} />
+                <input className="input-field" name="name" required value={aiForm.name} onChange={e => dispatch({ type: 'UPDATE_AI_FORM', payload: { name: e.target.value } })} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Description</label>
-                <input className="input-field" value={aiForm.description} onChange={e => dispatch({ type: 'UPDATE_AI_FORM', payload: { description: e.target.value } })} />
+                <input className="input-field" name="description" value={aiForm.description} onChange={e => dispatch({ type: 'UPDATE_AI_FORM', payload: { description: e.target.value } })} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Target Language</label>
-                <LanguageDropdown onCodeSelect={handleTargetLanguageChange} />
+                <LanguageDropdown name="targetLanguage" onCodeSelect={handleTargetLanguageChange} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Native Language</label>
-                <LanguageDropdown onCodeSelect={handleNativeLanguageChange} />
+                <LanguageDropdown name="nativeLanguage" onCodeSelect={handleNativeLanguageChange} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Topic / Keywords</label>
@@ -168,7 +168,7 @@ const Vocabulary: React.FC = () => {
           {lists.map((list: ListVocabulary) => (
             <div
               key={list._id}
-              className="card cursor-pointer hover:shadow-lg transition-shadow"
+              className="card cursor-pointer hover:shadow-lg transition-shadow vocabulary-list"
               onClick={e => {
                 // Prevent click if add word button is clicked
                 if ((e.target as HTMLElement).closest('button')) return;
@@ -185,7 +185,7 @@ const Vocabulary: React.FC = () => {
                   const mastery = w.progress?.mastery || 0;
                   const status = w.progress?.status || 'not_started';
                   return (
-                    <div key={w._id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                    <div key={w._id} className="flex items-center justify-between p-2 bg-gray-50 rounded word-item">
                       <div className="flex-1">
                         <div className="font-medium">{w.word}</div>
                         <div className="text-sm text-gray-500">{w.translation}</div>

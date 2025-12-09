@@ -92,9 +92,9 @@ const Analytics: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div>
             <div className="card mb-4">
-              <h2 className="text-lg font-semibold mb-2">Progress Summary</h2>
+              <h2 className="text-lg font-semibold mb-2 learning-stats">Progress Summary</h2>
               <ul className="space-y-1">
-                <li>Total Words: <span className="font-bold">{progress.summary.totalWords}</span></li>
+                <li>Total Words: <span className="font-bold words-learned">{progress.summary.totalWords}</span></li>
                 <li>Mastered Words: <span className="font-bold text-success-600">{progress.summary.masteredWords}</span></li>
                 <li>Needs Review: <span className="font-bold text-warning-600">{progress.summary.needsReview}</span></li>
                 <li>Current Streak: <span className="font-bold text-primary-600">{progress.summary.currentStreak}</span></li>

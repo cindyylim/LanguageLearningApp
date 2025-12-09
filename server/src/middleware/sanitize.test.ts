@@ -27,20 +27,20 @@ describe('Sanitize Input Middleware', () => {
     });
 
     it('should sanitize request body', () => {
-        mockReq.body = { name: '  John  ', age: 30 };
+        mockReq.body = { name: "<script>alert('XSS Attack');</script>", age: 30 };
 
         sanitizeInput(mockReq as Request, mockRes as Response, mockNext);
 
-        expect(mockReq.body.name).toBe('John');
+        expect(mockReq.body.name).toBe("&lt;script&gt;alert(&#x27;XSS Attack&#x27;);&lt;&#x2F;script&gt;");
         expect(mockNext).toHaveBeenCalled();
     });
 
     it('should sanitize query parameters', () => {
-        mockReq.query = { search: '  test  ' };
+        mockReq.query = { search: ' OR "1"="1"' };
 
         sanitizeInput(mockReq as Request, mockRes as Response, mockNext);
 
-        expect(mockReq.query.search).toBe('test');
+        expect(mockReq.query.search).toBe('OR &quot;1&quot;=&quot;1&quot;');
         expect(mockNext).toHaveBeenCalled();
     });
 
