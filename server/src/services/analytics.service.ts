@@ -144,20 +144,19 @@ export class AnalyticsService {
     static async getRecommendations(userId: string) {
         const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
-        const userProgress = await db.collection('WordProgress').aggregate<WordProgress[]>([
+        const userProgress = await db.collection('WordProgress').aggregate<WordProgress>([
             { $match: { userId } },
+            { $sort: { lastReviewed: -1 } },  // Most recent first
             {
                 $lookup: {
                     from: 'Word',
-                    let: { wordId: { $toObjectId: '$wordId' } },
-                    pipeline: [
-                        { $match: { $expr: { $eq: ['$_id', '$$wordId'] } } }
-                    ],
+                    localField: 'wordId',
+                    foreignField: '_id',
                     as: 'word'
                 }
             },
             { $unwind: { path: '$word', preserveNullAndEmptyArrays: true } }
-        ]).toArray() as unknown as WordProgress[];
+        ]).toArray();
 
         const recentAttempts = await db.collection('QuizAttempt').find({ userId }).sort({ createdAt: -1 }).limit(20).toArray();
 
@@ -176,7 +175,7 @@ export class AnalyticsService {
 
         const progressData: UserProgress[] = userProgress.map((wp: WordProgress) => ({
             userId,
-            wordId: wp.wordId,
+            wordId: wp.wordId.toString(),
             mastery: wp.mastery,
             reviewCount: wp.reviewCount,
             streak: wp.streak,
@@ -190,7 +189,7 @@ export class AnalyticsService {
         );
 
         const recommendedWordIds = (recommendations.recommendedWords || []).filter(
-            (id: string) => typeof id === 'string' && /^[a-fA-F0-9]{24}$/.test(id)
+            (id: any) => (typeof id === 'string' && /^[a-fA-F0-9]{24}$/.test(id)) || id instanceof ObjectId
         );
 
         const recommendedWords = recommendedWordIds.length > 0

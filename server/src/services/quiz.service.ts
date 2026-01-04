@@ -173,7 +173,8 @@ export class QuizService {
         processedAnswers.forEach((processedAnswer: Answer) => {
             if (processedAnswer.wordId) {
                 const wordId = processedAnswer.wordId;
-                if (wordId == null || typeof wordId !== 'string' || wordId.length !== 24) {
+                const wordIdStr = wordId.toString();
+                if (!wordIdStr || wordIdStr.length !== 24) {
                     return;
                 }
                 if (!wordProgressMap.has(wordId)) {
@@ -279,7 +280,7 @@ export class QuizService {
 
                 const existingProgress = await db.collection('WordProgress').findOne({
                     userId,
-                    wordId: wordId
+                    wordId: new ObjectId(wordId)
                 });
 
                 // Calculate average correctness for this word in this quiz
@@ -325,7 +326,7 @@ export class QuizService {
 
                     await db.collection('WordProgress').insertOne({
                         userId,
-                        wordId: wordId,
+                        wordId: new ObjectId(wordId),
                         mastery: initialMastery,
                         status: initialMastery < 1.0 ? 'learning' : 'mastered',
                         reviewCount: stats.total,
@@ -347,7 +348,7 @@ export class QuizService {
         quizzesTaken?: number;
         totalQuestions?: number;
         correctAnswers?: number;
-        wordsReviewed? : number;
+        wordsReviewed?: number;
     }) {
         const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
         const today = new Date();

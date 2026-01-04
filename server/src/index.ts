@@ -65,21 +65,11 @@ app.use(helmet({
   xssFilter: true
 }));
 
-const allowedOrigins = [
-  'https://languagelearningapp-z0ca.onrender.com',
-  'http://localhost:3000'
-];
-
 app.use(cors({
-  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-    // Allow requests with no origin (like mobile apps, curl, etc.)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    } else {
-      return callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: [
+    'https://languagelearningapp-z0ca.onrender.com',
+    'http://localhost:3000',
+  ],
   credentials: true
 }));
 app.use(cookieParser());
@@ -188,11 +178,19 @@ app.get('*', (req, res) => {
 // Start server
 async function startServer() {
   try {
-    // Test database connection
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       logger.info(`🚀 Server running on port ${PORT}`);
       logger.info(`📊 Health check: http://localhost:${PORT}/health`);
       logger.info(`🔒 Security: XSS & CSRF protection enabled`);
+    });
+
+    server.on('error', (error: any) => {
+      if (error.code === 'EADDRINUSE') {
+        logger.error(`❌ Port ${PORT} is already in use. Please kill the process using it and try again.`);
+      } else {
+        logger.error('❌ Server error:', error);
+      }
+      process.exit(1);
     });
   } catch (error) {
     logger.error('❌ Failed to start server:', error);

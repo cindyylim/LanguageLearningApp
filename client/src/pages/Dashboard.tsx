@@ -26,7 +26,7 @@ const Dashboard: React.FC = () => {
       setError(null);
       try {
         const res = await axios.get(
-          `${process.env.REACT_APP_API_URL}/analytics/progress`
+          `${process.env.REACT_APP_API_URL}/analytics/progress`, { withCredentials: true }
         );
         setSummary(res.data.summary);
       } catch (err: unknown) {

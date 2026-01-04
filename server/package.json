@@ -4,7 +4,8 @@
   "description": "Backend server for language learning quiz generator",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "nodemon --exec 'ts-node --transpile-only' src/index.ts",
+    "dev": "nodemon --ignore 'logs/*' --exec 'ts-node --transpile-only' src/index.ts",
+    "debug": "nodemon --ignore 'logs/*' --exec 'node --inspect' dist/index.js",
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "NODE_ENV=test jest"

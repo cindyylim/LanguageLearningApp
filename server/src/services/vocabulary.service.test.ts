@@ -1,9 +1,9 @@
 import { VocabularyService } from './vocabulary.service';
-import { connectToDatabase } from '../utils/mongo';
+import { connectToTestDatabase } from '../utils/testMongo';
 import { ObjectId } from 'mongodb';
 
 // Mock mongo utility
-jest.mock('../utils/mongo');
+jest.mock('../utils/testMongo');
 
 // Mock AI service
 jest.mock('./ai', () => ({
@@ -25,12 +25,12 @@ describe('VocabularyService', () => {
         const mockProjectReturn = {
             toArray: jest.fn(),
         };
-        
+
         const mockFindReturn = {
             toArray: jest.fn(),
             project: jest.fn().mockReturnValue(mockProjectReturn),
         };
-        
+
         mockCollection = {
             aggregate: jest.fn().mockReturnThis(),
             toArray: jest.fn(),
@@ -48,7 +48,7 @@ describe('VocabularyService', () => {
             collection: jest.fn().mockReturnValue(mockCollection),
         };
 
-        (connectToDatabase as jest.Mock).mockResolvedValue(mockDb);
+        (connectToTestDatabase as jest.Mock).mockResolvedValue(mockDb);
     });
 
     describe('getUserLists', () => {
@@ -73,7 +73,7 @@ describe('VocabularyService', () => {
 
             const result = await VocabularyService.getUserLists(userId);
 
-            expect(connectToDatabase).toHaveBeenCalled();
+            expect(connectToTestDatabase).toHaveBeenCalled();
             expect(mockDb.collection).toHaveBeenCalledWith('VocabularyList');
             expect(mockCollection.aggregate).toHaveBeenCalled();
             expect(result).toEqual(mockLists);
@@ -137,7 +137,7 @@ describe('VocabularyService', () => {
         it('should return list with words and progress', async () => {
             const listId = '507f1f77bcf86cd799439011';
             const userId = 'user123';
-            
+
             const mockList = {
                 _id: new ObjectId(listId),
                 name: 'Test List',
@@ -145,7 +145,7 @@ describe('VocabularyService', () => {
                 targetLanguage: 'fr',
                 nativeLanguage: 'en'
             };
-            
+
             const listObjectId = new ObjectId(listId);
             const mockWords = [
                 {
@@ -159,7 +159,7 @@ describe('VocabularyService', () => {
                     updatedAt: new Date()
                 }
             ];
-            
+
             const mockProgress = [
                 {
                     _id: new ObjectId('507f1f77bcf86cd799439013'),
@@ -181,9 +181,9 @@ describe('VocabularyService', () => {
                 .mockReturnValueOnce(mockCollection) // For VocabularyList
                 .mockReturnValueOnce(mockCollection) // For Word
                 .mockReturnValueOnce(mockCollection); // For WordProgress
-                
+
             mockCollection.findOne.mockResolvedValueOnce(mockList);
-            
+
             // Create separate mocks for the find() calls on different collections
             const mockWordFind = {
                 toArray: jest.fn().mockResolvedValue(mockWords)
@@ -191,7 +191,7 @@ describe('VocabularyService', () => {
             const mockProgressFind = {
                 toArray: jest.fn().mockResolvedValue(mockProgress)
             };
-            
+
             mockCollection.find
                 .mockReturnValueOnce(mockWordFind) // For Word collection
                 .mockReturnValueOnce(mockProgressFind); // For WordProgress collection
@@ -292,13 +292,13 @@ describe('VocabularyService', () => {
         it('should delete list and delete words and progress', async () => {
             const listId = '507f1f77bcf86cd799439011';
             const userId = 'user123';
-            
+
             const mockList = {
                 _id: new ObjectId(listId),
                 name: 'Test List',
                 userId
             };
-            
+
             const mockWords = [
                 { _id: new ObjectId('507f1f77bcf86cd799439012') },
                 { _id: new ObjectId('507f1f77bcf86cd799439013') }
@@ -350,13 +350,13 @@ describe('VocabularyService', () => {
                 partOfSpeech: 'noun',
                 difficulty: 'easy'
             };
-            
+
             const mockList = {
                 _id: new ObjectId(listId),
                 name: 'Test List',
                 userId
             };
-            
+
             const insertedId = new ObjectId('507f1f77bcf86cd799439014');
             const mockNewWord = {
                 _id: insertedId,
@@ -419,13 +419,13 @@ describe('VocabularyService', () => {
                 translation: 'hello',
                 partOfSpeech: 'interjection'
             };
-            
+
             const mockList = {
                 _id: new ObjectId(listId),
                 name: 'Test List',
                 userId
             };
-            
+
             const mockUpdatedWord = {
                 _id: new ObjectId(wordId),
                 ...wordData,
@@ -480,7 +480,7 @@ describe('VocabularyService', () => {
                 word: 'hola',
                 translation: 'hello'
             };
-            
+
             const mockList = {
                 _id: new ObjectId(listId),
                 name: 'Test List',
@@ -501,7 +501,7 @@ describe('VocabularyService', () => {
             const listId = '507f1f77bcf86cd799439011';
             const wordId = '507f1f77bcf86cd799439012';
             const userId = 'user123';
-            
+
             const mockList = {
                 _id: new ObjectId(listId),
                 name: 'Test List',
@@ -541,7 +541,7 @@ describe('VocabularyService', () => {
             const listId = '507f1f77bcf86cd799439011';
             const wordId = '507f1f77bcf86cd799439012';
             const userId = 'user123';
-            
+
             const mockList = {
                 _id: new ObjectId(listId),
                 name: 'Test List',
@@ -561,14 +561,14 @@ describe('VocabularyService', () => {
         it('should generate sentences for vocabulary list', async () => {
             const listId = '507f1f77bcf86cd799439011';
             const userId = 'user123';
-            
+
             const mockList = {
                 _id: new ObjectId(listId),
                 name: 'Test List',
                 userId,
                 targetLanguage: 'fr'
             };
-            
+
             const listObjectId = new ObjectId(listId);
             const mockWords = [
                 {
@@ -580,7 +580,7 @@ describe('VocabularyService', () => {
                     vocabularyListId: listObjectId
                 }
             ];
-            
+
             const mockSentences = [
                 { word: 'bonjour', sentence: 'Bonjour, comment allez-vous?' }
             ];
@@ -588,13 +588,13 @@ describe('VocabularyService', () => {
             mockCollection.findOne.mockResolvedValueOnce(mockList);
             const mockFindReturn = mockCollection.find();
             mockFindReturn.toArray.mockResolvedValue(mockWords);
-            
+
             // Get mocked AI service
             const { AIService } = require('./ai');
-            
+
             // Configure mock for this test
             AIService.generateContextualSentences.mockResolvedValue(mockSentences);
-            
+
             const result = await VocabularyService.generateSentences(listId, userId);
 
             expect(mockDb.collection).toHaveBeenCalledWith('VocabularyList');
@@ -631,7 +631,7 @@ describe('VocabularyService', () => {
         it('should throw error if no words in list', async () => {
             const listId = '507f1f77bcf86cd799439011';
             const userId = 'user123';
-            
+
             const mockList = {
                 _id: new ObjectId(listId),
                 name: 'Test List',
@@ -658,12 +658,12 @@ describe('VocabularyService', () => {
                 prompt: 'Basic French greetings',
                 wordCount: 5
             };
-            
+
             const mockAIWords = [
                 { word: 'bonjour', translation: 'hello', difficulty: 'easy' },
                 { word: 'merci', translation: 'thank you', difficulty: 'easy' }
             ];
-            
+
             const insertedId = new ObjectId('507f1f77bcf86cd799439014');
             const mockList = {
                 _id: insertedId,
@@ -672,7 +672,7 @@ describe('VocabularyService', () => {
                 createdAt: expect.any(Date),
                 updatedAt: expect.any(Date)
             };
-            
+
             const mockWords = [
                 {
                     _id: new ObjectId('507f1f77bcf86cd799439015'),
@@ -693,13 +693,13 @@ describe('VocabularyService', () => {
             mockCollection.insertMany.mockResolvedValue({});
             const mockFindReturn = mockCollection.find();
             mockFindReturn.toArray.mockResolvedValue(mockWords);
-            
+
             // Get mocked AI service
             const { AIService } = require('./ai');
-            
+
             // Configure mock for this test
             AIService.generateVocabularyList.mockResolvedValue(mockAIWords);
-            
+
             const result = await VocabularyService.generateAIList(listData, userId);
 
             expect(mockDb.collection).toHaveBeenCalledWith('VocabularyList');
@@ -733,7 +733,7 @@ describe('VocabularyService', () => {
             const wordId = '507f1f77bcf86cd799439012';
             const userId = 'user123';
             const status = 'learning';
-            
+
             const mockExistingProgress = {
                 _id: new ObjectId('507f1f77bcf86cd799439013'),
                 wordId,
@@ -743,7 +743,7 @@ describe('VocabularyService', () => {
                 reviewCount: 0,
                 streak: 0
             };
-            
+
             const mockUpdatedProgress = {
                 ...mockExistingProgress,
                 mastery: 0,
@@ -764,7 +764,7 @@ describe('VocabularyService', () => {
             expect(mockDb.collection).toHaveBeenCalledWith('WordProgress');
             expect(mockCollection.findOne).toHaveBeenCalledWith({
                 userId,
-                wordId
+                wordId: new ObjectId(wordId)
             });
             expect(mockCollection.updateOne).toHaveBeenCalledWith(
                 { _id: mockExistingProgress._id },
@@ -786,7 +786,7 @@ describe('VocabularyService', () => {
             const wordId = '507f1f77bcf86cd799439012';
             const userId = 'user123';
             const status = 'mastered';
-            
+
             const mockNewProgress = {
                 _id: new ObjectId('507f1f77bcf86cd799439013'),
                 wordId,
@@ -810,7 +810,7 @@ describe('VocabularyService', () => {
             expect(mockCollection.insertOne).toHaveBeenCalledWith(
                 expect.objectContaining({
                     userId,
-                    wordId,
+                    wordId: new ObjectId(wordId),
                     mastery: 1.0,
                     status: 'mastered',
                     reviewCount: 1,
@@ -827,7 +827,7 @@ describe('VocabularyService', () => {
         it('should return existing word progress', async () => {
             const wordId = '507f1f77bcf86cd799439012';
             const userId = 'user123';
-            
+
             const mockProgress = {
                 _id: new ObjectId('507f1f77bcf86cd799439013'),
                 wordId,
@@ -845,7 +845,7 @@ describe('VocabularyService', () => {
             expect(mockDb.collection).toHaveBeenCalledWith('WordProgress');
             expect(mockCollection.findOne).toHaveBeenCalledWith({
                 userId,
-                wordId
+                wordId: new ObjectId(wordId)
             });
             expect(result).toEqual(mockProgress);
         });

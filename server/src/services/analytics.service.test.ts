@@ -1,9 +1,9 @@
 import { AnalyticsService } from './analytics.service';
 import { AIService } from './ai';
-import { connectToDatabase } from '../utils/mongo';
+import { connectToTestDatabase } from '../utils/testMongo';
 import { ObjectId } from 'mongodb';
 
-jest.mock('../utils/mongo');
+jest.mock('../utils/testMongo');
 jest.mock('./ai');
 
 describe('AnalyticsService', () => {
@@ -19,7 +19,7 @@ describe('AnalyticsService', () => {
                 toArray: jest.fn(),
             }),
         };
-        (connectToDatabase as jest.Mock).mockResolvedValue(mockDb);
+        (connectToTestDatabase as jest.Mock).mockResolvedValue(mockDb);
     });
 
     describe('calculateStreak', () => {
@@ -75,13 +75,13 @@ describe('AnalyticsService', () => {
     describe('getProgress', () => {
         it('should get user progress with all components', async () => {
             const userId = 'user123';
-            
+
             // Mock learning stats
             const mockLearningStats = [
                 { date: new Date() },
                 { date: new Date(Date.now() - 86400000) },
             ];
-            
+
             // Mock word progress with word details
             const mockWordProgress = [
                 {
@@ -113,7 +113,7 @@ describe('AnalyticsService', () => {
                     word: { _id: 'word2', text: 'world', translation: 'monde' }
                 }
             ] as any;
-            
+
             // Mock quiz attempts
             const mockAllAttempts = [
                 {
@@ -141,7 +141,7 @@ describe('AnalyticsService', () => {
                     createdAt: new Date(Date.now() - 2 * 86400000).toISOString()
                 }
             ] as any;
-            
+
             // Mock the database calls
             const learningStatsCollection = {
                 find: jest.fn().mockReturnThis(),
@@ -149,18 +149,18 @@ describe('AnalyticsService', () => {
                 limit: jest.fn().mockReturnThis(),
                 toArray: jest.fn().mockResolvedValue(mockLearningStats)
             };
-            
+
             const wordProgressCollection = {
                 aggregate: jest.fn().mockReturnThis(),
                 toArray: jest.fn().mockResolvedValue(mockWordProgress)
             };
-            
+
             const quizAttemptCollection = {
                 find: jest.fn().mockReturnThis(),
                 sort: jest.fn().mockReturnThis(),
                 toArray: jest.fn().mockResolvedValue(mockAllAttempts)
             };
-            
+
             mockDb.collection.mockImplementation((collectionName: string) => {
                 if (collectionName === 'LearningStats') return learningStatsCollection;
                 if (collectionName === 'WordProgress') return wordProgressCollection;
@@ -172,18 +172,18 @@ describe('AnalyticsService', () => {
                     toArray: jest.fn().mockResolvedValue([])
                 };
             });
-            
+
             // Mock the calculateStreak method
             jest.spyOn(AnalyticsService, 'calculateStreak').mockResolvedValue(2);
-            
+
             const progress = await AnalyticsService.getProgress(userId);
-            
+
             // Verify the structure of the response
             expect(progress).toHaveProperty('summary');
             expect(progress).toHaveProperty('learningStats');
             expect(progress).toHaveProperty('wordProgress');
             expect(progress).toHaveProperty('recentAttempts');
-            
+
             // Verify summary statistics
             expect(progress.summary.totalWords).toBe(2);
             expect(progress.summary.masteredWords).toBe(1);
@@ -192,22 +192,22 @@ describe('AnalyticsService', () => {
             expect(progress.summary.maxWordStreak).toBe(3);
             expect(progress.summary.totalQuizzesTaken).toBe(3);
             expect(progress.summary.avgScore).toBeCloseTo(0.8);
-            
+
             // Verify the data arrays
             expect(progress.learningStats).toEqual(mockLearningStats);
             expect(progress.wordProgress).toEqual(mockWordProgress);
             expect(progress.recentAttempts).toEqual(mockAllAttempts.slice(0, 10));
-            
+
             // Verify the correct methods were called
             expect(learningStatsCollection.find).toHaveBeenCalledWith({ userId });
             expect(wordProgressCollection.aggregate).toHaveBeenCalled();
             expect(quizAttemptCollection.find).toHaveBeenCalledWith({ userId });
             expect(AnalyticsService.calculateStreak).toHaveBeenCalledWith(userId);
         });
-        
+
         it('should handle empty data gracefully', async () => {
             const userId = 'user123';
-            
+
             // Mock empty collections
             const emptyCollection = {
                 find: jest.fn().mockReturnThis(),
@@ -216,20 +216,20 @@ describe('AnalyticsService', () => {
                 limit: jest.fn().mockReturnThis(),
                 toArray: jest.fn().mockResolvedValue([])
             };
-            
+
             mockDb.collection.mockReturnValue(emptyCollection);
-            
+
             // Mock the calculateStreak method to return 0
             jest.spyOn(AnalyticsService, 'calculateStreak').mockResolvedValue(0);
-            
+
             const progress = await AnalyticsService.getProgress(userId);
-            
+
             // Verify the structure of the response
             expect(progress).toHaveProperty('summary');
             expect(progress).toHaveProperty('learningStats');
             expect(progress).toHaveProperty('wordProgress');
             expect(progress).toHaveProperty('recentAttempts');
-            
+
             // Verify summary statistics with empty data
             expect(progress.summary.totalWords).toBe(0);
             expect(progress.summary.masteredWords).toBe(0);
@@ -238,7 +238,7 @@ describe('AnalyticsService', () => {
             expect(progress.summary.maxWordStreak).toBe(0);
             expect(progress.summary.totalQuizzesTaken).toBe(0);
             expect(progress.summary.avgScore).toBe(0);
-            
+
             // Verify the data arrays are empty
             expect(progress.learningStats).toEqual([]);
             expect(progress.wordProgress).toEqual([]);
@@ -282,7 +282,7 @@ describe('AnalyticsService', () => {
                     word: { _id: '507f1f77bcf86cd799439012', text: 'world', translation: 'monde' }
                 }
             ] as any;
-            
+
             // Mock quiz attempts
             const mockAttempts = [
                 {
@@ -322,7 +322,7 @@ describe('AnalyticsService', () => {
                     createdAt: quizDate.toISOString(),
                 }
             ];
-            
+
             // Mock quiz questions
             const mockQuestions = [
                 {
@@ -350,13 +350,13 @@ describe('AnalyticsService', () => {
                     wordId: '507f1f77bcf86cd799439012'
                 }
             ];
-            
+
             // Mock recommended words
             const mockRecommendedWords = [
                 { _id: '507f1f77bcf86cd799439011', text: 'hello', translation: 'bonjour' },
                 { _id: '507f1f77bcf86cd799439012', text: 'world', translation: 'monde' }
             ];
-            
+
             // Mock AI recommendations
             const mockAIRecommendations = {
                 focusAreas: ['vocabulary_review', 'practice_questions'],
@@ -364,36 +364,36 @@ describe('AnalyticsService', () => {
                 studyPlan: 'Focus on reviewing difficult words with contextual examples',
                 estimatedTime: 30
             };
-            
+
             // Mock the database collections
             const wordProgressCollection = {
                 aggregate: jest.fn().mockReturnThis(),
                 toArray: jest.fn().mockResolvedValue(mockUserProgress)
             };
-            
+
             const quizAttemptCollection = {
                 find: jest.fn().mockReturnThis(),
                 sort: jest.fn().mockReturnThis(),
                 limit: jest.fn().mockReturnThis(),
                 toArray: jest.fn().mockResolvedValue(mockAttempts)
             };
-            
+
             const quizAnswerCollection = {
                 find: jest.fn().mockReturnThis(),
                 toArray: jest.fn().mockResolvedValue(mockAnswers)
             };
-            
+
             const quizQuestionCollection = {
                 findOne: jest.fn().mockImplementation((query) => {
                     return Promise.resolve(mockQuestions.find(q => q._id === query._id.toString()));
                 })
             };
-            
+
             const wordCollection = {
                 find: jest.fn().mockReturnThis(),
                 toArray: jest.fn().mockResolvedValue(mockRecommendedWords)
             };
-            
+
             mockDb.collection.mockImplementation((collectionName: string) => {
                 if (collectionName === 'WordProgress') return wordProgressCollection;
                 if (collectionName === 'QuizAttempt') return quizAttemptCollection;
@@ -407,24 +407,24 @@ describe('AnalyticsService', () => {
                     toArray: jest.fn().mockResolvedValue([])
                 };
             });
-            
+
             // Mock the AIService.generateRecommendations method
             jest.spyOn(AIService, 'generateRecommendations').mockResolvedValue(mockAIRecommendations);
-            
+
             const recommendations = await AnalyticsService.getRecommendations(userId);
-            
+
             // Verify the structure of the response
             expect(recommendations).toHaveProperty('focusAreas');
             expect(recommendations).toHaveProperty('recommendedWords');
             expect(recommendations).toHaveProperty('studyPlan');
             expect(recommendations).toHaveProperty('estimatedTime');
-            
+
             // Verify the AI recommendations were merged with word details
             expect(recommendations.focusAreas).toEqual(['vocabulary_review', 'practice_questions']);
             expect(recommendations.recommendedWords).toEqual(mockRecommendedWords);
             expect(recommendations.studyPlan).toBe('Focus on reviewing difficult words with contextual examples');
             expect(recommendations.estimatedTime).toBe(30);
-            
+
             // Verify the correct methods were called
             expect(wordProgressCollection.aggregate).toHaveBeenCalled();
             expect(quizAttemptCollection.find).toHaveBeenCalledWith({ userId });
@@ -451,11 +451,11 @@ describe('AnalyticsService', () => {
                     })
                 ]),
                 expect.arrayContaining([
-                    expect.objectContaining({wordId: "507f1f77bcf86cd799439012", score: 0}),
-                    expect.objectContaining({wordId: "507f1f77bcf86cd799439011", score: 1})
+                    expect.objectContaining({ wordId: "507f1f77bcf86cd799439012", score: 0 }),
+                    expect.objectContaining({ wordId: "507f1f77bcf86cd799439011", score: 1 })
                 ])
             );
-            
+
             // Verify word details were fetched for recommended words
             expect(wordCollection.find).toHaveBeenCalledWith({
                 _id: {
@@ -466,16 +466,16 @@ describe('AnalyticsService', () => {
                 }
             });
         });
-        
+
         it('should handle empty recommendations gracefully', async () => {
             const userId = 'user123';
-            
+
             // Mock empty user progress
             const wordProgressCollection = {
                 aggregate: jest.fn().mockReturnThis(),
                 toArray: jest.fn().mockResolvedValue([])
             };
-            
+
             // Mock empty quiz attempts
             const quizAttemptCollection = {
                 find: jest.fn().mockReturnThis(),
@@ -483,12 +483,12 @@ describe('AnalyticsService', () => {
                 limit: jest.fn().mockReturnThis(),
                 toArray: jest.fn().mockResolvedValue([])
             };
-            
+
             const wordCollection = {
                 find: jest.fn().mockReturnThis(),
                 toArray: jest.fn().mockResolvedValue([])
             };
-            
+
             mockDb.collection.mockImplementation((collectionName: string) => {
                 if (collectionName === 'WordProgress') return wordProgressCollection;
                 if (collectionName === 'QuizAttempt') return quizAttemptCollection;
@@ -500,7 +500,7 @@ describe('AnalyticsService', () => {
                     toArray: jest.fn().mockResolvedValue([])
                 };
             });
-            
+
             // Mock AI recommendations with no recommended words
             const mockAIRecommendations = {
                 focusAreas: ['general_practice'],
@@ -508,30 +508,30 @@ describe('AnalyticsService', () => {
                 studyPlan: 'Continue with regular study routine',
                 estimatedTime: 20
             };
-            
+
             jest.spyOn(AIService, 'generateRecommendations').mockResolvedValue(mockAIRecommendations);
-            
+
             const recommendations = await AnalyticsService.getRecommendations(userId);
-            
+
             // Verify the structure of the response
             expect(recommendations).toHaveProperty('focusAreas');
             expect(recommendations).toHaveProperty('recommendedWords');
             expect(recommendations).toHaveProperty('studyPlan');
             expect(recommendations).toHaveProperty('estimatedTime');
-            
+
             // Verify empty recommendations
             expect(recommendations.focusAreas).toEqual(['general_practice']);
             expect(recommendations.recommendedWords).toEqual([]);
             expect(recommendations.studyPlan).toBe('Continue with regular study routine');
             expect(recommendations.estimatedTime).toBe(20);
-            
+
             // Verify word collection was not called since there are no recommended words
             expect(wordCollection.find).not.toHaveBeenCalled();
         });
-        
+
         it('should filter out invalid word IDs from recommendations', async () => {
             const userId = 'user123';
-            
+
             // Mock empty user progress and attempts
             const emptyCollection = {
                 find: jest.fn().mockReturnThis(),
@@ -540,9 +540,9 @@ describe('AnalyticsService', () => {
                 limit: jest.fn().mockReturnThis(),
                 toArray: jest.fn().mockResolvedValue([])
             };
-            
+
             mockDb.collection.mockReturnValue(emptyCollection);
-            
+
             // Mock AI recommendations with invalid word IDs
             const mockAIRecommendations = {
                 focusAreas: ['vocabulary_review'],
@@ -555,27 +555,27 @@ describe('AnalyticsService', () => {
                 studyPlan: 'Review vocabulary',
                 estimatedTime: 15
             };
-            
+
             // Mock valid words
             const mockValidWords = [
                 { _id: '507f1f77bcf86cd799439011', text: 'hello', translation: 'bonjour' },
                 { _id: '507f1f77bcf86cd799439012', text: 'world', translation: 'monde' }
             ];
-            
+
             const wordCollection = {
                 find: jest.fn().mockReturnThis(),
                 toArray: jest.fn().mockResolvedValue(mockValidWords)
             };
-            
+
             mockDb.collection.mockImplementation((collectionName: string) => {
                 if (collectionName === 'Word') return wordCollection;
                 return emptyCollection;
             });
-            
+
             jest.spyOn(AIService, 'generateRecommendations').mockResolvedValue(mockAIRecommendations);
-            
+
             const recommendations = await AnalyticsService.getRecommendations(userId);
-            
+
             // Verify only valid word IDs were used to fetch words
             expect(wordCollection.find).toHaveBeenCalledWith({
                 _id: {
@@ -585,7 +585,7 @@ describe('AnalyticsService', () => {
                     ]
                 }
             });
-            
+
             // Verify only valid words were returned
             expect(recommendations.recommendedWords).toEqual(mockValidWords);
         });

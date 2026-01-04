@@ -3,6 +3,7 @@
 import Cookies from 'js-cookie';
 import axios from 'axios';
 
+
 /**
  * Get CSRF token from cookie
  */
@@ -38,7 +39,7 @@ export function setupCSRFInterceptor(): void {
  */
 export async function fetchCSRFToken(): Promise<void> {
     try {
-        await axios.get(`${process.env.REACT_APP_API_URL}/csrf-token`);
+        await axios.get(`${process.env.REACT_APP_API_URL}/csrf-token`, { withCredentials: true });
         // Token will be set in cookie by server
     } catch (error) {
         console.error('Failed to fetch CSRF token:', error);

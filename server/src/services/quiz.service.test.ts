@@ -1,10 +1,9 @@
 import { QuizService } from './quiz.service';
 import { AIService } from './ai';
-import { connectToDatabase } from '../utils/mongo';
+import { connectToTestDatabase } from '../utils/testMongo';
 import { ObjectId } from 'mongodb';
-import logger from '../utils/logger';
 
-jest.mock('../utils/mongo');
+jest.mock('../utils/testMongo');
 jest.mock('./ai');
 jest.mock('../utils/logger');
 
@@ -23,7 +22,7 @@ describe('QuizService', () => {
                 limit: jest.fn().mockReturnThis(),
             }),
         };
-        (connectToDatabase as jest.Mock).mockResolvedValue(mockDb);
+        (connectToTestDatabase as jest.Mock).mockResolvedValue(mockDb);
     });
 
     // Helper function to create mock collections
@@ -151,7 +150,7 @@ describe('QuizService', () => {
             options: ['bonjour', 'salut', 'merci', 'au revoir'],
             context: 'Common greeting',
             difficulty: 'easy',
-            wordId: '507f1f77bcf86cd799439012',
+            wordId: new ObjectId('507f1f77bcf86cd799439012'),
             ...overrides[0]
         },
         {
@@ -161,7 +160,7 @@ describe('QuizService', () => {
             options: ['merci', 's\'il vous plaît', 'excusez-moi', 'bonjour'],
             context: 'Common expression',
             difficulty: 'easy',
-            wordId: '507f1f77bcf86cd799439013',
+            wordId: new ObjectId('507f1f77bcf86cd799439013'),
             ...overrides[1]
         }
     ];
@@ -180,7 +179,7 @@ describe('QuizService', () => {
 
     const createMockQuestions = (overrides: any[] = []) => [
         {
-            _id: '507f1f77bcf86cd799439012',
+            _id: new ObjectId('507f1f77bcf86cd799439012'),
             question: 'What is "hello" in French?',
             type: 'multiple_choice',
             correctAnswer: 'bonjour',
@@ -191,7 +190,7 @@ describe('QuizService', () => {
 
     const createMockAttempts = (overrides: any[] = []) => [
         {
-            _id: '507f1f77bcf86cd799439014',
+            _id: new ObjectId('507f1f77bcf86cd799439014'),
             score: 0.8,
             completed: true,
             userId: 'user123',
@@ -203,7 +202,7 @@ describe('QuizService', () => {
 
     const createMockAnswers = (overrides: any[] = []) => [
         {
-            _id: '507f1f77bcf86cd799439013',
+            _id: new ObjectId('507f1f77bcf86cd799439013'),
             answer: 'bonjour',
             isCorrect: true,
             attemptId: '507f1f77bcf86cd799439012',
@@ -216,7 +215,7 @@ describe('QuizService', () => {
     const createMockWordProgress = (overrides: any = {}) => ({
         _id: new ObjectId('507f1f77bcf86cd799439017'),
         userId: 'user123',
-        wordId: '507f1f77bcf86cd799439014',
+        wordId: new ObjectId('507f1f77bcf86cd799439014'),
         mastery: 0.5,
         status: 'learning',
         reviewCount: 2,
@@ -254,7 +253,7 @@ describe('QuizService', () => {
                     context: 'Common greeting',
                     difficulty: 'easy',
                     quizId: mockQuizResult.insertedId.toString(),
-                    wordId: '507f1f77bcf86cd799439012',
+                    wordId: new ObjectId('507f1f77bcf86cd799439012'),
                     createdAt: expect.any(Date)
                 },
                 {
@@ -266,7 +265,7 @@ describe('QuizService', () => {
                     context: 'Common expression',
                     difficulty: 'easy',
                     quizId: mockQuizResult.insertedId.toString(),
-                    wordId: '507f1f77bcf86cd799439013',
+                    wordId: new ObjectId('507f1f77bcf86cd799439013'),
                     createdAt: expect.any(Date)
                 }
             ];
@@ -450,8 +449,8 @@ describe('QuizService', () => {
 
             expect(collections.QuizQuestion.find).toHaveBeenCalledWith({ quizId: '507f1f77bcf86cd799439011' });
             expect(collections.QuizQuestion.find).toHaveBeenCalledWith({ quizId: '507f1f77bcf86cd799439012' });
-            expect(collections.QuizAttempt.find).toHaveBeenCalledWith({quizId: '507f1f77bcf86cd799439011', userId});
-            expect(collections.QuizAttempt.find).toHaveBeenCalledWith({quizId: '507f1f77bcf86cd799439012', userId});
+            expect(collections.QuizAttempt.find).toHaveBeenCalledWith({ quizId: '507f1f77bcf86cd799439011', userId });
+            expect(collections.QuizAttempt.find).toHaveBeenCalledWith({ quizId: '507f1f77bcf86cd799439012', userId });
         });
     });
 
@@ -518,14 +517,14 @@ describe('QuizService', () => {
                 question: 'What is "hello" in French?',
                 type: 'multiple_choice',
                 correctAnswer: 'bonjour',
-                wordId: '507f1f77bcf86cd799439014'
+                wordId: new ObjectId('507f1f77bcf86cd799439014')
             },
             {
                 _id: new ObjectId('507f1f77bcf86cd799439013'),
                 question: 'What is "thank you" in French?',
                 type: 'multiple_choice',
                 correctAnswer: 'merci',
-                wordId: '507f1f77bcf86cd799439015'
+                wordId: new ObjectId('507f1f77bcf86cd799439015')
             }
         ];
 
@@ -587,13 +586,13 @@ describe('QuizService', () => {
                         answer: 'bonjour',
                         isCorrect: true,
                         questionId: '507f1f77bcf86cd799439012',
-                        wordId: '507f1f77bcf86cd799439014'
+                        wordId: new ObjectId('507f1f77bcf86cd799439014')
                     },
                     {
                         answer: 'merci',
                         isCorrect: true,
                         questionId: '507f1f77bcf86cd799439013',
-                        wordId: '507f1f77bcf86cd799439015'
+                        wordId: new ObjectId('507f1f77bcf86cd799439015')
                     }
                 ]
             });
@@ -614,11 +613,11 @@ describe('QuizService', () => {
             expect(collections.QuizAnswer.insertOne).toHaveBeenCalledTimes(2);
             expect(collections.WordProgress.findOne).toHaveBeenCalledWith({
                 userId,
-                wordId: '507f1f77bcf86cd799439014'
+                wordId: new ObjectId('507f1f77bcf86cd799439014')
             });
             expect(collections.WordProgress.findOne).toHaveBeenCalledWith({
                 userId,
-                wordId: '507f1f77bcf86cd799439015'
+                wordId: new ObjectId('507f1f77bcf86cd799439015')
             });
             expect(collections.WordProgress.updateOne).toHaveBeenCalledTimes(2);
             expect(collections.LearningStats.insertOne).toHaveBeenCalledWith({
@@ -748,7 +747,7 @@ describe('QuizService', () => {
             // Verify the update was called with correct mastery increase
             expect(collections.WordProgress.findOne).toHaveBeenCalledWith({
                 userId,
-                wordId: '507f1f77bcf86cd799439014'
+                wordId: new ObjectId('507f1f77bcf86cd799439014')
             });
             expect(collections.WordProgress.updateOne).toHaveBeenCalledWith(
                 { _id: mockExistingProgress._id },
@@ -796,7 +795,7 @@ describe('QuizService', () => {
             // Verify the update was called with correct mastery decrease
             expect(collections.WordProgress.findOne).toHaveBeenCalledWith({
                 userId,
-                wordId: '507f1f77bcf86cd799439014'
+                wordId: new ObjectId('507f1f77bcf86cd799439014')
             });
             expect(collections.WordProgress.updateOne).toHaveBeenCalledWith(
                 { _id: mockExistingProgress._id },
@@ -838,11 +837,11 @@ describe('QuizService', () => {
             // Verify a new record was created
             expect(collections.WordProgress.findOne).toHaveBeenCalledWith({
                 userId,
-                wordId: '507f1f77bcf86cd799439014'
+                wordId: new ObjectId('507f1f77bcf86cd799439014')
             });
             expect(collections.WordProgress.insertOne).toHaveBeenCalledWith({
                 userId,
-                wordId: '507f1f77bcf86cd799439014',
+                wordId: new ObjectId('507f1f77bcf86cd799439014'),
                 mastery: 0.75, // 3/4 = 0.75
                 status: 'learning',
                 reviewCount: 4,

@@ -38,7 +38,7 @@ const Quizzes: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL}/quizzes`);
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/quizzes`, { withCredentials: true });
         setQuizzes(res.data.quizzes || []);
       } catch (err: unknown) {
         setError(getErrorMessage(err) || 'Failed to load quizzes');
@@ -53,7 +53,7 @@ const Quizzes: React.FC = () => {
     setShowModal(true);
     if (vocabLists.length === 0) {
       try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary`);
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary`, { withCredentials: true });
         setVocabLists(res.data.vocabularyLists || []);
       } catch (err) {
         console.error('Failed to fetch vocabulary lists', err);
@@ -65,7 +65,7 @@ const Quizzes: React.FC = () => {
     e.preventDefault();
     setGenerating(true);
     try {
-      const res = await axios.post(`${process.env.REACT_APP_API_URL}/quizzes/generate`, form);
+      const res = await axios.post(`${process.env.REACT_APP_API_URL}/quizzes/generate`, form, { withCredentials: true });
       setQuizzes([res.data.quiz, ...quizzes]);
       setShowModal(false);
     } catch (err: unknown) {

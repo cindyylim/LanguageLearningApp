@@ -1,11 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import { authMiddleware, AuthRequest } from './auth';
 import jwt from 'jsonwebtoken';
-import { connectToDatabase } from '../utils/mongo';
+import { connectToTestDatabase } from '../utils/testMongo';
 import { ObjectId } from 'mongodb';
 
 jest.mock('jsonwebtoken');
-jest.mock('../utils/mongo');
+jest.mock('../utils/testMongo');
 jest.mock('../utils/logger', () => ({
     error: jest.fn(),
     info: jest.fn(),
@@ -32,7 +32,7 @@ describe('Auth Middleware', () => {
                 findOne: jest.fn(),
             }),
         };
-        (connectToDatabase as jest.Mock).mockResolvedValue(mockDb);
+        (connectToTestDatabase as jest.Mock).mockResolvedValue(mockDb);
 
         process.env.JWT_SECRET = 'test-secret';
     });

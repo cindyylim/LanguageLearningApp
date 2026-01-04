@@ -209,13 +209,13 @@ const VocbularyDetails: React.FC = () => {
                   </div>
                   <div className="flex gap-1 mt-2">
                     <button
-                      onClick={() => updateWordProgress(w._id, 'learning')}
+                      onClick={() => updateWordProgress(list._id, w._id, 'learning')}
                       className={`px-2 py-1 text-xs rounded ${w.progress?.status === 'learning' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
                     >
                       Learning
                     </button>
                     <button
-                      onClick={() => updateWordProgress(w._id, 'mastered')}
+                      onClick={() => updateWordProgress(list._id, w._id, 'mastered')}
                       className={`px-2 py-1 text-xs rounded ${w.progress?.status === 'mastered' ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}
                     >
                       Mastered

@@ -5,12 +5,12 @@ import { AIService } from './ai';
 import { Word } from '../interface/Word';
 
 interface WordDocument {
-    _id: ObjectId;
+    _id: string;
     word: string;
     translation: string;
     partOfSpeech?: string | null;
     difficulty: string;
-    vocabularyListId: ObjectId;
+    vocabularyListId: string;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -60,13 +60,13 @@ export class VocabularyService {
                         {
                             $lookup: {
                                 from: 'WordProgress',
-                                let: { wordIdStr: { $toString: '$_id' } },
+                                let: { wordId: '$_id' },
                                 pipeline: [
                                     {
                                         $match: {
                                             $expr: {
                                                 $and: [
-                                                    { $eq: ['$wordId', '$$wordIdStr'] },
+                                                    { $eq: ['$wordId', '$$wordId'] },
                                                     { $eq: ['$userId', userId] }
                                                 ]
                                             }
@@ -119,7 +119,7 @@ export class VocabularyService {
         const wordIds = words.map((w: WordDocument) => w._id.toString());
         const progressData = await db.collection('WordProgress').find({
             userId,
-            wordId: { $in: wordIds }
+            wordId: { $in: wordIds.map(id => new ObjectId(id)) }
         }).toArray() as unknown as WordProgressDocument[];
 
         const progressMap = progressData.reduce((acc: ProgressMap, p: WordProgressDocument) => {
@@ -241,7 +241,7 @@ export class VocabularyService {
         if (wordIds.length > 0) {
             progressDeleteResult = await db.collection('WordProgress').deleteMany({
                 userId,
-                wordId: { $in: wordIds }
+                wordId: { $in: wordIds.map(id => new ObjectId(id)) }
             });
         }
 
@@ -454,7 +454,7 @@ export class VocabularyService {
 
         const existingProgress = await db.collection('WordProgress').findOne({
             userId,
-            wordId: wordId
+            wordId: new ObjectId(wordId)
         });
 
         let newMastery = 0;
@@ -492,7 +492,7 @@ export class VocabularyService {
             // Create new progress record
             const document = await db.collection('WordProgress').insertOne({
                 userId,
-                wordId: wordId,
+                wordId: new ObjectId(wordId),
                 mastery: newMastery,
                 status: status,
                 reviewCount: 1,
@@ -520,7 +520,7 @@ export class VocabularyService {
 
         const progress = await db.collection('WordProgress').findOne({
             userId,
-            wordId: wordId
+            wordId: new ObjectId(wordId)
         });
 
         return progress || {

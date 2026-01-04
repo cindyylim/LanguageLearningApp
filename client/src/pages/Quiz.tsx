@@ -45,6 +45,8 @@ interface QuizResult {
   totalQuestions: number;
 }
 
+
+
 const Quiz: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -60,7 +62,7 @@ const Quiz: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL}/quizzes/${id}`);
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/quizzes/${id}`, { withCredentials: true });
         setQuiz(res.data.quiz);
       } catch (err: unknown) {
         setError(getErrorMessage(err) || 'Failed to load quiz');
@@ -85,7 +87,7 @@ const Quiz: React.FC = () => {
           answer: answers[q._id] || ''
         })),
       };
-      const res = await axios.post(`${process.env.REACT_APP_API_URL}/quizzes/${id}/submit`, payload);
+      const res = await axios.post(`${process.env.REACT_APP_API_URL}/quizzes/${id}/submit`, payload, {withCredentials: true});
       setResult(res.data.attempt);
     } catch (err: unknown) {
       alert(getErrorMessage(err) || 'Failed to submit quiz');

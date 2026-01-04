@@ -9,7 +9,6 @@ import { AppError } from '../utils/AppError';
 import { createUserRateLimiter } from '../middleware/rateLimit';
 import { vocabularyCache, getCacheKey, invalidateListCache, warmCacheForUser } from '../utils/cache';
 import { sanitizeVocabularyListName, sanitizeWordInput, sanitizeDescription } from '../utils/sanitize';
-
 const router = Router();
 
 router.use(authMiddleware);
@@ -188,6 +187,8 @@ router.post('/words/:wordId/progress', validateObjectId('wordId'), validate(upda
   if (!updatedProgress) {
     throw new AppError('Word not found', 404);
   }
+  invalidateListCache(req.user!.id);
+
   return res.json({
     message: 'Word progress updated successfully',
     progress: updatedProgress
@@ -231,6 +232,7 @@ router.delete('/:listId/words/:wordId', validateObjectId('listId'), validateObje
 // Generate vocabulary list using AI
 router.post('/generate-ai-list', validate(generateAIListSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
   const list = await VocabularyService.generateAIList(req.body, req.user!.id);
+  invalidateListCache(req.user!.id);
   return res.status(201).json({ vocabularyList: list });
 }));
 export default router;

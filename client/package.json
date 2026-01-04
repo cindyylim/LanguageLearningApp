@@ -4,6 +4,7 @@
   "description": "Frontend for language learning quiz generator",
   "type": "module",
   "dependencies": {
+    "@babel/runtime": "^7.28.4",
     "@headlessui/react": "^1.7.17",
     "@heroicons/react": "^2.0.18",
     "@types/node": "^20.9.0",

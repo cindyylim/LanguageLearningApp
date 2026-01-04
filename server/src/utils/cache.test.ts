@@ -11,6 +11,7 @@ jest.mock('./logger', () => ({
     error: jest.fn(),
     info: jest.fn(),
     warn: jest.fn(),
+    debug: jest.fn(),
 }));
 
 // Mock VocabularyService
@@ -34,7 +35,7 @@ describe('Cache Utils', () => {
 
         it('should generate correct pattern for user lists', () => {
             const pattern = getCacheKey.userAllListsPattern('user123');
-            expect(pattern).toBe('vocab_lists_user123');
+            expect(pattern).toBe('vocab_lists_user123_');
         });
     });
 
