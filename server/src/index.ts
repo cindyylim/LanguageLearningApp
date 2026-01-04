@@ -188,11 +188,19 @@ app.get('*', (req, res) => {
 // Start server
 async function startServer() {
   try {
-    // Test database connection
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       logger.info(`🚀 Server running on port ${PORT}`);
       logger.info(`📊 Health check: http://localhost:${PORT}/health`);
       logger.info(`🔒 Security: XSS & CSRF protection enabled`);
+    });
+
+    server.on('error', (error: any) => {
+      if (error.code === 'EADDRINUSE') {
+        logger.error(`❌ Port ${PORT} is already in use. Please kill the process using it and try again.`);
+      } else {
+        logger.error('❌ Server error:', error);
+      }
+      process.exit(1);
     });
   } catch (error) {
     logger.error('❌ Failed to start server:', error);

@@ -14,7 +14,7 @@ export const getCacheKey = {
     singleList: (listId: string) =>
         `vocab_list_${listId}`,
     userAllListsPattern: (userId: string) =>
-        `vocab_lists_${userId}`
+        `vocab_lists_${userId}_`
 };
 
 /**
@@ -30,7 +30,9 @@ export const invalidateListCache = (userId: string, listId?: string) => {
     }
 
     // Invalidate all user list views (pagination)
-    const userKeys = keys.filter(k => k.startsWith(getCacheKey.userAllListsPattern(userId)));
+    const pattern = getCacheKey.userAllListsPattern(userId);
+    const userKeys = keys.filter(k => k.startsWith(pattern));
+
     if (userKeys.length > 0) {
         vocabularyCache.del(userKeys);
     }

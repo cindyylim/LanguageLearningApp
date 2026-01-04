@@ -188,6 +188,9 @@ router.post('/words/:wordId/progress', validateObjectId('wordId'), validate(upda
   if (!updatedProgress) {
     throw new AppError('Word not found', 404);
   }
+  // Invalidate cache so list views show updated progress
+  invalidateListCache(req.user!.id, req.body.listId);
+
   return res.json({
     message: 'Word progress updated successfully',
     progress: updatedProgress
@@ -231,6 +234,7 @@ router.delete('/:listId/words/:wordId', validateObjectId('listId'), validateObje
 // Generate vocabulary list using AI
 router.post('/generate-ai-list', validate(generateAIListSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
   const list = await VocabularyService.generateAIList(req.body, req.user!.id);
+  invalidateListCache(req.user!.id);
   return res.status(201).json({ vocabularyList: list });
 }));
 export default router;

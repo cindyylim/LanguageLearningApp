@@ -105,7 +105,7 @@ export const useVocabulary = (user: User | null) => {
         }
     };
 
-    const updateWordProgress = async (wordId: string, status: 'learning' | 'mastered') => {
+    const updateWordProgress = async (listId: string, wordId: string, status: 'learning' | 'mastered') => {
         const newMastery = status === 'mastered' ? 1.0 : 0;
         dispatch({
             type: 'UPDATE_WORD_PROGRESS',
@@ -113,7 +113,7 @@ export const useVocabulary = (user: User | null) => {
         });
 
         try {
-            await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/words/${wordId}/progress`, { status });
+            await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/words/${wordId}/progress`, { status, listId });
             // No need to fetch lists, we already updated state
         } catch (err: unknown) {
             alert(getErrorMessage(err) || 'Failed to update word progress');

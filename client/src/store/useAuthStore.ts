@@ -98,8 +98,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             const response = await axios.get(`${process.env.REACT_APP_API_URL}/auth/profile`);
             set({ user: response.data.user, isAuthenticated: true });
         } catch (error) {
-            // No valid session
-            console.log(error);
+            // 401 is expected if not logged in
+            if (axios.isAxiosError(error) && error.response?.status !== 401) {
+                console.error('Initialization error:', error);
+            }
             set({ user: null, isAuthenticated: false });
         }
         set({ loading: false });

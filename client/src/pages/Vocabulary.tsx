@@ -76,7 +76,7 @@ const Vocabulary: React.FC = () => {
             <form onSubmit={handleAddList} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Name</label>
-                <input className="input-field" name="name"required value={listForm.name} onChange={e => dispatch({ type: 'UPDATE_LIST_FORM', payload: { name: e.target.value } })} />
+                <input className="input-field" name="name" required value={listForm.name} onChange={e => dispatch({ type: 'UPDATE_LIST_FORM', payload: { name: e.target.value } })} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Description</label>
@@ -177,7 +177,7 @@ const Vocabulary: React.FC = () => {
             >
               <div className="flex justify-between items-center mb-2">
                 <div className="font-semibold text-lg">{list.name}</div>
-                <span className="badge badge-primary">{list._count.words} words</span>
+                <span className="badge badge-primary">{(list._count?.words || 0)} words</span>
               </div>
               <div className="text-sm text-gray-600 mb-1">{list.description || 'No description'}</div>
               <div className="space-y-2 mt-4">
@@ -201,13 +201,13 @@ const Vocabulary: React.FC = () => {
                       </div>
                       <div className="flex gap-1 ml-2">
                         <button
-                          onClick={() => updateWordProgress(w._id, 'learning')}
+                          onClick={() => updateWordProgress(list._id, w._id, 'learning')}
                           className={`px-2 py-1 text-xs rounded ${status === 'learning' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
                         >
                           Learning
                         </button>
                         <button
-                          onClick={() => updateWordProgress(w._id, 'mastered')}
+                          onClick={() => updateWordProgress(list._id, w._id, 'mastered')}
                           className={`px-2 py-1 text-xs rounded ${status === 'mastered' ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}
                         >
                           Mastered

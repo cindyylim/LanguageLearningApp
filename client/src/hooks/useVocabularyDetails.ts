@@ -92,9 +92,9 @@ export const useVocabularyDetails = () => {
     };
 
     // Add function to update word progress
-    const updateWordProgress = async (wordId: string, status: 'learning' | 'mastered') => {
+    const updateWordProgress = async (listId: string, wordId: string, status: 'learning' | 'mastered') => {
         try {
-            await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/words/${wordId}/progress`, { status });
+            await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/words/${wordId}/progress`, { status, listId });
             // Refresh list
             if (id) {
                 const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary/${id}`);
