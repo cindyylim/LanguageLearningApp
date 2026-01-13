@@ -5,6 +5,7 @@ Deployed with Render. Link: https://languagelearningapp-z0ca.onrender.com/login
 
 ## Demo
 ![Untitled design](https://github.com/user-attachments/assets/8bed62e6-23a9-42ea-86bf-b7406bce4ded)
+![Untitled design (1)](https://github.com/user-attachments/assets/62968178-677e-4b69-8b3d-0c9130c53e52)
 
 
 ## Features
