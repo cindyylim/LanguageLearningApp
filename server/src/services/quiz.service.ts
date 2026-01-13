@@ -5,6 +5,7 @@ import { AIService, Question } from './ai';
 import { Quiz, QuizQuestion } from '../interface/Quiz';
 import { Answer } from '../interface/Answer';
 import logger from '../utils/logger';
+import { calculateSM2, mapAccuracyToQuality } from '../utils/sm2';
 
 export class QuizService {
     /**
@@ -47,7 +48,7 @@ export class QuizService {
                 difficulty: w.difficulty
             })),
             vocabularyList.targetLanguage,
-            vocabularyList.nativeLanguage || 'en',
+            vocabularyList.nativeLanguage,
             questionCount,
             difficulty
         );
@@ -283,56 +284,52 @@ export class QuizService {
                     wordId: new ObjectId(wordId)
                 });
 
-                // Calculate average correctness for this word in this quiz
+                // Calculate average correctness and map to SM-2 quality grade
                 const avgCorrectness = stats.total > 0 ? stats.correct / stats.total : 0;
-                const isCorrect = avgCorrectness >= 0.5;
+                const quality = mapAccuracyToQuality(avgCorrectness);
+
+                // Run SM-2 algorithm
+                const sm2Result = calculateSM2({
+                    quality,
+                    repetition: existingProgress?.streak ?? 0,
+                    easeFactor: existingProgress?.easeFactor ?? 2.5,
+                    interval: existingProgress?.interval ?? 1,
+                    now
+                });
 
                 if (existingProgress) {
                     // Update existing progress
                     const newReviewCount = existingProgress.reviewCount + stats.total;
-                    const newStreak = isCorrect ? existingProgress.streak + 1 : 0;
-
-                    // Calculate new mastery level (0-1 scale)
-                    let newMastery = existingProgress.mastery;
-                    if (avgCorrectness > 0.5) {
-                        newMastery = Math.min(1, newMastery + 0.05);
-                    } else {
-                        newMastery = Math.max(0, newMastery - 0.2);
-                    }
-
-                    // Calculate next review date based on spaced repetition
-                    const interval = Math.min(1, Math.floor(newMastery * 7));
-                    const nextReview = new Date(now.getTime() + interval * 24 * 60 * 60 * 1000);
 
                     await db.collection('WordProgress').updateOne(
                         { _id: existingProgress._id },
                         {
                             $set: {
-                                mastery: parseFloat(newMastery.toFixed(2)),
-                                status: newMastery < 1.0 ? 'learning' : 'mastered',
+                                mastery: sm2Result.mastery,
+                                status: sm2Result.status,
                                 reviewCount: newReviewCount,
-                                streak: newStreak,
+                                streak: sm2Result.repetition,
+                                easeFactor: sm2Result.easeFactor,
+                                interval: sm2Result.interval,
                                 lastReviewed: now,
-                                nextReview: nextReview,
+                                nextReview: sm2Result.nextReview,
                                 updatedAt: now
                             }
                         }
                     );
                 } else {
                     // Create new progress record
-                    const initialMastery = avgCorrectness;
-                    const interval = Math.min(1, Math.floor(initialMastery * 7));
-                    const nextReview = new Date(now.getTime() + interval * 24 * 60 * 60 * 1000);
-
                     await db.collection('WordProgress').insertOne({
                         userId,
                         wordId: new ObjectId(wordId),
-                        mastery: initialMastery,
-                        status: initialMastery < 1.0 ? 'learning' : 'mastered',
+                        mastery: sm2Result.mastery,
+                        status: sm2Result.status,
                         reviewCount: stats.total,
-                        streak: isCorrect ? 1 : 0,
+                        streak: sm2Result.repetition,
+                        easeFactor: sm2Result.easeFactor,
+                        interval: sm2Result.interval,
                         lastReviewed: now,
-                        nextReview: nextReview,
+                        nextReview: sm2Result.nextReview,
                         createdAt: now,
                         updatedAt: now
                     });

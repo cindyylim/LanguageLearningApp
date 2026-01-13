@@ -3,6 +3,7 @@ import { connectToTestDatabase } from '../utils/testMongo';
 import { ObjectId } from 'mongodb';
 import { AIService } from './ai';
 import { Word } from '../interface/Word';
+import { calculateSM2, mapStatusToQuality } from '../utils/sm2';
 
 interface WordDocument {
     _id: string;
@@ -457,21 +458,18 @@ export class VocabularyService {
             wordId: new ObjectId(wordId)
         });
 
-        let newMastery = 0;
-        switch (status) {
-            case 'learning':
-                newMastery = 0;
-                break;
-            case 'mastered':
-                newMastery = 1.0;
-                break;
-            default:
-                newMastery = 0;
-        }
+        // Map manual status to SM-2 quality grade
+        const quality = mapStatusToQuality(status);
 
-        // Calculate next review date based on mastery
-        const interval = Math.min(1, Math.floor(newMastery * 7));
-        const nextReview = new Date(now.getTime() + interval * 24 * 60 * 60 * 1000);
+        // Run SM-2 algorithm
+        const sm2Result = calculateSM2({
+            quality,
+            repetition: existingProgress?.streak ?? 0,
+            easeFactor: existingProgress?.easeFactor ?? 2.5,
+            interval: existingProgress?.interval ?? 1,
+            now
+        });
+
         let insertedId = existingProgress?._id.toString();
         if (existingProgress) {
             // Update existing progress
@@ -479,10 +477,13 @@ export class VocabularyService {
                 { _id: existingProgress._id },
                 {
                     $set: {
-                        mastery: newMastery,
-                        status: status,
+                        mastery: sm2Result.mastery,
+                        status: sm2Result.status,
+                        streak: sm2Result.repetition,
+                        easeFactor: sm2Result.easeFactor,
+                        interval: sm2Result.interval,
                         lastReviewed: now,
-                        nextReview: nextReview,
+                        nextReview: sm2Result.nextReview,
                         updatedAt: now
                     },
                     $inc: { reviewCount: 1 }
@@ -493,12 +494,14 @@ export class VocabularyService {
             const document = await db.collection('WordProgress').insertOne({
                 userId,
                 wordId: new ObjectId(wordId),
-                mastery: newMastery,
-                status: status,
+                mastery: sm2Result.mastery,
+                status: sm2Result.status,
                 reviewCount: 1,
-                streak: 0,
+                streak: sm2Result.repetition,
+                easeFactor: sm2Result.easeFactor,
+                interval: sm2Result.interval,
                 lastReviewed: now,
-                nextReview: nextReview,
+                nextReview: sm2Result.nextReview,
                 createdAt: now,
                 updatedAt: now
             });

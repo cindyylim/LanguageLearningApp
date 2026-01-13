@@ -10,7 +10,6 @@ import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import mongoSanitize from 'express-mongo-sanitize';
-import path from "path";
 // Import routes
 import authRoutes from './routes/auth';
 import vocabularyRoutes from './routes/vocabulary';
@@ -18,11 +17,14 @@ import quizRoutes from './routes/quizzes';
 import analyticsRoutes from './routes/analytics';
 import testDbRoutes from './routes/testDb';
 // Import security middleware
-import { setCSRFToken, verifyCSRFToken, getCSRFToken } from './middleware/csrf';
+import { verifyCSRFToken, getCSRFToken } from './middleware/csrf';
+import { authMiddleware } from './middleware/auth';
 import { sanitizeInput } from './middleware/sanitize';
 import { requestIdMiddleware } from './middleware/requestId';
 import { requestLoggerMiddleware } from './middleware/requestLogger';
 import { connectToDatabase } from './utils/mongo';
+import { redisHealthCheck } from './utils/redis';
+import { connectToTestDatabase } from './utils/testMongo';
 import { AIService } from './services/ai';
 import logger from './utils/logger';
 
@@ -107,12 +109,9 @@ app.use(mongoSanitize({
 // Input sanitization middleware (XSS protection)
 app.use(sanitizeInput);
 
-// CSRF token setup (set token for all requests)
-app.use(setCSRFToken);
-
 // Health check endpoint
 // Detailed health check endpoint
-app.get('/health', async (req, res) => {
+app.get('/api/health', async (req, res) => {
   const health = {
     status: 'OK',
     timestamp: new Date().toISOString(),
@@ -120,13 +119,15 @@ app.get('/health', async (req, res) => {
     uptime: process.uptime(),
     checks: {
       database: 'unknown',
-      ai: 'unknown'
+      ai: 'unknown',
+      redis: 'unknown'
     }
   };
 
   // Check database
   try {
-    const db = await connectToDatabase();
+    // Use test database in test environment, main database otherwise
+    const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
     await db.admin().ping();
     health.checks.database = 'healthy';
   } catch (error) {
@@ -135,13 +136,27 @@ app.get('/health', async (req, res) => {
     health.status = 'DEGRADED';
   }
 
-  // Check AI service
+  // Check AI service (non-critical for tests)
   try {
     await AIService.healthCheck();
     health.checks.ai = 'healthy';
   } catch (error) {
     logger.error('Health check - AI failed:', error);
     health.checks.ai = 'unhealthy';
+    // Only mark as degraded if not in test environment
+    if (process.env.NODE_ENV !== 'test') {
+      health.status = 'DEGRADED';
+    }
+  }
+
+  // Check Redis (CSRF token store)
+  try {
+    const ok = await redisHealthCheck();
+    health.checks.redis = ok ? 'healthy' : 'unhealthy';
+    if (!ok) health.status = 'DEGRADED';
+  } catch (error) {
+    logger.error('Health check - Redis failed:', error);
+    health.checks.redis = 'unhealthy';
     health.status = 'DEGRADED';
   }
 
@@ -149,15 +164,11 @@ app.get('/health', async (req, res) => {
   res.status(statusCode).json(health);
 });
 
-// CSRF token endpoint
-app.get('/api/csrf-token', getCSRFToken);
-
-// API routes with CSRF protection
+app.get('/api/csrf-token', authMiddleware, getCSRFToken);
 app.use('/api/auth', authRoutes);
-app.use('/api/vocabulary', verifyCSRFToken, vocabularyRoutes);
-app.use('/api/quizzes', verifyCSRFToken, quizRoutes);
-app.use('/api/analytics', verifyCSRFToken, analyticsRoutes);
-
+app.use('/api/vocabulary', authMiddleware, verifyCSRFToken, vocabularyRoutes);
+app.use('/api/quizzes', authMiddleware, verifyCSRFToken, quizRoutes);
+app.use('/api/analytics', authMiddleware, verifyCSRFToken, analyticsRoutes);
 // Test database routes (only available in non-production environments)
 app.use('/api/test-db', testDbRoutes);
 
@@ -168,11 +179,6 @@ app.use(errorHandler);
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route not found' });
-});
-
-app.use(express.static(path.join(__dirname, 'client/build')));
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'client/build', 'index.html'));
 });
 
 // Start server

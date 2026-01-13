@@ -173,7 +173,7 @@ export function vocabularyReducer(state: VocabularyState, action: VocbularyActio
                                     reviewCount: word.progress?.reviewCount || 0,
                                     streak: word.progress?.streak || 0,
                                     lastReviewed: new Date().toISOString(),
-                                    nextReview: new Date(new Date().getTime() + (Math.max(1, word.progress?.mastery || 0) * 24 * 7 * 60 * 60 * 1000)).toISOString(),
+                                    nextReview: new Date(new Date().getTime() + (word.progress?.interval || 1) * 24 * 60 * 60 * 1000).toISOString(),
                                     createdAt: word.progress?.createdAt || new Date().toISOString(),
                                     updatedAt: new Date().toISOString()
                                 }

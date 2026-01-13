@@ -21,6 +21,8 @@ export interface WordProgress {
     status: WordStatus;
     reviewCount: number;
     streak: number;
+    easeFactor?: number;
+    interval?: number;
     lastReviewed: string;
     nextReview: string;
     createdAt: string;

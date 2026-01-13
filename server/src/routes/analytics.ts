@@ -1,11 +1,9 @@
 import { Router, Response } from 'express';
-import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { AuthRequest } from '../middleware/auth';
 import { asyncHandler } from '../utils/asyncHandler';
 import { AnalyticsService } from '../services/analytics.service';
 
-const router = Router();
-
-router.use(authMiddleware);
+const router: Router = Router();
 
 // Get learning progress
 router.get('/progress', asyncHandler(async (req: AuthRequest, res: Response) => {

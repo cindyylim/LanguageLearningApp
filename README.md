@@ -38,7 +38,7 @@ Deployed with Render. Link: https://languagelearningapp-z0ca.onrender.com/login
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd client
+cd LanguageLearningApp/client
 ```
 
 2. Install dependencies:
@@ -48,7 +48,7 @@ npm install
 
 3. Set up environment variables:
 ```bash
-cd server 
+cd ../server 
 npm install
 cp .env.example .env
 ```
@@ -60,9 +60,23 @@ JWT_SECRET=your_jwt_secret
 MONGODB_URI=
 ```
 
-5. Start the development servers:
+5. Configure your environment variables in `.env`:
 ```bash
+cd ../client 
+cp .env.example .env
+```
+
+```
+REACT_APP_API_URL=http://localhost:3000/api
+```
+
+6. Start the development servers:
+```bash
+cd ../server 
 npm run dev
+cd ../client
+npm run build
+npm start
 ```
 
 The app will be available at:

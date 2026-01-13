@@ -34,7 +34,8 @@ export const authMiddleware = async (
     }
 
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
+    const secret = process.env.JWT_SECRET || 'jwt-secret';
+    const decoded = jwt.verify(token, secret) as JwtPayload;
 
     const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 

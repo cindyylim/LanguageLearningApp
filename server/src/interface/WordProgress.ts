@@ -8,6 +8,8 @@ export interface WordProgress {
     status: string;
     reviewCount: number;
     streak: number;
+    easeFactor?: number;
+    interval?: number;
     lastReviewed: string;
     nextReview: string;
     createdAt: string;

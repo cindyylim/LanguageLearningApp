@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
-import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { AuthRequest } from '../middleware/auth';
 import { asyncHandler } from '../utils/asyncHandler';
 import { validateObjectId } from '../middleware/validateObjectId';
 import { validate } from '../middleware/validate';
@@ -8,9 +8,7 @@ import { QuizService } from '../services/quiz.service';
 import { AppError } from '../utils/AppError';
 import { createUserRateLimiter } from '../middleware/rateLimit';
 
-const router = Router();
-
-router.use(authMiddleware);
+const router: Router = Router();
 
 // Rate limiter for quiz generation
 const quizGenerationLimiter = createUserRateLimiter(10, 60 * 1000); // 10 requests per minute

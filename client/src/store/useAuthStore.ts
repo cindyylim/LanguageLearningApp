@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import axios from 'axios';
+import api, { fetchCSRFToken, clearCSRFToken } from '../lib/api';
 import toast from 'react-hot-toast';
 import { getErrorMessage } from '../types/errors';
 
@@ -26,6 +27,7 @@ interface AuthState {
     loading: boolean;
     isAuthenticated: boolean;
     login: (email: string, password: string) => Promise<void>;
+    loginDemo: () => Promise<void>;
     register: (userData: RegisterData) => Promise<void>;
     logout: () => void;
     updateUser: (userData: Partial<User>) => void;
@@ -39,12 +41,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     login: async (email, password) => {
         try {
-            const response = await axios.post(`${process.env.REACT_APP_API_URL}/auth/login`, { email, password }, { withCredentials: true });
+            const response = await api.post('/auth/login', { email, password });
             const { user } = response.data;
 
-            // Token is now in httpOnly cookie, no need to store it
             set({ user, isAuthenticated: true });
 
+            await fetchCSRFToken();
             toast.success('Login successful!');
         } catch (error: unknown) {
             const message = getErrorMessage(error) || 'Login failed';
@@ -53,14 +55,40 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
     },
 
+    loginDemo: async () => {
+        try {
+            const response = await api.post('/auth/demo');
+            const { user } = response.data;
+            set({ user, isAuthenticated: true });
+            await fetchCSRFToken();
+            toast.success('Logged in with Demo Account!');
+        } catch (error: unknown) {
+            // Fallback to standard login with demo credentials
+            try {
+                const response = await api.post('/auth/login', {
+                    email: 'test@email.com',
+                    password: '12345678$'
+                });
+                set({ user: response.data.user, isAuthenticated: true });
+                await fetchCSRFToken();
+                toast.success('Logged in with Demo Account!');
+            } catch (fallbackErr: unknown) {
+                const message = getErrorMessage(fallbackErr) || 'Demo login failed';
+                toast.error(message);
+                throw fallbackErr;
+            }
+        }
+    },
+
     register: async (userData) => {
         try {
-            const response = await axios.post(`${process.env.REACT_APP_API_URL}/auth/register`, userData, { withCredentials: true });
+            const response = await api.post('/auth/register', userData);
             const { user } = response.data;
 
             // Token is now in httpOnly cookie, no need to store it
             set({ user, isAuthenticated: true });
 
+            await fetchCSRFToken();
             toast.success('Registration successful!');
         } catch (error: unknown) {
             const message = getErrorMessage(error) || 'Registration failed';
@@ -72,11 +100,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     logout: async () => {
         try {
             // Call logout endpoint to clear httpOnly cookie
-            await axios.post(`${process.env.REACT_APP_API_URL}/auth/logout`, { withCredentials: true });
+            await api.post('/auth/logout');
+            clearCSRFToken();
             set({ user: null, isAuthenticated: false });
             toast.success('Logged out successfully');
         } catch (error) {
             // Even if the request fails, clear local state
+            clearCSRFToken();
             set({ user: null, isAuthenticated: false });
             toast.error('Logged out failed ' + error);
         }
@@ -92,8 +122,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     initialize: async () => {
         // Token is in httpOnly cookie, just try to get profile
         try {
-            const response = await axios.get(`${process.env.REACT_APP_API_URL}/auth/profile`, { withCredentials: true });
+            const response = await api.get('/auth/profile');
             set({ user: response.data.user, isAuthenticated: true });
+            await fetchCSRFToken();
         } catch (error) {
             // 401 is expected if not logged in
             if (axios.isAxiosError(error) && error.response?.status !== 401) {

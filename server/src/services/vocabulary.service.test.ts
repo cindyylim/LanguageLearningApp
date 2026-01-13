@@ -729,10 +729,10 @@ describe('VocabularyService', () => {
     });
 
     describe('updateWordProgress', () => {
-        it('should update existing word progress', async () => {
+        it('should update existing word progress with SM-2 algorithm', async () => {
             const wordId = '507f1f77bcf86cd799439012';
             const userId = 'user123';
-            const status = 'learning';
+            const status = 'learning'; // maps to q=2
 
             const mockExistingProgress = {
                 _id: new ObjectId('507f1f77bcf86cd799439013'),
@@ -741,15 +741,19 @@ describe('VocabularyService', () => {
                 mastery: 0.5,
                 status: 'not_started',
                 reviewCount: 0,
-                streak: 0
+                streak: 0,
+                easeFactor: 2.5,
+                interval: 1
             };
 
             const mockUpdatedProgress = {
                 ...mockExistingProgress,
-                mastery: 0,
+                mastery: expect.any(Number),
                 status: 'learning',
                 reviewCount: 1,
-                streak: 0,
+                streak: 0, // q=2 resets repetition
+                easeFactor: expect.any(Number),
+                interval: 1, // q<3 resets interval
                 lastReviewed: expect.any(Date),
                 nextReview: expect.any(Date),
                 updatedAt: expect.any(Date)
@@ -770,8 +774,11 @@ describe('VocabularyService', () => {
                 { _id: mockExistingProgress._id },
                 {
                     $set: {
-                        mastery: 0,
+                        mastery: expect.any(Number),
                         status: 'learning',
+                        streak: 0, // SM-2: q=2 resets repetition
+                        easeFactor: expect.any(Number),
+                        interval: 1, // SM-2: q<3 resets interval
                         lastReviewed: expect.any(Date),
                         nextReview: expect.any(Date),
                         updatedAt: expect.any(Date)
@@ -782,19 +789,21 @@ describe('VocabularyService', () => {
             expect(result).toEqual(mockUpdatedProgress);
         });
 
-        it('should create new word progress', async () => {
+        it('should create new word progress with SM-2 defaults', async () => {
             const wordId = '507f1f77bcf86cd799439012';
             const userId = 'user123';
-            const status = 'mastered';
+            const status = 'mastered'; // maps to q=5
 
             const mockNewProgress = {
                 _id: new ObjectId('507f1f77bcf86cd799439013'),
                 wordId,
                 userId,
-                mastery: 1.0,
-                status: 'mastered',
+                mastery: expect.any(Number),
+                status: 'learning', // SM-2: first repetition is still learning
                 reviewCount: 1,
-                streak: 0,
+                streak: 1, // SM-2: first successful repetition
+                easeFactor: expect.any(Number),
+                interval: 1, // SM-2: n=1 -> interval=1
                 lastReviewed: expect.any(Date),
                 nextReview: expect.any(Date),
                 createdAt: expect.any(Date),
@@ -811,10 +820,12 @@ describe('VocabularyService', () => {
                 expect.objectContaining({
                     userId,
                     wordId: new ObjectId(wordId),
-                    mastery: 1.0,
-                    status: 'mastered',
+                    mastery: expect.any(Number),
+                    status: 'learning', // SM-2: n=1 is still learning
                     reviewCount: 1,
-                    streak: 0,
+                    streak: 1, // SM-2: first successful repetition
+                    easeFactor: expect.any(Number),
+                    interval: 1, // SM-2: n=1 -> interval=1
                     createdAt: expect.any(Date),
                     updatedAt: expect.any(Date)
                 })

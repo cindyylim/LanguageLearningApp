@@ -27,11 +27,11 @@ const languages = [
 // Define the type for the component's props
 interface LanguageDropdownProps {
     name: string;
-    // onCodeSelect is a function that takes a string (the code) and returns void (nothing)
     onCodeSelect: (code: string) => void; 
+    value?: string;
 }
 
-const LanguageDropdown: React.FC<LanguageDropdownProps> = ({ name, onCodeSelect }) => {
+const LanguageDropdown: React.FC<LanguageDropdownProps> = ({ name, onCodeSelect, value }) => {
     const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
         onCodeSelect(event.target.value)
     };
@@ -39,8 +39,9 @@ const LanguageDropdown: React.FC<LanguageDropdownProps> = ({ name, onCodeSelect 
     return (
         <div>
             <select className="input-field"
-                id="language-select"
+                id={`language-select-${name}`}
                 name={name}
+                value={value ?? ''}
                 onChange={handleChange} 
             >
                 {/* Default option */}

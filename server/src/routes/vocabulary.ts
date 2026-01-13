@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
-import { authMiddleware, AuthRequest } from '../middleware/auth';
+import { AuthRequest } from '../middleware/auth';
 import { asyncHandler } from '../utils/asyncHandler';
 import { validateObjectId } from '../middleware/validateObjectId';
 import { validate } from '../middleware/validate';
@@ -9,9 +9,7 @@ import { AppError } from '../utils/AppError';
 import { createUserRateLimiter } from '../middleware/rateLimit';
 import { vocabularyCache, getCacheKey, invalidateListCache, warmCacheForUser } from '../utils/cache';
 import { sanitizeVocabularyListName, sanitizeWordInput, sanitizeDescription } from '../utils/sanitize';
-const router = Router();
-
-router.use(authMiddleware);
+const router: Router = Router();
 
 // Rate limiters for expensive AI operations
 const aiGenerationLimiter = createUserRateLimiter(10, 60 * 1000); // 10 requests per minute

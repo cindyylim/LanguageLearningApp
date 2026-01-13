@@ -50,12 +50,12 @@ export const testVocabularyLists = [
  */
 export async function seedTestDatabase() {
   const db = await connectToTestDatabase();
-  
+
   try {
     // Seed test users
     for (const userData of testUsers) {
       const existingUser = await db.collection('User').findOne({ email: userData.email });
-      
+
       if (!existingUser) {
         const hashedPassword = await bcrypt.hash(userData.password, 12);
         const userDoc = {
@@ -64,15 +64,15 @@ export async function seedTestDatabase() {
           createdAt: new Date(),
           updatedAt: new Date(),
         };
-        
+
         await db.collection('User').insertOne(userDoc);
         console.log(`Created test user: ${userData.email}`);
       }
     }
-    
+
     // Get the test user IDs for vocabulary creation
     const testUser = await db.collection('User').findOne({ email: 'test@example.com' });
-    
+
     if (testUser) {
       // Seed vocabulary lists for test user
       for (const vocabData of testVocabularyLists) {
@@ -80,7 +80,7 @@ export async function seedTestDatabase() {
           name: vocabData.name,
           userId: testUser._id.toString()
         });
-        
+
         if (!existingList) {
           const vocabDoc = {
             name: vocabData.name,
@@ -91,9 +91,9 @@ export async function seedTestDatabase() {
             createdAt: new Date(),
             updatedAt: new Date(),
           };
-          
+
           const result = await db.collection('VocabularyList').insertOne(vocabDoc);
-          
+
           // Add words to the vocabulary list
           for (const wordData of vocabData.words) {
             await db.collection('Word').insertOne({
@@ -103,12 +103,12 @@ export async function seedTestDatabase() {
               updatedAt: new Date(),
             });
           }
-          
+
           console.log(`Created vocabulary list: ${vocabData.name}`);
         }
       }
     }
-    
+
     console.log('Test database seeded successfully');
   } catch (error: any) {
     console.error('Error seeding test database:', error);
@@ -122,12 +122,12 @@ export async function seedTestDatabase() {
  */
 export async function cleanupTestData() {
   const db = await connectToTestDatabase();
-  
+
   try {
     // Get all test users
     const testEmails = testUsers.map(user => user.email);
-    const testUsersCursor = await db.collection('User').find({ 
-      email: { $in: testEmails } 
+    const testUsersCursor = await db.collection('User').find({
+      email: { $in: testEmails }
     });
 
     const testUserDocs = await testUsersCursor.toArray();
@@ -136,39 +136,56 @@ export async function cleanupTestData() {
       console.log('No test users found to clean up');
       return;
     }
-    
+
     // Delete vocabulary lists and words for test users
     const vocabLists = await db.collection('VocabularyList').find({
       userId: { $in: testUserIds }
     }).toArray();
-    
-    const vocabListIds = vocabLists.map(list => list._id.toString());
+
+    const vocabListIds = vocabLists.map(list => list._id);
     if (vocabListIds.length > 0) {
       // Delete words in these vocabulary lists
       await db.collection('Word').deleteMany({
-        listId: { $in: vocabListIds }
+        vocabularyListId: { $in: vocabListIds }
       });
-      
+
       // Delete the vocabulary lists
       await db.collection('VocabularyList').deleteMany({
-        userId: { $in: testUserIds }
+        _id: { $in: vocabListIds }
       });
     }
-    
+
     // Delete quiz attempts and progress for test users
     await db.collection('QuizAttempt').deleteMany({
       userId: { $in: testUserIds }
     });
-    
+
+    await db.collection('Quiz').deleteMany({
+      userId: { $in: testUserIds }
+    });
+
+    await db.collection('QuizAnswer').deleteMany({
+      userId: { $in: testUserIds }
+    });
+
     await db.collection('WordProgress').deleteMany({
       userId: { $in: testUserIds }
     });
-    
+
+    await db.collection('QuizQuestion').deleteMany({
+      userId: { $in: testUserIds }
+    });
+
+
+    await db.collection('LearningStats').deleteMany({
+      userId: { $in: testUserIds }
+    });
+
     // Delete the test users
     await db.collection('User').deleteMany({
       email: { $in: testEmails }
     });
-    
+
     console.log(`Cleaned up ${testUserIds.length} test users and their associated data`);
   } catch (error: any) {
     console.error('Error cleaning up test data:', error);

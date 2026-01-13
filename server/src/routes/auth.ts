@@ -12,7 +12,7 @@ interface jwtToken {
   userId: string;
 }
 
-const router = Router();
+const router: Router = Router();
 
 // Validation schemas
 const registerSchema = z.object({
@@ -62,7 +62,7 @@ router.post('/register', validate(registerSchema), asyncHandler(async (req: Requ
   // Generate JWT token
   const token = jwt.sign(
     { userId: user.id },
-    process.env.JWT_SECRET!,
+    process.env.JWT_SECRET || 'jwt-secret',
     { expiresIn: '7d' }
   );
 
@@ -77,7 +77,6 @@ router.post('/register', validate(registerSchema), asyncHandler(async (req: Requ
   return res.status(201).json({
     message: 'User registered successfully',
     user: {
-      id: user.id,
       name: user.name,
       email: user.email,
       nativeLanguage: user.nativeLanguage,
@@ -88,11 +87,98 @@ router.post('/register', validate(registerSchema), asyncHandler(async (req: Requ
   });
 }));
 
+// Helper to get or create demo user
+const getOrCreateDemoUser = async (db: any) => {
+  const demoEmail = 'test@email.com';
+  let user = await db.collection('User').findOne({ email: demoEmail });
+
+  if (!user) {
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash('12345678$', saltRounds);
+    const demoUserDoc = {
+      name: 'Demo Learner',
+      email: demoEmail,
+      password: hashedPassword,
+      nativeLanguage: 'en',
+      targetLanguage: 'es',
+      proficiencyLevel: 'intermediate',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const result = await db.collection('User').insertOne(demoUserDoc);
+    user = { ...demoUserDoc, _id: result.insertedId };
+  }
+  return user;
+};
+
+// Demo login endpoint
+router.post('/demo', asyncHandler(async (req: Request, res: Response) => {
+  const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+  const user = await getOrCreateDemoUser(db);
+
+  const token = jwt.sign(
+    { userId: user._id.toString() },
+    process.env.JWT_SECRET || 'language_learning_jwt_secret_key_2026',
+    { expiresIn: '7d' }
+  );
+
+  res.cookie('token', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'none',
+    maxAge: 7 * 24 * 60 * 60 * 1000
+  });
+
+  return res.json({
+    message: 'Demo login successful',
+    user: {
+      name: user.name,
+      email: user.email,
+      nativeLanguage: user.nativeLanguage,
+      targetLanguage: user.targetLanguage,
+      proficiencyLevel: user.proficiencyLevel
+    }
+  });
+}));
+
 // Login user
 router.post('/login', validate(loginSchema), asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = req.body;
   // Use test database in test environment, main database otherwise
   const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+
+  // Handle demo account login specifically if email is demo email
+  if (email.toLowerCase() === 'test@email.com') {
+    const user = await getOrCreateDemoUser(db);
+    const isValid = await bcrypt.compare(password, user.password);
+    if (!isValid) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const token = jwt.sign(
+      { userId: user._id.toString() },
+      process.env.JWT_SECRET || 'language_learning_jwt_secret_key_2026',
+      { expiresIn: '7d' }
+    );
+
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'none',
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+
+    return res.json({
+      message: 'Login successful',
+      user: {
+        name: user.name,
+        email: user.email,
+        nativeLanguage: user.nativeLanguage,
+        targetLanguage: user.targetLanguage,
+        proficiencyLevel: user.proficiencyLevel
+      }
+    });
+  }
 
   // Find user
   const user = await db.collection('User').findOne({ email });
@@ -109,7 +195,7 @@ router.post('/login', validate(loginSchema), asyncHandler(async (req: Request, r
   // Generate JWT token
   const token = jwt.sign(
     { userId: user._id.toString() },
-    process.env.JWT_SECRET!,
+    process.env.JWT_SECRET || 'language_learning_jwt_secret_key_2026',
     { expiresIn: '7d' }
   );
 
@@ -124,7 +210,6 @@ router.post('/login', validate(loginSchema), asyncHandler(async (req: Request, r
   return res.json({
     message: 'Login successful',
     user: {
-      id: user._id.toString(),
       name: user.name,
       email: user.email,
       nativeLanguage: user.nativeLanguage,
@@ -140,7 +225,7 @@ router.get('/profile', asyncHandler(async (req: Request, res: Response) => {
   if (!token) {
     return res.status(401).json({ error: 'Access denied. No token provided.' });
   }
-  const decoded = jwt.verify(token, process.env.JWT_SECRET!) as jwtToken;
+  const decoded = jwt.verify(token, process.env.JWT_SECRET || 'language_learning_jwt_secret_key_2026') as jwtToken;
   // Use test database in test environment, main database otherwise
   const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
   const user = await db.collection('User').findOne({ _id: new ObjectId(decoded.userId) });
@@ -149,7 +234,6 @@ router.get('/profile', asyncHandler(async (req: Request, res: Response) => {
   }
   return res.json({
     user: {
-      id: user._id.toString(),
       name: user.name,
       email: user.email,
       nativeLanguage: user.nativeLanguage,
@@ -162,7 +246,11 @@ router.get('/profile', asyncHandler(async (req: Request, res: Response) => {
 
 // Logout user
 router.post('/logout', asyncHandler(async (req: Request, res: Response) => {
-  res.clearCookie('token');
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'none',
+  });
   return res.json({ message: 'Logged out successfully' });
 }));
 

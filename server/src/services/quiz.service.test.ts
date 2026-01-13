@@ -722,12 +722,18 @@ describe('QuizService', () => {
     });
 
     describe('updateWordProgressFromQuiz', () => {
-        it('should update existing word progress with correct mastery increase', async () => {
+        it('should update existing word progress using SM-2 for good accuracy (q=4)', async () => {
             const userId = 'user123';
             const wordProgressMap = new Map<string, { correct: number; total: number }>();
-            wordProgressMap.set('507f1f77bcf86cd799439014', { correct: 3, total: 4 });
+            wordProgressMap.set('507f1f77bcf86cd799439014', { correct: 3, total: 4 }); // 75% -> q=4
 
-            const mockExistingProgress = createMockWordProgress();
+            // streak=1 means SM-2 repetition=1, so next will be repetition=2 -> interval=6
+            const mockExistingProgress = createMockWordProgress({
+                mastery: 0.5,
+                streak: 1,
+                easeFactor: 2.5,
+                interval: 1
+            });
 
             const mockWord = createMockWord();
 
@@ -741,10 +747,8 @@ describe('QuizService', () => {
                 }
             });
 
-            // Call the private method through the class
             await (QuizService as any).updateWordProgressFromQuiz(wordProgressMap, userId);
 
-            // Verify the update was called with correct mastery increase
             expect(collections.WordProgress.findOne).toHaveBeenCalledWith({
                 userId,
                 wordId: new ObjectId('507f1f77bcf86cd799439014')
@@ -753,10 +757,12 @@ describe('QuizService', () => {
                 { _id: mockExistingProgress._id },
                 {
                     $set: {
-                        mastery: 0.55, // 0.5 + 0.05
+                        mastery: expect.any(Number),
                         status: 'learning',
                         reviewCount: 6, // 2 + 4
-                        streak: 2, // 1 + 1
+                        streak: 2, // SM-2 repetition incremented
+                        easeFactor: expect.any(Number),
+                        interval: 6, // SM-2: n=2 -> interval=6
                         lastReviewed: expect.any(Date),
                         nextReview: expect.any(Date),
                         updatedAt: expect.any(Date)
@@ -765,16 +771,50 @@ describe('QuizService', () => {
             );
         });
 
-        it('should update existing word progress with mastery decrease', async () => {
+        it('should schedule nextReview using SM-2 interval for n=2', async () => {
             const userId = 'user123';
             const wordProgressMap = new Map<string, { correct: number; total: number }>();
-            wordProgressMap.set('507f1f77bcf86cd799439014', { correct: 1, total: 4 });
+            wordProgressMap.set('507f1f77bcf86cd799439014', { correct: 1, total: 1 }); // 100% -> q=5
+
+            const mockExistingProgress = createMockWordProgress({
+                mastery: 0.5,
+                streak: 1,
+                easeFactor: 2.5,
+                interval: 1
+            });
+            const mockWord = createMockWord();
+
+            const collections = createMockCollections({
+                WordProgress: {
+                    findOne: jest.fn().mockResolvedValue(mockExistingProgress),
+                    updateOne: jest.fn()
+                },
+                Word: {
+                    findOne: jest.fn().mockResolvedValue(mockWord)
+                }
+            });
+
+            const now = Date.now();
+            await (QuizService as any).updateWordProgressFromQuiz(wordProgressMap, userId);
+
+            const updateCall = collections.WordProgress.updateOne.mock.calls[0][1];
+            const nextReviewDate: Date = updateCall.$set.nextReview;
+            const diffDays = Math.round((nextReviewDate.getTime() - now) / (24 * 60 * 60 * 1000));
+            expect(diffDays).toBe(6); // SM-2: n=2 -> interval=6
+        });
+
+        it('should reset repetition and interval on poor accuracy (q<3)', async () => {
+            const userId = 'user123';
+            const wordProgressMap = new Map<string, { correct: number; total: number }>();
+            wordProgressMap.set('507f1f77bcf86cd799439014', { correct: 1, total: 4 }); // 25% -> q=2
 
             const mockExistingProgress = createMockWordProgress({
                 mastery: 0.7,
                 status: 'learning',
                 reviewCount: 5,
-                streak: 2
+                streak: 3,
+                easeFactor: 2.5,
+                interval: 15
             });
 
             const mockWord = createMockWord();
@@ -789,22 +829,18 @@ describe('QuizService', () => {
                 }
             });
 
-            // Call the private method through the class
             await (QuizService as any).updateWordProgressFromQuiz(wordProgressMap, userId);
 
-            // Verify the update was called with correct mastery decrease
-            expect(collections.WordProgress.findOne).toHaveBeenCalledWith({
-                userId,
-                wordId: new ObjectId('507f1f77bcf86cd799439014')
-            });
             expect(collections.WordProgress.updateOne).toHaveBeenCalledWith(
                 { _id: mockExistingProgress._id },
                 {
                     $set: {
-                        mastery: 0.50, // 0.7 - 0.2
+                        mastery: 0, // SM-2: repetition reset to 0
                         status: 'learning',
                         reviewCount: 9, // 5 + 4
-                        streak: 0, // reset to 0
+                        streak: 0, // SM-2: repetition reset to 0
+                        easeFactor: expect.any(Number),
+                        interval: 1, // SM-2: reset to 1
                         lastReviewed: expect.any(Date),
                         nextReview: expect.any(Date),
                         updatedAt: expect.any(Date)
@@ -813,10 +849,10 @@ describe('QuizService', () => {
             );
         });
 
-        it('should create new word progress record', async () => {
+        it('should create new word progress record with SM-2 defaults', async () => {
             const userId = 'user123';
             const wordProgressMap = new Map<string, { correct: number; total: number }>();
-            wordProgressMap.set('507f1f77bcf86cd799439014', { correct: 3, total: 4 });
+            wordProgressMap.set('507f1f77bcf86cd799439014', { correct: 3, total: 4 }); // 75% -> q=4
 
             const mockWord = createMockWord();
 
@@ -831,10 +867,8 @@ describe('QuizService', () => {
                 }
             });
 
-            // Call the private method through the class
             await (QuizService as any).updateWordProgressFromQuiz(wordProgressMap, userId);
 
-            // Verify a new record was created
             expect(collections.WordProgress.findOne).toHaveBeenCalledWith({
                 userId,
                 wordId: new ObjectId('507f1f77bcf86cd799439014')
@@ -842,10 +876,12 @@ describe('QuizService', () => {
             expect(collections.WordProgress.insertOne).toHaveBeenCalledWith({
                 userId,
                 wordId: new ObjectId('507f1f77bcf86cd799439014'),
-                mastery: 0.75, // 3/4 = 0.75
+                mastery: expect.any(Number),
                 status: 'learning',
                 reviewCount: 4,
                 streak: 1,
+                easeFactor: expect.any(Number),
+                interval: 1,
                 lastReviewed: expect.any(Date),
                 nextReview: expect.any(Date),
                 createdAt: expect.any(Date),

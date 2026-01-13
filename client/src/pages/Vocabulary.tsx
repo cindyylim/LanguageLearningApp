@@ -41,6 +41,13 @@ const Vocabulary: React.FC = () => {
     dispatch({ type: 'UPDATE_AI_FORM', payload: { nativeLanguage: code } });
   };
 
+  const handleListTargetLanguageChange = (code: string) => {
+    dispatch({ type: 'UPDATE_LIST_FORM', payload: { targetLanguage: code } });
+  };
+  const handleListNativeLanguageChange = (code: string) => {
+    dispatch({ type: 'UPDATE_LIST_FORM', payload: { nativeLanguage: code } });
+  };
+
   const getProgressColor = (mastery: number) => {
     if (mastery >= 1.0) return 'text-green-600';
     if (mastery >= 0) return 'text-yellow-600';
@@ -81,6 +88,14 @@ const Vocabulary: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium mb-1">Description</label>
                 <input className="input-field" name="description" value={listForm.description} onChange={e => dispatch({ type: 'UPDATE_LIST_FORM', payload: { description: e.target.value } })} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Target Language</label>
+                <LanguageDropdown name="listTargetLanguage" value={listForm.targetLanguage} onCodeSelect={handleListTargetLanguageChange} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Native Language</label>
+                <LanguageDropdown name="listNativeLanguage" value={listForm.nativeLanguage} onCodeSelect={handleListNativeLanguageChange} />
               </div>
               <button type="submit" className="btn-primary w-full" disabled={saving}>{saving ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div> : 'Add List'}</button>
             </form>
@@ -134,11 +149,11 @@ const Vocabulary: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Target Language</label>
-                <LanguageDropdown name="targetLanguage" onCodeSelect={handleTargetLanguageChange} />
+                <LanguageDropdown name="targetLanguage" value={aiForm.targetLanguage} onCodeSelect={handleTargetLanguageChange} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Native Language</label>
-                <LanguageDropdown name="nativeLanguage" onCodeSelect={handleNativeLanguageChange} />
+                <LanguageDropdown name="nativeLanguage" value={aiForm.nativeLanguage} onCodeSelect={handleNativeLanguageChange} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Topic / Keywords</label>
