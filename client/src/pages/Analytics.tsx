@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import api from '../lib/api';
 import { Word, WordProgress } from '../types/vocabulary';
 import { getErrorMessage } from '../types/errors';
 import { SkeletonCard } from '../components/SkeletonCard';
@@ -57,8 +57,8 @@ const Analytics: React.FC = () => {
       setError(null);
       try {
         const [progressRes, recRes] = await Promise.all([
-          axios.get(`${process.env.REACT_APP_API_URL}/analytics/progress`, { withCredentials: true }),
-          axios.get(`${process.env.REACT_APP_API_URL}/analytics/recommendations`, { withCredentials: true }),
+          api.get('/analytics/progress'),
+          api.get('/analytics/recommendations'),
         ]);
         setProgress(progressRes.data);
         setRecommendations(recRes.data);

@@ -1,5 +1,6 @@
 import { useReducer, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import api from '../lib/api';
 import { getErrorMessage } from '../types/errors';
 import { initialState, vocabularyReducer } from '../reducers/vocabularyReducer';
 
@@ -17,7 +18,7 @@ export const useVocabulary = (user: User | null) => {
     const fetchLists = useCallback(async (page: number = 1, signal?: AbortSignal) => {
         dispatch({ type: 'FETCH_START' });
         try {
-            const res = await axios.get(`${process.env.REACT_APP_API_URL}/vocabulary?page=${page}&limit=20`, { signal, withCredentials: true });
+            const res = await api.get(`/vocabulary?page=${page}&limit=20`, { signal });
             const lists = res.data.vocabularyLists || [];
             dispatch({
                 type: 'FETCH_SUCCESS',
@@ -57,7 +58,7 @@ export const useVocabulary = (user: User | null) => {
         e.preventDefault();
         dispatch({ type: 'SAVE_START' });
         try {
-            await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary`, state.listForm, { withCredentials: true });
+            await api.post('/vocabulary', state.listForm);
             dispatch({ type: 'CLOSE_LIST_MODAL' });
             dispatch({ type: 'RESET_LIST_FORM' });
             fetchLists(1);
@@ -73,7 +74,7 @@ export const useVocabulary = (user: User | null) => {
         if (!state.showWordModal) return;
         dispatch({ type: 'SAVE_START' });
         try {
-            const res = await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/${state.showWordModal}/words`, state.wordForm, { withCredentials: true });
+            const res = await api.post(`/vocabulary/${state.showWordModal}/words`, state.wordForm);
             const newWord = res.data.word;
 
             dispatch({
@@ -94,7 +95,7 @@ export const useVocabulary = (user: User | null) => {
         e.preventDefault();
         dispatch({ type: 'AI_GENERATE_START' });
         try {
-            await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/generate-ai-list`, state.aiForm, { withCredentials: true });
+            await api.post('/vocabulary/generate-ai-list', state.aiForm);
             dispatch({ type: 'CLOSE_AI_MODAL' });
             dispatch({ type: 'RESET_AI_FORM' });
             fetchLists(1);
@@ -105,7 +106,7 @@ export const useVocabulary = (user: User | null) => {
         }
     };
 
-    const updateWordProgress = async (wordId: string, status: 'learning' | 'mastered') => {
+    const updateWordProgress = async (listId: string, wordId: string, status: 'learning' | 'mastered') => {
         const newMastery = status === 'mastered' ? 1.0 : 0;
         dispatch({
             type: 'UPDATE_WORD_PROGRESS',
@@ -113,7 +114,7 @@ export const useVocabulary = (user: User | null) => {
         });
 
         try {
-            await axios.post(`${process.env.REACT_APP_API_URL}/vocabulary/words/${wordId}/progress`, { status }, { withCredentials: true });
+            await api.post(`/vocabulary/words/${wordId}/progress`, { status });
             // No need to fetch lists, we already updated state
         } catch (err: unknown) {
             alert(getErrorMessage(err) || 'Failed to update word progress');

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import api from "../lib/api";
 import { useAuthStore } from "../store/useAuthStore";
 import { Link } from "react-router-dom";
 import { getErrorMessage } from '../types/errors';
@@ -25,9 +25,7 @@ const Dashboard: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await axios.get(
-          `${process.env.REACT_APP_API_URL}/analytics/progress`, { withCredentials: true }
-        );
+        const res = await api.get('/analytics/progress');
         setSummary(res.data.summary);
       } catch (err: unknown) {
         setError(getErrorMessage(err) || "Failed to load dashboard data");

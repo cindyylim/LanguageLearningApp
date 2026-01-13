@@ -2,10 +2,9 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
-import { setupCSRFInterceptor, fetchCSRFToken } from './utils/csrf';
+import { fetchCSRFToken } from './lib/api';
 
-// Setup CSRF protection
-setupCSRFInterceptor();
+// Initialized via lib/api.ts instance interceptors
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement

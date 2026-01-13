@@ -70,7 +70,7 @@ router.post('/register', validate(registerSchema), asyncHandler(async (req: Requ
   res.cookie('token', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'none',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
   });
 
@@ -117,7 +117,7 @@ router.post('/login', validate(loginSchema), asyncHandler(async (req: Request, r
   res.cookie('token', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'none',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
   });
 
@@ -162,7 +162,11 @@ router.get('/profile', asyncHandler(async (req: Request, res: Response) => {
 
 // Logout user
 router.post('/logout', asyncHandler(async (req: Request, res: Response) => {
-  res.clearCookie('token');
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  });
   return res.json({ message: 'Logged out successfully' });
 }));
 

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import axios from 'axios';
+import api from '../lib/api';
 import toast from 'react-hot-toast';
 import { getErrorMessage } from '../types/errors';
 
@@ -39,7 +40,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     login: async (email, password) => {
         try {
-            const response = await axios.post(`${process.env.REACT_APP_API_URL}/auth/login`, { email, password }, { withCredentials: true });
+            const response = await api.post('/auth/login', { email, password });
             const { user } = response.data;
 
             // Token is now in httpOnly cookie, no need to store it
@@ -55,7 +56,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     register: async (userData) => {
         try {
-            const response = await axios.post(`${process.env.REACT_APP_API_URL}/auth/register`, userData, { withCredentials: true });
+            const response = await api.post('/auth/register', userData);
             const { user } = response.data;
 
             // Token is now in httpOnly cookie, no need to store it
@@ -72,7 +73,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     logout: async () => {
         try {
             // Call logout endpoint to clear httpOnly cookie
-            await axios.post(`${process.env.REACT_APP_API_URL}/auth/logout`, { withCredentials: true });
+            await api.post('/auth/logout');
             set({ user: null, isAuthenticated: false });
             toast.success('Logged out successfully');
         } catch (error) {
@@ -92,7 +93,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     initialize: async () => {
         // Token is in httpOnly cookie, just try to get profile
         try {
-            const response = await axios.get(`${process.env.REACT_APP_API_URL}/auth/profile`, { withCredentials: true });
+            const response = await api.get('/auth/profile');
             set({ user: response.data.user, isAuthenticated: true });
         } catch (error) {
             // 401 is expected if not logged in

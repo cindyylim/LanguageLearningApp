@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../lib/api';
 import { getErrorMessage } from '../types/errors';
 import { sanitizeText } from '../utils/sanitize';
 
@@ -62,7 +62,7 @@ const Quiz: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL}/quizzes/${id}`, { withCredentials: true });
+        const res = await api.get(`/quizzes/${id}`);
         setQuiz(res.data.quiz);
       } catch (err: unknown) {
         setError(getErrorMessage(err) || 'Failed to load quiz');
@@ -87,7 +87,7 @@ const Quiz: React.FC = () => {
           answer: answers[q._id] || ''
         })),
       };
-      const res = await axios.post(`${process.env.REACT_APP_API_URL}/quizzes/${id}/submit`, payload, {withCredentials: true});
+      const res = await api.post(`/quizzes/${id}/submit`, payload);
       setResult(res.data.attempt);
     } catch (err: unknown) {
       alert(getErrorMessage(err) || 'Failed to submit quiz');
