@@ -2,6 +2,11 @@
 
 An AI-powered language learning application that generates personalized quizzes using Google Gemini for adaptive learning experiences.
 Deployed with Render. Link: https://languagelearningapp-z0ca.onrender.com/login
+
+## Demo
+![Untitled design](https://github.com/user-attachments/assets/00e2f5c0-22c4-496b-80b5-209962ebb64e)
+![demo 2](https://github.com/user-attachments/assets/a32a2ec2-7319-419f-a0ff-3b973f32944c)
+
 ## Features
 
 - 🤖 **AI-Powered Question Generation**: Uses Google Gemini to create contextual questions from vocabulary lists
@@ -71,21 +76,6 @@ The app will be available at:
 4. **Practice**: Take quizzes with selected difficulty
 5. **Track Progress**: Monitor your learning journey with detailed analytics
 6. **Review**: Use spaced repetition to optimize retention
-
-
-## Demo
-<img width="1440" height="900" alt="Screenshot 2025-07-15 at 10 16 58 PM" src="https://github.com/user-attachments/assets/73684da1-7aa0-4c1b-86b7-365122576247" />
-Dashboard
-<img width="1440" height="900" alt="Screenshot 2025-11-27 at 7 12 27 PM" src="https://github.com/user-attachments/assets/bb999f1e-b67d-4c68-9cfb-eda6507e2dbd" />
-
-
-Vocabulary
-<img width="1440" height="900" alt="Screenshot 2025-11-27 at 7 10 45 PM" src="https://github.com/user-attachments/assets/95281636-beeb-4d7c-ad1a-534649bd3a66" />
-<img width="1440" height="900" alt="Screenshot 2025-11-27 at 7 10 51 PM" src="https://github.com/user-attachments/assets/3d1e4148-4e22-4031-9be6-b2fc1402d8a1" />
-Quizzes
-<img width="1440" height="900" alt="Screenshot 2025-11-27 at 7 11 09 PM" src="https://github.com/user-attachments/assets/5672db9a-4611-42f9-a9c0-46918d3d1a8d" />
-Analytics
-<img width="1440" height="900" alt="Screenshot 2025-11-27 at 7 12 34 PM" src="https://github.com/user-attachments/assets/6cd6959f-349d-4331-baaf-fb32c5ba5044" />
 
 
 ## Contributing
