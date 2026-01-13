@@ -4,8 +4,8 @@ An AI-powered language learning application that generates personalized quizzes 
 Deployed with Render. Link: https://languagelearningapp-z0ca.onrender.com/login
 
 ## Demo
-![Untitled design](https://github.com/user-attachments/assets/00e2f5c0-22c4-496b-80b5-209962ebb64e)
-![demo 2](https://github.com/user-attachments/assets/a32a2ec2-7319-419f-a0ff-3b973f32944c)
+![Untitled design](https://github.com/user-attachments/assets/8bed62e6-23a9-42ea-86bf-b7406bce4ded)
+
 
 ## Features
 
