@@ -3,7 +3,7 @@ import { authMiddleware, AuthRequest } from '../middleware/auth';
 import { asyncHandler } from '../utils/asyncHandler';
 import { AnalyticsService } from '../services/analytics.service';
 
-const router = Router();
+const router: Router = Router();
 
 router.use(authMiddleware);
 

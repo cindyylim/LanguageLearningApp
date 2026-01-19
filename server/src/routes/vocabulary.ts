@@ -9,7 +9,7 @@ import { AppError } from '../utils/AppError';
 import { createUserRateLimiter } from '../middleware/rateLimit';
 import { vocabularyCache, getCacheKey, invalidateListCache, warmCacheForUser } from '../utils/cache';
 import { sanitizeVocabularyListName, sanitizeWordInput, sanitizeDescription } from '../utils/sanitize';
-const router = Router();
+const router: Router = Router();
 
 router.use(authMiddleware);
 

@@ -1,13 +1,13 @@
-import { defineConfig } from 'cypress';
-import axios from 'axios';
+const { defineConfig } = require('cypress');
+const axios = require('axios');
 
 // Helper function for retrying requests with exponential backoff
-async function retryRequest(fn: Function, retries = 3, delay = 1000) {
+async function retryRequest(fn, retries = 3, delay = 1000) {
   let lastError;
   for (let i = 0; i < retries; i++) {
     try {
       return await fn();
-    } catch (error: any) {
+    } catch (error) {
       lastError = error;
       if (i < retries - 1) {
         // Wait with exponential backoff
@@ -18,7 +18,7 @@ async function retryRequest(fn: Function, retries = 3, delay = 1000) {
   throw lastError;
 }
 
-export default defineConfig({
+module.exports = defineConfig({
   e2e: {
     baseUrl: 'http://localhost:3000',
     supportFile: 'cypress/support/e2e.ts',
@@ -35,7 +35,7 @@ export default defineConfig({
     },
     setupNodeEvents(on, config) {
       on('task', {
-        async deleteUserByEmail(email: string) {
+        async deleteUserByEmail(email) {
           return retryRequest(async () => {
             const response = await axios.post(`${config.env.apiUrl}/test-db/delete-user`, { email });
             if (response.status !== 200) {
@@ -66,13 +66,5 @@ export default defineConfig({
         }
       });
     }
-  },
-  component: {
-    devServer: {
-      framework: 'create-react-app',
-      bundler: 'webpack'
-    },
-    supportFile: 'cypress/support/component.ts',
-    specPattern: 'cypress/component/**/*.cy.{js,jsx,ts,tsx}'
   }
 });

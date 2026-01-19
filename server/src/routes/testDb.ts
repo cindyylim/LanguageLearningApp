@@ -3,7 +3,7 @@ import { seedTestDatabase, cleanupTestData, resetTestDatabase } from '../utils/t
 import { asyncHandler } from '../utils/asyncHandler';
 import { connectToTestDatabase } from '../utils/testMongo';
 
-const router = Router();
+const router: Router = Router();
 
 // Middleware to ensure these endpoints are only available in test environment
 const testOnlyMiddleware = (req: Request, res: Response, next: NextFunction) => {

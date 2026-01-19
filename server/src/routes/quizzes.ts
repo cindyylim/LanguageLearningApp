@@ -8,7 +8,7 @@ import { QuizService } from '../services/quiz.service';
 import { AppError } from '../utils/AppError';
 import { createUserRateLimiter } from '../middleware/rateLimit';
 
-const router = Router();
+const router: Router = Router();
 
 router.use(authMiddleware);
 

@@ -12,7 +12,7 @@ interface jwtToken {
   userId: string;
 }
 
-const router = Router();
+const router: Router = Router();
 
 // Validation schemas
 const registerSchema = z.object({

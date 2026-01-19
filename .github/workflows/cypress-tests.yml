@@ -10,38 +10,75 @@ jobs:
   cypress-run:
     runs-on: ubuntu-latest
     
+    services:
+      mongodb:
+        image: mongo:latest
+        ports:
+          - 27017:27017
+    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
       
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        
-    - name: Install dependencies
-      run: |
-        cd client
-        npm ci
-        
-    - name: Run Cypress tests
-      run: |
-        cd client
-        npm run test:e2e:headless
-      env:
-        CYPRESS_baseUrl: http://localhost:3000
-        CYPRESS_apiUrl: http://localhost:5000/api
-        
-    - name: Upload test results
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: cypress-results
-        path: client/cypress/videos/
-        
-    - name: Upload screenshots
-      uses: actions/upload-artifact@v4
-      if: failure()
-      with:
-        name: cypress-screenshots
-        path: client/cypress/screenshots/
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Dependencies
+        run: |
+          cd server && npm install
+          cd ../client && npm install --no-package-lock
+
+      - name: Build Backend
+        working-directory: ./server
+        run: npm run build
+
+      - name: Start Backend
+        working-directory: ./server
+        run: npm start &
+        env:
+          NODE_ENV: test
+          MONGODB_URI: mongodb://localhost:27017/test
+          TESTDB_URI: mongodb://localhost:27017/test
+          JWT_SECRET: test_secret
+          PORT: 5000
+          GOOGLE_AI_API_KEY: ${{ secrets.GOOGLE_AI_API_KEY }}
+
+      - name: Wait for Backend to be Ready
+        run: |
+          echo "Waiting for backend to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:5000/health > /dev/null; then
+              echo "Backend is ready!"
+              break
+            else
+              echo "Backend not ready yet, waiting... ($i/30)"
+              sleep 5
+            fi
+          done
+
+      - name: Create Frontend Env
+        run: echo "REACT_APP_API_URL=http://localhost:5000/api" > ./client/.env
+
+      - name: Cypress run
+        uses: cypress-io/github-action@v6
+        with:
+          working-directory: ./client
+          # This starts your frontend and waits for it to be ready
+          start: npm start
+          wait-on: 'http://localhost:3000'
+          browser: chrome
+          install-command: echo "Skipping install"
+        env:
+          CYPRESS_baseUrl: http://localhost:3000
+          CYPRESS_apiUrl: http://localhost:5000/api
+          REACT_APP_API_URL: http://localhost:5000/api
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cypress-assets
+          path: |
+            client/cypress/videos
+            client/cypress/screenshots
