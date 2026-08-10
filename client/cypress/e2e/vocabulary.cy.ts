@@ -10,8 +10,8 @@ describe("Vocabulary Management", () => {
     // Clear localStorage before each test
     cy.clearLocalStorage();
 
-    // Clear cookies before each test
-    cy.clearCookies();
+    // Clear stored auth state before each test
+    cy.clearAllSessionStorage();
 
     cy.loginAsTestUser("test");
     cy.url().should("include", "/dashboard");

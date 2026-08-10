@@ -1,10 +1,12 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from "openai";
 import { CircuitBreaker } from "../utils/CircuitBreaker";
 import { RequestQueue } from "../utils/RequestQueue";
 import { z } from "zod";
 import logger from '../utils/logger';
 
 const gemini = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export interface Word {
   id: string;
@@ -231,6 +233,11 @@ Return the response as a JSON array with the following structure:
         );
         const responseText = result.response.text();
         metrics.responseTimeMs = Date.now() - attemptStartTime;
+
+        const outputModeration = await openai.moderations.create({ input: responseText });
+        if (outputModeration.results[0]?.flagged) {
+          throw new Error("Generated content flagged by moderation.");
+        }
 
         // Safer JSON cleanup
         const cleaned = responseText
@@ -492,6 +499,11 @@ Return as JSON:
           nativeLanguage,
         });
 
+        const promptModeration = await openai.moderations.create({ input: prompt });
+        if (promptModeration.results[0]?.flagged) {
+          throw new Error("Input prompt flagged by moderation.");
+        }
+
         const aiPrompt = `
 Generate a list of ${wordCount} useful vocabulary words for language learners based on the following topic or keywords: "${prompt}".
 Target language: ${targetLanguage}
@@ -517,6 +529,11 @@ Return the result as a JSON array with this structure:
         const response = await result.response;
         const responseText = response.text();
         metrics.responseTimeMs = Date.now() - attemptStartTime;
+
+        const outputModeration = await openai.moderations.create({ input: responseText });
+        if (outputModeration.results[0]?.flagged) {
+          throw new Error("Generated content flagged by moderation.");
+        }
 
         // Remove Markdown code block if present
         const cleaned = responseText.replace(/```[a-z]*\n?|```/gi, "").trim();

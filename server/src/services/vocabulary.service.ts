@@ -407,6 +407,9 @@ export class VocabularyService {
             data.nativeLanguage,
             data.wordCount || 10
         );
+        if (aiWords.length === 0) {
+            return {};
+        }
 
         // Create the vocabulary list
         const now = new Date();

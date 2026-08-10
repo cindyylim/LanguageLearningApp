@@ -4,6 +4,7 @@ import { connectToDatabase } from '../utils/mongo';
 import { connectToTestDatabase } from '../utils/testMongo';
 import { ObjectId } from 'mongodb';
 import logger from '../utils/logger';
+import { extractAuthToken, getJwtSecret } from '../utils/authToken';
 
 interface JwtPayload {
   userId: string;
@@ -26,16 +27,14 @@ export const authMiddleware = async (
 ): Promise<void> => {
   try {
 
-    const token = req.cookies?.token;
+    const token = extractAuthToken(req);
 
     if (!token) {
       res.status(401).json({ error: 'Access denied. No token provided.' });
       return;
     }
 
-
-    const secret = process.env.JWT_SECRET || 'jwt-secret';
-    const decoded = jwt.verify(token, secret) as JwtPayload;
+    const decoded = jwt.verify(token, getJwtSecret()) as JwtPayload;
 
     const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 

@@ -19,7 +19,7 @@ describe('Auth Middleware', () => {
 
     beforeEach(() => {
         mockReq = {
-            cookies: {},
+            headers: {},
         };
         mockRes = {
             status: jest.fn().mockReturnThis(),
@@ -38,7 +38,7 @@ describe('Auth Middleware', () => {
     });
 
     it('should return 401 if no token provided', async () => {
-        mockReq.cookies = {};
+        mockReq.headers = {};
 
         await authMiddleware(mockReq as AuthRequest, mockRes as Response, mockNext);
 
@@ -47,12 +47,12 @@ describe('Auth Middleware', () => {
         expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it('should authenticate valid token and set req.user', async () => {
+    it('should authenticate valid bearer token and set req.user', async () => {
         const userId = new ObjectId();
         const token = 'valid-token';
         const decoded = { userId: userId.toString(), iat: Date.now(), exp: Date.now() + 3600 };
 
-        mockReq.cookies = { token };
+        mockReq.headers = { authorization: `Bearer ${token}` };
         (jwt.verify as jest.Mock).mockReturnValue(decoded);
 
         const mockUser = {
@@ -77,7 +77,7 @@ describe('Auth Middleware', () => {
         const token = 'valid-token';
         const decoded = { userId: new ObjectId().toString(), iat: Date.now(), exp: Date.now() + 3600 };
 
-        mockReq.cookies = { token };
+        mockReq.headers = { authorization: `Bearer ${token}` };
         (jwt.verify as jest.Mock).mockReturnValue(decoded);
         mockDb.collection().findOne.mockResolvedValue(null);
 
@@ -91,7 +91,7 @@ describe('Auth Middleware', () => {
     it('should return 401 if token is invalid', async () => {
         const token = 'invalid-token';
 
-        mockReq.cookies = { token };
+        mockReq.headers = { authorization: `Bearer ${token}` };
         (jwt.verify as jest.Mock).mockImplementation(() => {
             throw new Error('Invalid token');
         });

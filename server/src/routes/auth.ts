@@ -7,6 +7,11 @@ import { connectToTestDatabase } from '../utils/testMongo';
 import { ObjectId } from 'mongodb';
 import { asyncHandler } from '../utils/asyncHandler';
 import { validate } from '../middleware/validate';
+import {
+  extractAuthToken,
+  getJwtSecret,
+  signAuthToken,
+} from '../utils/authToken';
 
 interface jwtToken {
   userId: string;
@@ -29,23 +34,27 @@ const loginSchema = z.object({
   password: z.string()
 });
 
+function authResponse(res: Response, token: string, user: Record<string, unknown>, message: string, status = 200) {
+  return res.status(status).json({
+    message,
+    token,
+    user,
+  });
+}
+
 // Register new user
 router.post('/register', validate(registerSchema), asyncHandler(async (req: Request, res: Response) => {
   const { name, email, password, nativeLanguage, targetLanguage, proficiencyLevel } = req.body;
-  // Use test database in test environment, main database otherwise
   const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
-  // Check if user already exists
   const existingUser = await db.collection('User').findOne({ email });
   if (existingUser) {
     return res.status(400).json({ error: 'User already exists with this email' });
   }
 
-  // Hash password
   const saltRounds = 12;
   const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-  // Create user
   const userDoc = {
     name,
     email,
@@ -57,34 +66,10 @@ router.post('/register', validate(registerSchema), asyncHandler(async (req: Requ
     updatedAt: new Date(),
   };
   const result = await db.collection('User').insertOne(userDoc);
-  const user = { ...userDoc, id: result.insertedId.toString() };
+  const userId = result.insertedId.toString();
+  const token = signAuthToken(userId);
 
-  // Generate JWT token
-  const token = jwt.sign(
-    { userId: user.id },
-    process.env.JWT_SECRET || 'jwt-secret',
-    { expiresIn: '7d' }
-  );
-
-  // Set httpOnly cookie
-  res.cookie('token', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'none',
-    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-  });
-
-  return res.status(201).json({
-    message: 'User registered successfully',
-    user: {
-      name: user.name,
-      email: user.email,
-      nativeLanguage: user.nativeLanguage,
-      targetLanguage: user.targetLanguage,
-      proficiencyLevel: user.proficiencyLevel,
-      createdAt: user.createdAt
-    }
-  });
+  return authResponse(res, token, toPublicUser(userDoc), 'User registered successfully', 201);
 }));
 
 // Helper to get or create demo user
@@ -111,43 +96,31 @@ const getOrCreateDemoUser = async (db: any) => {
   return user;
 };
 
+function toPublicUser(user: Record<string, any>) {
+  return {
+    name: user.name,
+    email: user.email,
+    nativeLanguage: user.nativeLanguage,
+    targetLanguage: user.targetLanguage,
+    proficiencyLevel: user.proficiencyLevel,
+    ...(user.createdAt ? { createdAt: user.createdAt } : {}),
+  };
+}
+
 // Demo login endpoint
 router.post('/demo', asyncHandler(async (req: Request, res: Response) => {
   const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
   const user = await getOrCreateDemoUser(db);
+  const token = signAuthToken(user._id.toString());
 
-  const token = jwt.sign(
-    { userId: user._id.toString() },
-    process.env.JWT_SECRET || 'language_learning_jwt_secret_key_2026',
-    { expiresIn: '7d' }
-  );
-
-  res.cookie('token', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'none',
-    maxAge: 7 * 24 * 60 * 60 * 1000
-  });
-
-  return res.json({
-    message: 'Demo login successful',
-    user: {
-      name: user.name,
-      email: user.email,
-      nativeLanguage: user.nativeLanguage,
-      targetLanguage: user.targetLanguage,
-      proficiencyLevel: user.proficiencyLevel
-    }
-  });
+  return authResponse(res, token, toPublicUser(user), 'Demo login successful');
 }));
 
 // Login user
 router.post('/login', validate(loginSchema), asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = req.body;
-  // Use test database in test environment, main database otherwise
   const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
 
-  // Handle demo account login specifically if email is demo email
   if (email.toLowerCase() === 'test@email.com') {
     const user = await getOrCreateDemoUser(db);
     const isValid = await bcrypt.compare(password, user.password);
@@ -155,103 +128,46 @@ router.post('/login', validate(loginSchema), asyncHandler(async (req: Request, r
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    const token = jwt.sign(
-      { userId: user._id.toString() },
-      process.env.JWT_SECRET || 'language_learning_jwt_secret_key_2026',
-      { expiresIn: '7d' }
-    );
-
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'none',
-      maxAge: 7 * 24 * 60 * 60 * 1000
-    });
-
-    return res.json({
-      message: 'Login successful',
-      user: {
-        name: user.name,
-        email: user.email,
-        nativeLanguage: user.nativeLanguage,
-        targetLanguage: user.targetLanguage,
-        proficiencyLevel: user.proficiencyLevel
-      }
-    });
+    const token = signAuthToken(user._id.toString());
+    return authResponse(res, token, toPublicUser(user), 'Login successful');
   }
 
-  // Find user
   const user = await db.collection('User').findOne({ email });
   if (!user) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
-  // Verify password
   const isValidPassword = await bcrypt.compare(password, user.password);
   if (!isValidPassword) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
-  // Generate JWT token
-  const token = jwt.sign(
-    { userId: user._id.toString() },
-    process.env.JWT_SECRET || 'language_learning_jwt_secret_key_2026',
-    { expiresIn: '7d' }
-  );
-
-  // Set httpOnly cookie
-  res.cookie('token', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'none',
-    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-  });
-
-  return res.json({
-    message: 'Login successful',
-    user: {
-      name: user.name,
-      email: user.email,
-      nativeLanguage: user.nativeLanguage,
-      targetLanguage: user.targetLanguage,
-      proficiencyLevel: user.proficiencyLevel
-    }
-  });
+  const token = signAuthToken(user._id.toString());
+  return authResponse(res, token, toPublicUser(user), 'Login successful');
 }));
 
 // Get current user profile
 router.get('/profile', asyncHandler(async (req: Request, res: Response) => {
-  const token = req.cookies.token;
+  const token = extractAuthToken(req);
   if (!token) {
     return res.status(401).json({ error: 'Access denied. No token provided.' });
   }
-  const decoded = jwt.verify(token, process.env.JWT_SECRET || 'language_learning_jwt_secret_key_2026') as jwtToken;
-  // Use test database in test environment, main database otherwise
+
+  const decoded = jwt.verify(token, getJwtSecret()) as jwtToken;
   const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
   const user = await db.collection('User').findOne({ _id: new ObjectId(decoded.userId) });
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }
+
   return res.json({
-    user: {
-      name: user.name,
-      email: user.email,
-      nativeLanguage: user.nativeLanguage,
-      targetLanguage: user.targetLanguage,
-      proficiencyLevel: user.proficiencyLevel,
-      createdAt: user.createdAt
-    }
+    user: toPublicUser(user),
   });
 }));
 
 // Logout user
-router.post('/logout', asyncHandler(async (req: Request, res: Response) => {
-  res.clearCookie('token', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'none',
-  });
+router.post('/logout', asyncHandler(async (_req: Request, res: Response) => {
   return res.json({ message: 'Logged out successfully' });
 }));
 
-export default router; 
+export default router;

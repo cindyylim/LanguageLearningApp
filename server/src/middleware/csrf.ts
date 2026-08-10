@@ -10,9 +10,12 @@ import logger from '../utils/logger';
 const CSRF_TTL_SECONDS = 24 * 60 * 60; // 24 hours
 const KEY_PREFIX = 'csrf:';
 
-function getIdentity(req: Request): string | null {
+function getIdentity(req: Request): string {
     const user = (req as AuthRequest).user;
-    return user?.id ?? null;
+    if (!user?.id) {
+        throw new Error('No user ID found in request');
+    }
+    return user.id;
 }
 
 function keyFor(identity: string): string {

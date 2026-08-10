@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import axios from 'axios';
-import api, { fetchCSRFToken, clearCSRFToken } from '../lib/api';
+import api, { fetchCSRFToken, clearCSRFToken, setAuthToken } from '../lib/api';
 import toast from 'react-hot-toast';
 import { getErrorMessage } from '../types/errors';
 
@@ -34,6 +34,11 @@ interface AuthState {
     initialize: () => Promise<void>;
 }
 
+function persistSession(user: User, token: string) {
+    setAuthToken(token);
+    return { user, isAuthenticated: true };
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
     user: null,
     loading: true,
@@ -42,9 +47,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     login: async (email, password) => {
         try {
             const response = await api.post('/auth/login', { email, password });
-            const { user } = response.data;
+            const { user, token } = response.data;
 
-            set({ user, isAuthenticated: true });
+            set(persistSession(user, token));
 
             await fetchCSRFToken();
             toast.success('Login successful!');
@@ -58,18 +63,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     loginDemo: async () => {
         try {
             const response = await api.post('/auth/demo');
-            const { user } = response.data;
-            set({ user, isAuthenticated: true });
+            const { user, token } = response.data;
+            set(persistSession(user, token));
             await fetchCSRFToken();
             toast.success('Logged in with Demo Account!');
         } catch (error: unknown) {
-            // Fallback to standard login with demo credentials
             try {
                 const response = await api.post('/auth/login', {
                     email: 'test@email.com',
                     password: '12345678$'
                 });
-                set({ user: response.data.user, isAuthenticated: true });
+                set(persistSession(response.data.user, response.data.token));
                 await fetchCSRFToken();
                 toast.success('Logged in with Demo Account!');
             } catch (fallbackErr: unknown) {
@@ -83,10 +87,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     register: async (userData) => {
         try {
             const response = await api.post('/auth/register', userData);
-            const { user } = response.data;
+            const { user, token } = response.data;
 
-            // Token is now in httpOnly cookie, no need to store it
-            set({ user, isAuthenticated: true });
+            set(persistSession(user, token));
 
             await fetchCSRFToken();
             toast.success('Registration successful!');
@@ -99,14 +102,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     logout: async () => {
         try {
-            // Call logout endpoint to clear httpOnly cookie
             await api.post('/auth/logout');
             clearCSRFToken();
+            setAuthToken(null);
             set({ user: null, isAuthenticated: false });
             toast.success('Logged out successfully');
         } catch (error) {
-            // Even if the request fails, clear local state
             clearCSRFToken();
+            setAuthToken(null);
             set({ user: null, isAuthenticated: false });
             toast.error('Logged out failed ' + error);
         }
@@ -120,19 +123,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     },
 
     initialize: async () => {
-        // Token is in httpOnly cookie, just try to get profile
         try {
             const response = await api.get('/auth/profile');
-            set({ user: response.data.user, isAuthenticated: true });
+            const { user, token } = response.data;
+
+            set(persistSession(user, token));
             await fetchCSRFToken();
         } catch (error) {
-            // 401 is expected if not logged in
             if (axios.isAxiosError(error) && error.response?.status !== 401) {
                 console.error('Initialization error:', error);
             }
+            setAuthToken(null);
             set({ user: null, isAuthenticated: false });
         }
         set({ loading: false });
     }
 }));
-

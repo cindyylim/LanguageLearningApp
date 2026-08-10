@@ -230,6 +230,9 @@ router.delete('/:listId/words/:wordId', validateObjectId('listId'), validateObje
 // Generate vocabulary list using AI
 router.post('/generate-ai-list', validate(generateAIListSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
   const list = await VocabularyService.generateAIList(req.body, req.user!.id);
+  if (Object.keys(list).length === 0) {
+    throw new AppError('Vocabulary list cannot be generated', 400);
+  }
   invalidateListCache(req.user!.id);
   return res.status(201).json({ vocabularyList: list });
 }));

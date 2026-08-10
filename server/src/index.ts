@@ -8,7 +8,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
-import cookieParser from 'cookie-parser';
 import mongoSanitize from 'express-mongo-sanitize';
 // Import routes
 import authRoutes from './routes/auth';
@@ -29,8 +28,14 @@ import { AIService } from './services/ai';
 import logger from './utils/logger';
 
 const app = express();
-app.set('trust proxy', 1); // Trust first proxy (fixes express-rate-limit error)
+app.set('trust proxy', true);
 const PORT = process.env.PORT || 5000;
+
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'https://languagelearningapp-z0ca.onrender.com',
+  'http://localhost:3000',
+].filter(Boolean) as string[];
 
 // Rate limiting
 const limiter = rateLimit({
@@ -68,13 +73,18 @@ app.use(helmet({
 }));
 
 app.use(cors({
-  origin: [
-    'https://languagelearningapp-z0ca.onrender.com',
-    'http://localhost:3000',
-  ],
-  credentials: true
+  origin(origin, callback) {
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+    if (allowedOrigins.includes(origin)) {
+      callback(null, origin);
+      return;
+    }
+    callback(new Error(`CORS not allowed for origin: ${origin}`));
+  },
 }));
-app.use(cookieParser());
 // Request ID tracking - must be early in the middleware stack
 app.use(requestIdMiddleware);
 // Request/response logging with request ID
