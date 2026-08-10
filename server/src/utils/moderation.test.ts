@@ -1,41 +1,83 @@
-import { assertContentAllowed } from './moderation';
+jest.mock('./logger', () => ({
+  __esModule: true,
+  default: {
+    warn: jest.fn(),
+    error: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn(),
+  },
+}));
+
+const mockModerationsCreate = jest.fn();
 
 jest.mock('openai', () => ({
   __esModule: true,
   default: jest.fn().mockImplementation(() => ({
     moderations: {
-      create: jest.fn().mockResolvedValue({
-        results: [{
-          flagged: false,
-          categories: {},
-          category_scores: {},
-        }],
-      }),
+      create: mockModerationsCreate,
     },
   })),
 }));
 
-describe('moderation policy patterns', () => {
-  it('blocks prompts requesting racial slurs', async () => {
+import { assertContentAllowed } from './moderation';
+
+describe('moderation', () => {
+  beforeEach(() => {
+    mockModerationsCreate.mockReset();
+  });
+
+  it('blocks content flagged by OpenAI', async () => {
+    mockModerationsCreate.mockResolvedValue({
+      results: [
+        {
+          flagged: true,
+          categories: { hate: true },
+          category_scores: { hate: 0.9 },
+        },
+      ],
+    });
+
     await expect(
-      assertContentAllowed('racial slurs and hate speech vocabulary', 'Input')
+      assertContentAllowed('some harmful content', 'Input')
     ).rejects.toMatchObject({
       message: expect.stringContaining("isn't allowed"),
       code: 'MODERATION_BLOCKED',
     });
+    expect(mockModerationsCreate).toHaveBeenCalledTimes(1);
   });
 
-  it('blocks hate speech topic requests', async () => {
+  it('blocks content exceeding category score threshold', async () => {
+    mockModerationsCreate.mockResolvedValue({
+      results: [
+        {
+          flagged: false,
+          categories: {},
+          category_scores: { hate: 0.5 },
+        },
+      ],
+    });
+
     await expect(
-      assertContentAllowed('generate hate speech vocabulary list', 'Input')
+      assertContentAllowed('borderline content', 'Input')
     ).rejects.toMatchObject({
       code: 'MODERATION_BLOCKED',
     });
   });
 
   it('allows benign vocabulary topics', async () => {
+    mockModerationsCreate.mockResolvedValue({
+      results: [
+        {
+          flagged: false,
+          categories: {},
+          category_scores: {},
+        },
+      ],
+    });
+
     await expect(
       assertContentAllowed('travel, airport, hotel', 'Input')
     ).resolves.toBeUndefined();
+    expect(mockModerationsCreate).toHaveBeenCalledTimes(1);
   });
 });

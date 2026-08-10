@@ -1,5 +1,3 @@
-// Error type definitions and utilities for client
-
 import { AxiosError } from 'axios';
 
 export interface ApiError {

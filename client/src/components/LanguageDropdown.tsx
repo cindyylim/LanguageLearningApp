@@ -1,6 +1,5 @@
 import React from 'react';
 
-// 1. Define the language data array outside the component
 const languages = [
     { code: 'en', name: 'English' },
     { code: 'es', name: 'Spanish' },
@@ -24,7 +23,6 @@ const languages = [
     { code: 'he', name: 'Hebrew' }
 ];
 
-// Define the type for the component's props
 interface LanguageDropdownProps {
     name: string;
     onCodeSelect: (code: string) => void; 

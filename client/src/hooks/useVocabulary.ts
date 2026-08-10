@@ -132,11 +132,9 @@ export const useVocabulary = (user: User | null) => {
 
         try {
             await api.post(`/vocabulary/words/${wordId}/progress`, { status });
-            // No need to fetch lists, we already updated state
         } catch (err: unknown) {
             alert(getErrorMessage(err) || 'Failed to update word progress');
-            // Ideally revert state here, but for now just alerting
-            fetchLists(state.page); // Re-fetch to sync state on error
+            fetchLists(state.page);
         }
     };
 

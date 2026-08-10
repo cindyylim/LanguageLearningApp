@@ -1,6 +1,5 @@
 import { ListVocabulary, Word } from '../types/vocabulary';
 
-// State Interface
 export interface VocabularyDetailsState {
     list: ListVocabulary | null;
     loading: boolean;
@@ -14,7 +13,6 @@ export interface VocabularyDetailsState {
     saving: boolean;
 }
 
-// Initial State
 export const initialState: VocabularyDetailsState = {
     list: null,
     loading: true,
@@ -28,7 +26,6 @@ export const initialState: VocabularyDetailsState = {
     saving: false,
 };
 
-// Action Types
 export type VocabularyDetailsAction =
     | { type: 'FETCH_START' }
     | { type: 'FETCH_SUCCESS'; payload: ListVocabulary }
@@ -44,7 +41,6 @@ export type VocabularyDetailsAction =
     | { type: 'ACTION_END' }
     | { type: 'ACTION_ERROR'; payload: string };
 
-// Reducer Function
 export const vocabularyDetailsReducer = (state: VocabularyDetailsState, action: VocabularyDetailsAction): VocabularyDetailsState => {
     switch (action.type) {
         case 'FETCH_START':

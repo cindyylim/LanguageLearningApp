@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
+import { Db } from 'mongodb';
 import { connectToDatabase } from '../utils/mongo';
 import { connectToTestDatabase } from '../utils/testMongo';
 import { ObjectId } from 'mongodb';
@@ -19,22 +20,36 @@ interface jwtToken {
 
 const router: Router = Router();
 
-// Validation schemas
 const registerSchema = z.object({
   name: z.string().min(2).max(50),
   email: z.string().email(),
   password: z.string().min(8),
   nativeLanguage: z.string().optional().default('en'),
   targetLanguage: z.string().optional().default('es'),
-  proficiencyLevel: z.enum(['beginner', 'intermediate', 'advanced']).optional().default('beginner')
+  proficiencyLevel: z.enum(['beginner', 'intermediate', 'advanced']).optional().default('beginner'),
 });
 
 const loginSchema = z.object({
   email: z.string().email(),
-  password: z.string()
+  password: z.string(),
 });
 
-function authResponse(res: Response, token: string, user: Record<string, unknown>, message: string, status = 200) {
+const DEMO_EMAIL = 'test@email.com';
+const DEMO_PASSWORD = '12345678$';
+
+async function getDb(): Promise<Db> {
+  return process.env.NODE_ENV === 'test'
+    ? await connectToTestDatabase()
+    : await connectToDatabase();
+}
+
+function authResponse(
+  res: Response,
+  token: string,
+  user: Record<string, unknown>,
+  message: string,
+  status = 200
+) {
   return res.status(status).json({
     message,
     token,
@@ -42,18 +57,67 @@ function authResponse(res: Response, token: string, user: Record<string, unknown
   });
 }
 
-// Register new user
+function toPublicUser(user: Record<string, any>) {
+  return {
+    name: user.name,
+    email: user.email,
+    nativeLanguage: user.nativeLanguage,
+    targetLanguage: user.targetLanguage,
+    proficiencyLevel: user.proficiencyLevel,
+    ...(user.createdAt ? { createdAt: user.createdAt } : {}),
+  };
+}
+
+const getOrCreateDemoUser = async (db: Db) => {
+  let user = await db.collection('User').findOne({ email: DEMO_EMAIL });
+
+  if (!user) {
+    const hashedPassword = await bcrypt.hash(DEMO_PASSWORD, 10);
+    const demoUserDoc = {
+      name: 'Demo Learner',
+      email: DEMO_EMAIL,
+      password: hashedPassword,
+      nativeLanguage: 'en',
+      targetLanguage: 'es',
+      proficiencyLevel: 'intermediate',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const result = await db.collection('User').insertOne(demoUserDoc);
+    user = { ...demoUserDoc, _id: result.insertedId };
+  }
+  return user;
+};
+
+async function authenticateWithPassword(db: Db, email: string, password: string) {
+  const normalizedEmail = email.toLowerCase();
+  const user =
+    normalizedEmail === DEMO_EMAIL
+      ? await getOrCreateDemoUser(db)
+      : await db.collection('User').findOne({ email });
+
+  if (!user) {
+    return null;
+  }
+
+  const isValidPassword = await bcrypt.compare(password, user.password);
+  if (!isValidPassword) {
+    return null;
+  }
+
+  return user;
+}
+
 router.post('/register', validate(registerSchema), asyncHandler(async (req: Request, res: Response) => {
   const { name, email, password, nativeLanguage, targetLanguage, proficiencyLevel } = req.body;
-  const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+  const db = await getDb();
 
   const existingUser = await db.collection('User').findOne({ email });
   if (existingUser) {
     return res.status(400).json({ error: 'User already exists with this email' });
   }
 
-  const saltRounds = 12;
-  const hashedPassword = await bcrypt.hash(password, saltRounds);
+  const hashedPassword = await bcrypt.hash(password, 12);
 
   const userDoc = {
     name,
@@ -72,73 +136,20 @@ router.post('/register', validate(registerSchema), asyncHandler(async (req: Requ
   return authResponse(res, token, toPublicUser(userDoc), 'User registered successfully', 201);
 }));
 
-// Helper to get or create demo user
-const getOrCreateDemoUser = async (db: any) => {
-  const demoEmail = 'test@email.com';
-  let user = await db.collection('User').findOne({ email: demoEmail });
-
-  if (!user) {
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash('12345678$', saltRounds);
-    const demoUserDoc = {
-      name: 'Demo Learner',
-      email: demoEmail,
-      password: hashedPassword,
-      nativeLanguage: 'en',
-      targetLanguage: 'es',
-      proficiencyLevel: 'intermediate',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    const result = await db.collection('User').insertOne(demoUserDoc);
-    user = { ...demoUserDoc, _id: result.insertedId };
-  }
-  return user;
-};
-
-function toPublicUser(user: Record<string, any>) {
-  return {
-    name: user.name,
-    email: user.email,
-    nativeLanguage: user.nativeLanguage,
-    targetLanguage: user.targetLanguage,
-    proficiencyLevel: user.proficiencyLevel,
-    ...(user.createdAt ? { createdAt: user.createdAt } : {}),
-  };
-}
-
-// Demo login endpoint
-router.post('/demo', asyncHandler(async (req: Request, res: Response) => {
-  const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+router.post('/demo', asyncHandler(async (_req: Request, res: Response) => {
+  const db = await getDb();
   const user = await getOrCreateDemoUser(db);
   const token = signAuthToken(user._id.toString());
 
   return authResponse(res, token, toPublicUser(user), 'Demo login successful');
 }));
 
-// Login user
 router.post('/login', validate(loginSchema), asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = req.body;
-  const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+  const db = await getDb();
+  const user = await authenticateWithPassword(db, email, password);
 
-  if (email.toLowerCase() === 'test@email.com') {
-    const user = await getOrCreateDemoUser(db);
-    const isValid = await bcrypt.compare(password, user.password);
-    if (!isValid) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    const token = signAuthToken(user._id.toString());
-    return authResponse(res, token, toPublicUser(user), 'Login successful');
-  }
-
-  const user = await db.collection('User').findOne({ email });
   if (!user) {
-    return res.status(401).json({ error: 'Invalid email or password' });
-  }
-
-  const isValidPassword = await bcrypt.compare(password, user.password);
-  if (!isValidPassword) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
@@ -146,7 +157,6 @@ router.post('/login', validate(loginSchema), asyncHandler(async (req: Request, r
   return authResponse(res, token, toPublicUser(user), 'Login successful');
 }));
 
-// Get current user profile
 router.get('/profile', asyncHandler(async (req: Request, res: Response) => {
   const token = extractAuthToken(req);
   if (!token) {
@@ -154,7 +164,7 @@ router.get('/profile', asyncHandler(async (req: Request, res: Response) => {
   }
 
   const decoded = jwt.verify(token, getJwtSecret()) as jwtToken;
-  const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+  const db = await getDb();
   const user = await db.collection('User').findOne({ _id: new ObjectId(decoded.userId) });
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
@@ -165,7 +175,6 @@ router.get('/profile', asyncHandler(async (req: Request, res: Response) => {
   });
 }));
 
-// Logout user
 router.post('/logout', asyncHandler(async (_req: Request, res: Response) => {
   return res.json({ message: 'Logged out successfully' });
 }));

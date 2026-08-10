@@ -65,7 +65,6 @@ const Register: React.FC = () => {
       navigate('/dashboard');
     } catch (error) {
       console.log(error);
-      // Error handled by AuthContext toast
     } finally {
       setLoading(false);
     }
