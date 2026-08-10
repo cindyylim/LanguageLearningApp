@@ -199,7 +199,7 @@ const Home: React.FC = () => {
               <ChartBarIcon className="h-6 w-6" />
             </div>
             <h3 className="text-base font-bold text-white mb-1">Adaptive Quizzes</h3>
-            <p className="text-sm text-slate-400">Multiple question styles and difficulty levels powered by Google Gemini.</p>
+            <p className="text-sm text-slate-400">Multiple question styles and difficulty levels powered by OpenAI.</p>
           </div>
 
           <div className="bg-slate-800/40 border border-slate-800 rounded-2xl p-5 backdrop-blur-sm">
@@ -214,7 +214,7 @@ const Home: React.FC = () => {
 
       {/* Footer */}
       <footer className="py-6 border-t border-slate-800/60 text-center text-xs text-slate-500">
-        <p>© {new Date().getFullYear()} Powered by Google Gemini.</p>
+        <p>© {new Date().getFullYear()} Powered by OpenAI.</p>
       </footer>
     </div>
   );

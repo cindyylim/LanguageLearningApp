@@ -31,6 +31,7 @@ const Vocabulary: React.FC = () => {
     showAIModal,
     aiForm,
     aiLoading,
+    aiError,
   } = state;
 
 
@@ -163,6 +164,11 @@ const Vocabulary: React.FC = () => {
                 <label className="block text-sm font-medium mb-1">Number of Words</label>
                 <input className="input-field" type="number" min={5} max={50} value={aiForm.wordCount} onChange={e => dispatch({ type: 'UPDATE_AI_FORM', payload: { wordCount: Number(e.target.value) } })} />
               </div>
+              {aiError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2" role="alert">
+                  {aiError}
+                </p>
+              )}
               <button type="submit" className="btn-primary w-full disabled:bg-gray-500" disabled={aiLoading || !aiForm.targetLanguage || !aiForm.nativeLanguage || !aiForm.name || !aiForm.wordCount || !aiForm.prompt}>{aiLoading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div> : 'Generate List'}</button>
             </form>
           </div>

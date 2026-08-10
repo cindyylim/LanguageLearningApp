@@ -19,6 +19,10 @@ const handleJWTError = () => new AppError('Invalid token. Please log in again!',
 const handleJWTExpiredError = () => new AppError('Your token has expired! Please log in again.', 401);
 
 export const errorHandler = (err: unknown, req: Request, res: Response, next: NextFunction) => {
+    if (res.headersSent) {
+        return next(err);
+    }
+
     // Default error properties
     let statusCode = 500;
     let status = 'error';
@@ -40,17 +44,20 @@ export const errorHandler = (err: unknown, req: Request, res: Response, next: Ne
     }
 
     if (process.env.NODE_ENV === 'development') {
-        // Use request-scoped logger if available, otherwise use base logger
         const log = req.logger || logger;
         log.error(`Error:`, { error: err, stack });
+        const errorCode =
+            err instanceof Error && 'code' in err && typeof err.code === 'string'
+                ? err.code
+                : undefined;
         res.status(statusCode).json({
             status,
-            error: err,
+            error: message,
             message,
+            ...(errorCode ? { code: errorCode } : {}),
             stack,
             requestId: req.id
         });
-        next();
     } else {
         let error: AppError | Error = err instanceof Error ? err : new Error(String(err));
 
@@ -63,9 +70,14 @@ export const errorHandler = (err: unknown, req: Request, res: Response, next: Ne
         const isOperational = error instanceof AppError && error.isOperational;
 
         if (isOperational) {
-            res.status((error as AppError).statusCode).json({
-                status: (error as AppError).status,
-                message: error.message,
+            const appError = error as AppError;
+            res.status(appError.statusCode).json({
+                status: appError.status,
+                message: appError.message,
+                error: appError.message,
+                ...('code' in appError && typeof appError.code === 'string'
+                    ? { code: appError.code }
+                    : {}),
                 requestId: req.id
             });
         } else {
@@ -78,6 +90,5 @@ export const errorHandler = (err: unknown, req: Request, res: Response, next: Ne
                 requestId: req.id
             });
         }
-        next();
     }
 };

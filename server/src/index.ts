@@ -82,8 +82,11 @@ app.use(cors({
       callback(null, origin);
       return;
     }
-    callback(new Error(`CORS not allowed for origin: ${origin}`));
+    logger.warn(`CORS not allowed for origin: ${origin}`);
+    callback(null, false);
   },
+  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
 }));
 // Request ID tracking - must be early in the middleware stack
 app.use(requestIdMiddleware);
@@ -182,14 +185,12 @@ app.use('/api/analytics', authMiddleware, verifyCSRFToken, analyticsRoutes);
 // Test database routes (only available in non-production environments)
 app.use('/api/test-db', testDbRoutes);
 
-// Error handling middleware
-import { errorHandler } from './middleware/error';
-app.use(errorHandler);
-
-// 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
+
+import { errorHandler } from './middleware/error';
+app.use(errorHandler);
 
 // Start server
 async function startServer() {

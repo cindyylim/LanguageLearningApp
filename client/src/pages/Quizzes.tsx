@@ -4,7 +4,8 @@ import { Link } from 'react-router-dom';
 import { ListVocabulary } from '../types/vocabulary';
 import { QuizAttempt } from './Analytics';
 import { QuizQuestion } from './Quiz';
-import { getErrorMessage } from '../types/errors';
+import toast from 'react-hot-toast';
+import { getErrorMessage, getUserFacingErrorMessage } from '../types/errors';
 import { SkeletonCard } from '../components/SkeletonCard';
 
 interface Quiz {
@@ -69,7 +70,8 @@ const Quizzes: React.FC = () => {
       setQuizzes([res.data.quiz, ...quizzes]);
       setShowModal(false);
     } catch (err: unknown) {
-      alert(getErrorMessage(err) || 'Failed to generate quiz');
+      const message = getUserFacingErrorMessage(err, 'Failed to generate quiz');
+      toast.error(message, { duration: 6000 });
     } finally {
       setGenerating(false);
     }

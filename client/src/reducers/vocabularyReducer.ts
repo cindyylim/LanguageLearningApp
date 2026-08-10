@@ -30,6 +30,7 @@ export interface VocabularyState {
         wordCount: number;
     };
     aiLoading: boolean;
+    aiError: string | null;
     page: number;
     hasMore: boolean;
 }
@@ -64,6 +65,7 @@ export const initialState: VocabularyState = {
         wordCount: 10,
     },
     aiLoading: false,
+    aiError: null,
     page: 1,
     hasMore: true,
 };
@@ -89,6 +91,7 @@ export type VocbularyAction =
     | { type: 'SAVE_END' }
     | { type: 'AI_GENERATE_START' }
     | { type: 'AI_GENERATE_END' }
+    | { type: 'AI_GENERATE_ERROR'; payload: string }
     | { type: 'ADD_WORD_SUCCESS'; payload: { listId: string; word: Word } }
     | { type: 'UPDATE_WORD_PROGRESS'; payload: { wordId: string; status: 'learning' | 'mastered'; mastery: number } }
 
@@ -116,9 +119,9 @@ export function vocabularyReducer(state: VocabularyState, action: VocbularyActio
         case 'CLOSE_WORD_MODAL':
             return { ...state, showWordModal: null };
         case 'OPEN_AI_MODAL':
-            return { ...state, showAIModal: true };
+            return { ...state, showAIModal: true, aiError: null };
         case 'CLOSE_AI_MODAL':
-            return { ...state, showAIModal: false };
+            return { ...state, showAIModal: false, aiError: null };
         case 'UPDATE_LIST_FORM':
             return { ...state, listForm: { ...state.listForm, ...action.payload } };
         case 'RESET_LIST_FORM':
@@ -136,9 +139,11 @@ export function vocabularyReducer(state: VocabularyState, action: VocbularyActio
         case 'SAVE_END':
             return { ...state, saving: false };
         case 'AI_GENERATE_START':
-            return { ...state, aiLoading: true };
+            return { ...state, aiLoading: true, aiError: null };
         case 'AI_GENERATE_END':
             return { ...state, aiLoading: false };
+        case 'AI_GENERATE_ERROR':
+            return { ...state, aiLoading: false, aiError: action.payload };
         case 'ADD_WORD_SUCCESS':
             return {
                 ...state,

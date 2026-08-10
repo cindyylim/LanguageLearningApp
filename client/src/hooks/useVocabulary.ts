@@ -1,7 +1,8 @@
 import { useReducer, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 import api from '../lib/api';
-import { getErrorMessage } from '../types/errors';
+import { getErrorMessage, getUserFacingErrorMessage } from '../types/errors';
 import { initialState, vocabularyReducer } from '../reducers/vocabularyReducer';
 
 interface User {
@@ -45,7 +46,17 @@ export const useVocabulary = (user: User | null) => {
         if (user) {
             dispatch({
                 type: 'UPDATE_LIST_FORM',
-                payload: { targetLanguage: 'en', nativeLanguage: 'en' }
+                payload: {
+                    targetLanguage: user.targetLanguage,
+                    nativeLanguage: user.nativeLanguage,
+                }
+            });
+            dispatch({
+                type: 'UPDATE_AI_FORM',
+                payload: {
+                    targetLanguage: user.targetLanguage,
+                    nativeLanguage: user.nativeLanguage,
+                }
             });
         }
     }, [user]);
@@ -99,8 +110,14 @@ export const useVocabulary = (user: User | null) => {
             dispatch({ type: 'CLOSE_AI_MODAL' });
             dispatch({ type: 'RESET_AI_FORM' });
             fetchLists(1);
+            toast.success('Vocabulary list generated!');
         } catch (err: unknown) {
-            alert(getErrorMessage(err) || 'Failed to generate vocabulary list');
+            const message = getUserFacingErrorMessage(
+                err,
+                'Failed to generate vocabulary list'
+            );
+            dispatch({ type: 'AI_GENERATE_ERROR', payload: message });
+            toast.error(message, { duration: 6000 });
         } finally {
             dispatch({ type: 'AI_GENERATE_END' });
         }

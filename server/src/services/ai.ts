@@ -1,11 +1,11 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import OpenAI from "openai";
 import { CircuitBreaker } from "../utils/CircuitBreaker";
 import { RequestQueue } from "../utils/RequestQueue";
 import { z } from "zod";
 import logger from '../utils/logger';
+import { getLanguageName } from '../utils/languages';
+import { assertAllContentAllowed, assertContentAllowed, ModerationError } from '../utils/moderation';
 
-const gemini = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY!);
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export interface Word {
@@ -57,12 +57,6 @@ const ContextualSentenceSchema = z.object({
 
 const ContextualSentencesArraySchema = z.array(ContextualSentenceSchema);
 
-const TextComplexitySchema = z.object({
-  complexity: z.enum(["easy", "medium", "hard"]),
-  score: z.number().min(0).max(1),
-  suggestions: z.array(z.string()),
-});
-
 const RecommendationsSchema = z.object({
   focusAreas: z.array(z.string()),
   recommendedWords: z.array(z.string()),
@@ -90,22 +84,48 @@ interface AIMetrics {
 }
 
 export class AIService {
-  private static readonly MODEL = gemini.getGenerativeModel({
-    model: "gemini-2.5-flash",
-  });
+  private static readonly MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
   private static readonly MAX_RETRIES = 3;
-  private static readonly INITIAL_DELAY_MS = 1000; // 1 second
+  private static readonly INITIAL_DELAY_MS = 1000;
 
   private static readonly circuitBreaker = new CircuitBreaker({
     failureThreshold: 5,
-    resetTimeout: 60000, // 1 minute
+    resetTimeout: 60000,
   });
 
   private static readonly requestQueue = new RequestQueue({
     concurrency: 3,
-    rateLimit: 15, // 15 requests per minute (adjust based on quota)
+    rateLimit: 15,
     interval: 60000,
   });
+
+  private static async generateText(prompt: string): Promise<string> {
+    const response = await AIService.requestQueue.add(() =>
+      AIService.circuitBreaker.execute(async () => {
+        const completion = await openai.chat.completions.create({
+          model: AIService.MODEL,
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are a helpful language learning assistant. Return valid JSON when asked for structured data. Do not wrap JSON in markdown code blocks.",
+            },
+            { role: "user", content: prompt },
+          ],
+          temperature: 0.7,
+        });
+
+        const text = completion.choices[0]?.message?.content?.trim();
+        if (!text) {
+          throw new Error("Empty response from OpenAI");
+        }
+
+        return text;
+      })
+    );
+
+    return response;
+  }
 
   /**
    * Log AI operation metrics and errors
@@ -135,6 +155,9 @@ export class AIService {
    * Categorize error types for better monitoring
    */
   private static categorizeError(error: unknown): string {
+    if (error instanceof ModerationError) {
+      return 'MODERATION_ERROR';
+    }
     if (error instanceof z.ZodError) {
       return 'VALIDATION_ERROR';
     }
@@ -158,6 +181,9 @@ export class AIService {
     if (errorMessage.includes('circuit breaker')) {
       return 'CIRCUIT_BREAKER_OPEN';
     }
+    if (errorMessage.includes('flagged by moderation')) {
+      return 'MODERATION_ERROR';
+    }
 
     return 'UNKNOWN_ERROR';
   }
@@ -171,7 +197,6 @@ export class AIService {
   ): Promise<Question[]> {
     const wordsPrompt = words
       .map(
-        // Include the word ID directly in the prompt for the model to use
         (w) =>
           `- [ID: ${w.id}] ${w.word} (${w.translation}) - ${w.partOfSpeech || "unknown"
           }`
@@ -197,10 +222,13 @@ export class AIService {
           difficulty,
         });
 
+        const targetLang = getLanguageName(targetLanguage);
+        const nativeLang = getLanguageName(nativeLanguage);
+
         const prompt = `
 Generate ${questionCount} language learning questions for the following vocabulary words.
-Target language: ${targetLanguage}
-Native language: ${nativeLanguage}
+Target language (language being learned): ${targetLang}
+Native language (learner's language for explanations): ${nativeLang}
 Difficulty level: ${difficulty}
 
 Vocabulary words (Use the provided ID for the 'wordId' field):
@@ -226,20 +254,14 @@ Return the response as a JSON array with the following structure:
   }
 ]
 `;
-        const result = await AIService.requestQueue.add(() =>
-          AIService.circuitBreaker.execute(() =>
-            AIService.MODEL.generateContent(prompt)
-          )
+        await assertAllContentAllowed(
+          words.map((w) => `${w.word} ${w.translation}`),
+          'Input'
         );
-        const responseText = result.response.text();
+
+        const responseText = await AIService.generateText(prompt);
         metrics.responseTimeMs = Date.now() - attemptStartTime;
 
-        const outputModeration = await openai.moderations.create({ input: responseText });
-        if (outputModeration.results[0]?.flagged) {
-          throw new Error("Generated content flagged by moderation.");
-        }
-
-        // Safer JSON cleanup
         const cleaned = responseText
           .replace(/```[a-z]*\n?|```/gi, "")
           .trim()
@@ -248,6 +270,16 @@ Return the response as a JSON array with the following structure:
 
         const parsed = JSON.parse(cleaned);
         const questions = QuestionsArraySchema.parse(parsed) as Question[];
+
+        await assertAllContentAllowed(
+          questions.flatMap((q) => [
+            q.question,
+            q.correctAnswer,
+            q.context ?? '',
+            ...(q.options ?? []),
+          ]),
+          'Generated content'
+        );
 
         AIService.logMetrics(metrics);
         logger.info('Questions generated successfully', {
@@ -271,8 +303,12 @@ Return the response as a JSON array with the following structure:
           responseTimeMs: metrics.responseTimeMs,
         });
 
+        if (errorType === 'MODERATION_ERROR') {
+          AIService.logMetrics(metrics, error instanceof Error ? error : new Error(String(error)));
+          throw error instanceof Error ? error : new Error(String(error));
+        }
+
         if (attempt === AIService.MAX_RETRIES) {
-          // Final attempt failed, log error metrics and throw
           AIService.logMetrics(metrics, error instanceof Error ? error : new Error(String(error)));
           logger.error(`Attempt ${attempt} failed for generating questions.`, { error, attempt });
           throw new Error(
@@ -280,17 +316,16 @@ Return the response as a JSON array with the following structure:
           );
         }
 
-        // Exponential backoff: Wait longer on each failure (1s, 2s, 4s...)
         const delay = AIService.INITIAL_DELAY_MS * Math.pow(2, attempt - 1);
         logger.debug(`Retrying in ${delay}ms...`, { attempt, delay });
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
-    // Should never be reached if logic is correct, but required for type safety
     const finalError = new Error("Failed to generate questions due to unexpected flow.");
     AIService.logMetrics(metrics, finalError);
     throw finalError;
   }
+
   /**
    * Generate contextual sentences for vocabulary words
    */
@@ -298,9 +333,10 @@ Return the response as a JSON array with the following structure:
     words: Word[],
     targetLanguage: string,
   ): Promise<{ wordId: string; sentences: string[] }[]> {
-    // ... Prompt construction (omitted for brevity) ...
+    const targetLang = getLanguageName(targetLanguage);
+
     const prompt = `
-Generate 3 contextual sentences for each vocabulary word in ${targetLanguage}.
+Generate 3 contextual sentences for each vocabulary word in ${targetLang}.
 Provide natural, everyday usage examples that help learners understand the word in context.
 
 Words:
@@ -311,9 +347,9 @@ Return as JSON:
 {
   "wordId": "word_id",
   "sentences": [
-    "Sentence 1 in ${targetLanguage}",
-    "Sentence 2 in ${targetLanguage}",
-    "Sentence 3 in ${targetLanguage}"
+    "Sentence 1 in ${targetLang}",
+    "Sentence 2 in ${targetLang}",
+    "Sentence 3 in ${targetLang}"
   ]
 }
 ]
@@ -335,17 +371,22 @@ Return as JSON:
           targetLanguage,
         });
 
-        const result = await AIService.requestQueue.add(() =>
-          AIService.circuitBreaker.execute(() =>
-            AIService.MODEL.generateContent(prompt)
-          )
+        await assertAllContentAllowed(
+          words.map((w) => `${w.word} ${w.translation}`),
+          'Input'
         );
-        const responseText = result.response.text();
+
+        const responseText = await AIService.generateText(prompt);
         metrics.responseTimeMs = Date.now() - attemptStartTime;
 
         const cleaned = responseText.replace(/```[a-z]*\n?|```/gi, "").trim();
         const parsed = JSON.parse(cleaned);
         const sentences = ContextualSentencesArraySchema.parse(parsed);
+
+        await assertAllContentAllowed(
+          sentences.flatMap((entry) => entry.sentences),
+          'Generated content'
+        );
 
         AIService.logMetrics(metrics);
         logger.info('Contextual sentences generated successfully', {
@@ -369,6 +410,11 @@ Return as JSON:
           wordCount: words.length,
           responseTimeMs: metrics.responseTimeMs,
         });
+
+        if (errorType === 'MODERATION_ERROR') {
+          AIService.logMetrics(metrics, error instanceof Error ? error : new Error(String(error)));
+          throw error instanceof Error ? error : new Error(String(error));
+        }
 
         if (attempt === AIService.MAX_RETRIES) {
           AIService.logMetrics(metrics, error instanceof Error ? error : new Error(String(error)));
@@ -402,14 +448,12 @@ Return as JSON:
     focusAreas: string[];
     recommendedWords: string[];
     studyPlan: string;
-    estimatedTime: number; // minutes
+    estimatedTime: number;
   }> {
     try {
-      // Analyze weak areas
       const weakWords = userProgress
         .filter((p) => p.mastery < 1.0)
         .map((p) => p.wordId);
-      // Analyze recent performance trends
       const avgRecentScore =
         recentPerformance.length > 0
           ? recentPerformance.reduce((sum, p) => sum + p.score, 0) /
@@ -427,15 +471,12 @@ Return as JSON:
         focusAreas.push("consistency_building");
       }
 
-      // Generate study plan
       const studyPlan = focusAreas.includes("vocabulary_review")
         ? "Focus on reviewing difficult words with contextual examples"
         : "Continue with regular practice and introduce new vocabulary";
 
-      const estimatedTime = focusAreas.length * 15; // 15 minutes per focus area
+      const estimatedTime = focusAreas.length * 15;
 
-      // Validate the generated recommendations structure (even though it's manually constructed here,
-      // in a real AI scenario we'd validate the AI output)
       const recommendations = {
         focusAreas,
         recommendedWords: weakWords,
@@ -466,7 +507,7 @@ Return as JSON:
   }
 
   /**
-   * Generate a vocabulary list using Gemini based on a prompt/keywords
+   * Generate a vocabulary list using OpenAI based on a prompt/keywords
    */
   static async generateVocabularyList(
     prompt: string,
@@ -499,19 +540,22 @@ Return as JSON:
           nativeLanguage,
         });
 
-        const promptModeration = await openai.moderations.create({ input: prompt });
-        if (promptModeration.results[0]?.flagged) {
-          throw new Error("Input prompt flagged by moderation.");
-        }
+        await assertContentAllowed(prompt, 'Input');
+
+        const targetLang = getLanguageName(targetLanguage);
+        const nativeLang = getLanguageName(nativeLanguage);
 
         const aiPrompt = `
 Generate a list of ${wordCount} useful vocabulary words for language learners based on the following topic or keywords: "${prompt}".
-Target language: ${targetLanguage}
-Native language: ${nativeLanguage}
+
+IMPORTANT:
+- The "word" field MUST be written in ${targetLang} (the language being learned).
+- The "translation" field MUST be written in ${nativeLang} (the learner's native language).
+- Do NOT use any other language for these fields.
 
 For each word, provide:
-- The word in the target language
-- Its translation in the native language
+- The word in ${targetLang}
+- Its translation in ${nativeLang}
 - Part of speech (if possible)
 - Difficulty (easy, medium, or hard)
 
@@ -521,24 +565,17 @@ Return the result as a JSON array with this structure:
   ...
 ]
 `;
-        const result = await AIService.requestQueue.add(() =>
-          AIService.circuitBreaker.execute(() =>
-            AIService.MODEL.generateContent(aiPrompt)
-          )
-        );
-        const response = await result.response;
-        const responseText = response.text();
+        const responseText = await AIService.generateText(aiPrompt);
         metrics.responseTimeMs = Date.now() - attemptStartTime;
 
-        const outputModeration = await openai.moderations.create({ input: responseText });
-        if (outputModeration.results[0]?.flagged) {
-          throw new Error("Generated content flagged by moderation.");
-        }
-
-        // Remove Markdown code block if present
         const cleaned = responseText.replace(/```[a-z]*\n?|```/gi, "").trim();
         const parsed = JSON.parse(cleaned);
         const vocabularyList = VocabularyListSchema.parse(parsed);
+
+        await assertAllContentAllowed(
+          vocabularyList.flatMap((entry) => [entry.word, entry.translation]),
+          'Generated content'
+        );
 
         AIService.logMetrics(metrics);
         logger.info('Vocabulary list generated successfully', {
@@ -564,6 +601,11 @@ Return the result as a JSON array with this structure:
           responseTimeMs: metrics.responseTimeMs,
         });
 
+        if (errorType === 'MODERATION_ERROR') {
+          AIService.logMetrics(metrics, error instanceof Error ? error : new Error(String(error)));
+          throw error instanceof Error ? error : new Error(String(error));
+        }
+
         if (attempt === AIService.MAX_RETRIES) {
           AIService.logMetrics(metrics, error instanceof Error ? error : new Error(String(error)));
           logger.error('Failed to generate vocabulary list - returning empty array', {
@@ -581,6 +623,7 @@ Return the result as a JSON array with this structure:
     }
     return [];
   }
+
   /**
    * Check if the AI service is healthy
    */
@@ -590,14 +633,8 @@ Return the result as a JSON array with this structure:
     try {
       logger.debug('Running AI service health check');
 
-      const prompt = "Say 'OK'";
-      const result = await AIService.requestQueue.add(() =>
-        AIService.circuitBreaker.execute(() =>
-          AIService.MODEL.generateContent(prompt)
-        )
-      );
-      const response = await result.response;
-      const isHealthy = !!response.text();
+      const text = await AIService.generateText("Say 'OK'");
+      const isHealthy = !!text;
       const duration = Date.now() - startTime;
 
       logger.info('AI service health check completed', {

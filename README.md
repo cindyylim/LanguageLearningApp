@@ -1,6 +1,6 @@
 # Language Learning Quiz Generator
 
-An AI-powered language learning application that generates personalized quizzes using Google Gemini for adaptive learning experiences.
+An AI-powered language learning application that generates personalized quizzes using OpenAI for adaptive learning experiences.
 Deployed with Render. Link: https://languagelearningapp-z0ca.onrender.com/login
 
 ## Demo
@@ -10,19 +10,19 @@ Deployed with Render. Link: https://languagelearningapp-z0ca.onrender.com/login
 
 ## Features
 
-- 🤖 **AI-Powered Question Generation**: Uses Google Gemini to create contextual questions from vocabulary lists
+- 🤖 **AI-Powered Question Generation**: Uses OpenAI to create contextual questions from vocabulary lists
 - 📝 **Contextual Sentences**: Generates real-world usage examples for vocabulary
-- 📊 **Text Analysis**: Google Gemini integration for advanced text processing
+- 📊 **Text Analysis**: OpenAI integration for advanced text processing
 - 🎯 **Multiple Question Types**: Multiple choice, fill-in-the-blank, sentence completion
 - 📈 **Progress Tracking**: Detailed analytics and learning insights
 - 🌍 **Multi-language Support**: Support for various target languages
-- ✨ **AI-Powered Vocabulary List Generation**: Instantly generate themed vocabulary lists using Google Gemini based on your chosen topic or keywords
+- ✨ **AI-Powered Vocabulary List Generation**: Instantly generate themed vocabulary lists using OpenAI based on your chosen topic or keywords
 
 ## Tech Stack
 
 - **Frontend**: React, TypeScript, Tailwind CSS
 - **Backend**: Node.js, Express, TypeScript
-- **AI Services**: Google Gemini API
+- **AI Services**: OpenAI API
 - **Authentication**: JWT tokens
 
 ## Setup
@@ -31,7 +31,7 @@ Deployed with Render. Link: https://languagelearningapp-z0ca.onrender.com/login
 
 - Node.js 18+ 
 - npm or yarn
-- Google Gemini API key
+- OpenAI API key
 
 ### Installation
 
@@ -55,7 +55,8 @@ cp .env.example .env
 
 4. Configure your environment variables in `.env`:
 ```
-GOOGLE_AI_API_KEY=your_google_gemini_api_key
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_MODEL=gpt-4o-mini
 JWT_SECRET=your_jwt_secret
 MONGODB_URI=
 ```

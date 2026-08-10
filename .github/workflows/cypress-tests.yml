@@ -51,7 +51,7 @@
 #           TESTDB_URI: mongodb://localhost:27017/test
 #           JWT_SECRET: ${{ secrets.JWT_SECRET }}
 #           PORT: 5000
-#           GOOGLE_AI_API_KEY: ${{ secrets.GOOGLE_AI_API_KEY }}
+#           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 #           REDIS_URL: redis://localhost:6379
 #           FRONTEND_URL: http://localhost:3000
 
