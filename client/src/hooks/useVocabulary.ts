@@ -124,17 +124,19 @@ export const useVocabulary = (user: User | null) => {
     };
 
     const updateWordProgress = async (listId: string, wordId: string, status: 'learning' | 'mastered') => {
-        const newMastery = status === 'mastered' ? 1.0 : 0;
-        dispatch({
-            type: 'UPDATE_WORD_PROGRESS',
-            payload: { wordId, status, mastery: newMastery }
-        });
-
         try {
-            await api.post(`/vocabulary/words/${wordId}/progress`, { status });
+            const res = await api.post(`/vocabulary/words/${wordId}/progress`, { status });
+            const progress = res.data.progress;
+            dispatch({
+                type: 'UPDATE_WORD_PROGRESS',
+                payload: {
+                    wordId,
+                    status: progress.status,
+                    mastery: progress.mastery,
+                },
+            });
         } catch (err: unknown) {
             alert(getErrorMessage(err) || 'Failed to update word progress');
-            fetchLists(state.page);
         }
     };
 
