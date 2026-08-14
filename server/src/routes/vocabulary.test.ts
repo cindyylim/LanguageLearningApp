@@ -251,13 +251,13 @@ describe("Vocabulary API Endpoints", () => {
         vocabularyLists: mockLists,
         hasMore: false,
         page: 1,
-        limit: 2,
+        limit: 20,
       });
 
       expect(mockGetCacheKeyUserListsRef).toHaveBeenCalledWith(
         "test-user-id",
         1,
-        2
+        20
       );
 
       const expectedKey = mockGetCacheKeyUserListsRef.mock.results[0]?.value;
@@ -303,7 +303,6 @@ describe("Vocabulary API Endpoints", () => {
         _id: new ObjectId().toString(),
         name: `List ${i + 1}`,
         userId: "test-user-id",
-        _count: { words: 1 },
       }));
 
       const { VocabularyService } = require("../services/vocabulary.service");
@@ -320,7 +319,7 @@ describe("Vocabulary API Endpoints", () => {
         vocabularyLists: mockLists,
         hasMore: true,
         page: 1,
-        limit: 2,
+        limit: 20,
       });
     });
 
@@ -329,7 +328,6 @@ describe("Vocabulary API Endpoints", () => {
         _id: new ObjectId().toString(),
         name: `List ${i + 1}`,
         userId: "test-user-id",
-        _count: { words: 1 },
       }));
 
       const { VocabularyService } = require("../services/vocabulary.service");
@@ -374,13 +372,13 @@ describe("Vocabulary API Endpoints", () => {
         vocabularyLists: mockLists,
         hasMore: false,
         page: 1,
-        limit: 2,
+        limit: 20,
       });
 
       expect(mockGetCacheKeyUserListsRef).toHaveBeenCalledWith(
         "test-user-id",
         1,
-        2
+        20
       );
       const expectedKey = mockGetCacheKeyUserListsRef.mock.results[0]?.value;
       // Verify cache was checked before database

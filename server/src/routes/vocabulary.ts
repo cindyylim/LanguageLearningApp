@@ -52,7 +52,7 @@ const generateAIListSchema = z.object({
 // Get all vocabulary lists for user
 router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
   const page = parseInt(req.query.page as string) || 1;
-  const limit = parseInt(req.query.limit as string) || 2;
+  const limit = parseInt(req.query.limit as string) || 20;
 
   const cacheKey = getCacheKey.userLists(req.user!.id, page, limit);
   const cached = vocabularyCache.get<{ vocabularyLists: unknown[]; hasMore: boolean }>(cacheKey);
