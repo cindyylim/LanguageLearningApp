@@ -11,8 +11,34 @@ import { invalidateListCache } from '../utils/cache';
 
 const router: Router = Router();
 
-// Rate limiter for quiz generation
-const quizGenerationLimiter = createUserRateLimiter(10, 60 * 1000); // 10 requests per minute
+const QUIZ_GENERATE_PER_MINUTE = Number.parseInt(process.env.QUIZ_GENERATE_PER_MINUTE ?? '1', 10);
+const QUIZ_GENERATE_PER_DAY = Number.parseInt(process.env.QUIZ_GENERATE_PER_DAY ?? '2', 10);
+
+const quizGenerationMinuteLimiter = createUserRateLimiter(
+    QUIZ_GENERATE_PER_MINUTE,
+    60 * 1000,
+    {
+        requireUser: true,
+        keyPrefix: 'quiz-gen-minute',
+        message: {
+            status: 'error',
+            message: 'Quiz generation rate limit exceeded. Please wait before generating another quiz.',
+        },
+    }
+);
+
+const quizGenerationDayLimiter = createUserRateLimiter(
+    QUIZ_GENERATE_PER_DAY,
+    24 * 60 * 60 * 1000,
+    {
+        requireUser: true,
+        keyPrefix: 'quiz-gen-day',
+        message: {
+            status: 'error',
+            message: 'Daily quiz generation quota exceeded. Please try again tomorrow.',
+        },
+    }
+);
 
 const generateQuizSchema = z.object({
   vocabularyListId: z.string().refine(isValidObjectId, {
@@ -30,16 +56,27 @@ const submitQuizSchema = z.object({
 });
 
 // Generate AI-powered quiz
-router.post('/generate', validate(generateQuizSchema), quizGenerationLimiter, asyncHandler(async (req: AuthRequest, res: Response) => {
+router.post(
+  '/generate',
+  validate(generateQuizSchema),
+  quizGenerationDayLimiter,
+  quizGenerationMinuteLimiter,
+  asyncHandler(async (req: AuthRequest, res: Response) => {
   const { vocabularyListId, questionCount, difficulty } = req.body;
+  const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
 
-  const quiz = await QuizService.generateQuiz(vocabularyListId, { questionCount, difficulty }, req.user!.id);
+  const result = await QuizService.generateQuiz(
+    vocabularyListId,
+    { questionCount, difficulty },
+    req.user!.id,
+    idempotencyKey
+  );
 
-  if (!quiz) {
+  if (!result) {
     throw new AppError('Vocabulary list not found', 404);
   }
 
-  res.status(201).json({ quiz });
+  res.status(result.created ? 201 : 200).json({ quiz: result.quiz });
 }));
 
 // Get user's quizzes

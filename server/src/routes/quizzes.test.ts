@@ -14,6 +14,7 @@ jest.mock('../middleware/rateLimit', () => ({
 
 import quizRouter from './quizzes';
 import { QuizService } from '../services/quiz.service';
+import { authMiddleware } from '../middleware/auth';
 
 const testApp = express();
 testApp.use(express.json());
@@ -29,6 +30,10 @@ testApp.use((err: any, _req: any, res: any, _next: any) => {
   }
   return res.status(500).json({ message: err?.message || 'Internal server error' });
 });
+
+const unauthenticatedApp = express();
+unauthenticatedApp.use(express.json());
+unauthenticatedApp.use('/api/quizzes', authMiddleware, quizRouter);
 
 describe('Quiz API Endpoints', () => {
   beforeEach(() => {
@@ -49,7 +54,7 @@ describe('Quiz API Endpoints', () => {
     it('should generate a quiz for a valid vocabularyListId', async () => {
       const vocabularyListId = new ObjectId().toString();
       const mockQuiz = { _id: new ObjectId().toString(), title: 'Quiz' };
-      (QuizService.generateQuiz as jest.Mock).mockResolvedValue(mockQuiz);
+      (QuizService.generateQuiz as jest.Mock).mockResolvedValue({ quiz: mockQuiz, created: true });
 
       const response = await request(testApp)
         .post('/api/quizzes/generate')
@@ -60,8 +65,41 @@ describe('Quiz API Endpoints', () => {
       expect(QuizService.generateQuiz).toHaveBeenCalledWith(
         vocabularyListId,
         { questionCount: 5, difficulty: 'easy' },
-        'test-user-id'
+        'test-user-id',
+        undefined
       );
+    });
+
+    it('should pass Idempotency-Key header to generateQuiz', async () => {
+      const vocabularyListId = new ObjectId().toString();
+      const mockQuiz = { _id: new ObjectId().toString(), title: 'Quiz' };
+      (QuizService.generateQuiz as jest.Mock).mockResolvedValue({ quiz: mockQuiz, created: false });
+
+      const response = await request(testApp)
+        .post('/api/quizzes/generate')
+        .set('Idempotency-Key', 'test-idempotency-key')
+        .send({ vocabularyListId })
+        .expect(200);
+
+      expect(response.body).toEqual({ quiz: mockQuiz });
+      expect(QuizService.generateQuiz).toHaveBeenCalledWith(
+        vocabularyListId,
+        expect.objectContaining({}),
+        'test-user-id',
+        'test-idempotency-key'
+      );
+    });
+
+    it('should return 401 when not authenticated', async () => {
+      const vocabularyListId = new ObjectId().toString();
+
+      const response = await request(unauthenticatedApp)
+        .post('/api/quizzes/generate')
+        .send({ vocabularyListId })
+        .expect(401);
+
+      expect(response.body.error).toMatch(/token/i);
+      expect(QuizService.generateQuiz).not.toHaveBeenCalled();
     });
   });
 

@@ -8,16 +8,87 @@ import { Answer } from '../interface/Answer';
 import { AppError } from '../utils/AppError';
 import logger from '../utils/logger';
 import { calculateSM2, mapAccuracyToQuality } from '../utils/sm2';
+import type { IdempotencyKey } from '../interface/IdempotencyKey';
+
+function isMongoDuplicateKeyError(error: unknown): boolean {
+    return typeof error === 'object'
+        && error !== null
+        && 'code' in error
+        && (error as { code: number }).code === 11000;
+}
 
 export class QuizService {
+    private static async claimIdempotencyKey(
+        db: Awaited<ReturnType<typeof getDatabase>>,
+        userId: string,
+        idempotencyKey: string
+    ): Promise<'claimed' | 'duplicate'> {
+        try {
+            await db.collection<IdempotencyKey>('IdempotencyKey').insertOne({
+                userId,
+                key: idempotencyKey,
+                status: 'pending',
+                createdAt: new Date()
+            });
+            return 'claimed';
+        } catch (error) {
+            if (!isMongoDuplicateKeyError(error)) {
+                throw error;
+            }
+
+            return 'duplicate';
+        }
+    }
+
+    private static async waitForIdempotentQuizId(
+        db: Awaited<ReturnType<typeof getDatabase>>,
+        userId: string,
+        idempotencyKey: string
+    ): Promise<string> {
+        const deadline = Date.now() + 5000;
+
+        while (Date.now() < deadline) {
+            const record = await db.collection<IdempotencyKey>('IdempotencyKey').findOne({ userId, key: idempotencyKey });
+            if (record?.quizId) {
+                return record.quizId;
+            }
+            await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+
+        throw new AppError('Quiz generation already in progress', 409);
+    }
+
+    private static async releaseIdempotencyKey(
+        db: Awaited<ReturnType<typeof getDatabase>>,
+        userId: string,
+        idempotencyKey: string
+    ): Promise<void> {
+        await db.collection<IdempotencyKey>('IdempotencyKey').deleteOne({
+            userId,
+            key: idempotencyKey,
+            status: 'pending'
+        });
+    }
+
     /**
      * Generate AI-powered quiz
      */
     static async generateQuiz(vocabularyListId: string, options: {
         questionCount?: number;
         difficulty?: 'easy' | 'medium' | 'hard';
-    }, userId: string) {
+    }, userId: string, idempotencyKey?: string): Promise<{ quiz: Record<string, unknown>; created: boolean } | null> {
         const db = await getDatabase();
+
+        if (idempotencyKey) {
+            const existing = await db.collection<IdempotencyKey>('IdempotencyKey').findOne({ userId, key: idempotencyKey });
+            if (existing?.quizId) {
+                const existingQuiz = await this.getQuizById(existing.quizId, userId);
+                if (!existingQuiz) {
+                    throw new AppError('Idempotent quiz not found', 500);
+                }
+                return { quiz: existingQuiz, created: false };
+            }
+        }
 
         // Get vocabulary list with words
         const vocabularyList = await db.collection('VocabularyList').findOne({
@@ -37,59 +108,92 @@ export class QuizService {
             throw new Error('No words in vocabulary list');
         }
 
+        if (idempotencyKey) {
+            const claimResult = await this.claimIdempotencyKey(db, userId, idempotencyKey);
+            if (claimResult === 'duplicate') {
+                const quizId = await this.waitForIdempotentQuizId(db, userId, idempotencyKey);
+                const existingQuiz = await this.getQuizById(quizId, userId);
+                if (!existingQuiz) {
+                    throw new AppError('Idempotent quiz not found', 500);
+                }
+                return { quiz: existingQuiz, created: false };
+            }
+        }
+
         const questionCount = options.questionCount || 10;
         const difficulty = options.difficulty || 'medium';
 
-        // Generate questions using AI
-        const aiQuestions: Question[] = await AIService.generateQuestions(
-            words.map((w): AIWordInput => ({
-                _id: w._id.toString(),
-                word: w.word,
-                translation: w.translation,
-                partOfSpeech: w.partOfSpeech || undefined,
-                difficulty: w.difficulty
-            })),
-            vocabularyList.targetLanguage,
-            vocabularyList.nativeLanguage,
-            questionCount,
-            difficulty
-        );
+        try {
+            // Generate questions using AI
+            const aiQuestions: Question[] = await AIService.generateQuestions(
+                words.map((w): AIWordInput => ({
+                    _id: w._id.toString(),
+                    word: w.word,
+                    translation: w.translation,
+                    partOfSpeech: w.partOfSpeech || undefined,
+                    difficulty: w.difficulty
+                })),
+                vocabularyList.targetLanguage,
+                vocabularyList.nativeLanguage,
+                questionCount,
+                difficulty
+            );
 
-        // Create quiz in database
-        const now = new Date();
-        const quizResult = await db.collection('Quiz').insertOne({
-            title: `Quiz: ${vocabularyList.name}`,
-            description: `AI-generated quiz from ${vocabularyList.name}`,
-            difficulty,
-            questionCount,
-            userId,
-            createdAt: now,
-            updatedAt: now
-        });
+            // Create quiz in database
+            const now = new Date();
+            const quizResult = await db.collection('Quiz').insertOne({
+                title: `Quiz: ${vocabularyList.name}`,
+                description: `AI-generated quiz from ${vocabularyList.name}`,
+                difficulty,
+                questionCount,
+                userId,
+                createdAt: now,
+                updatedAt: now
+            });
 
-        const quizId = quizResult.insertedId.toString();
+            const quizId = quizResult.insertedId.toString();
 
-        // Create quiz questions
-        const quizQuestions = await Promise.all(
-            aiQuestions.map(async (aiQuestion: Question) => {
-                const result = await db.collection('QuizQuestion').insertOne({
-                    question: aiQuestion.question,
-                    type: aiQuestion.type,
-                    correctAnswer: aiQuestion.correctAnswer,
-                    options: aiQuestion.options ? JSON.stringify(aiQuestion.options) : null,
-                    context: aiQuestion.context,
-                    difficulty: aiQuestion.difficulty,
-                    quizId: quizId,
-                    wordId: aiQuestion.wordId,
-                    createdAt: now
-                });
-                return await db.collection('QuizQuestion').findOne({ _id: result.insertedId });
-            })
-        );
+            // Create quiz questions
+            const quizQuestions = await Promise.all(
+                aiQuestions.map(async (aiQuestion: Question) => {
+                    const result = await db.collection('QuizQuestion').insertOne({
+                        question: aiQuestion.question,
+                        type: aiQuestion.type,
+                        correctAnswer: aiQuestion.correctAnswer,
+                        options: aiQuestion.options ? JSON.stringify(aiQuestion.options) : null,
+                        context: aiQuestion.context,
+                        difficulty: aiQuestion.difficulty,
+                        quizId: quizId,
+                        wordId: aiQuestion.wordId,
+                        createdAt: now
+                    });
+                    return await db.collection('QuizQuestion').findOne({ _id: result.insertedId });
+                })
+            );
 
-        const quiz = await db.collection('Quiz').findOne({ _id: quizResult.insertedId });
+            const quiz = await db.collection('Quiz').findOne({ _id: quizResult.insertedId });
+            const quizWithQuestions = { ...quiz, questions: quizQuestions };
 
-        return { ...quiz, questions: quizQuestions };
+            if (idempotencyKey) {
+                await db.collection<IdempotencyKey>('IdempotencyKey').updateOne(
+                    { userId, key: idempotencyKey },
+                    {
+                        $set: {
+                            quizId,
+                            status: 'completed',
+                            completedAt: new Date()
+                        }
+                    }
+                );
+            }
+
+            return { quiz: quizWithQuestions, created: true };
+        } catch (error) {
+            if (idempotencyKey) {
+                await this.releaseIdempotencyKey(db, userId, idempotencyKey);
+            }
+            throw error;
+        }
     }
 
     /**

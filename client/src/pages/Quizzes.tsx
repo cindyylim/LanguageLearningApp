@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import api from '../lib/api';
 import { Link } from 'react-router-dom';
 import { VocabularyList } from '../shared/types/index';
@@ -33,6 +33,7 @@ const Quizzes: React.FC = () => {
     questionCount: 10,
   });
   const [generating, setGenerating] = useState(false);
+  const idempotencyKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     const fetchQuizzes = async () => {
@@ -51,6 +52,7 @@ const Quizzes: React.FC = () => {
   }, []);
 
   const openModal = async () => {
+    idempotencyKeyRef.current = null;
     setShowModal(true);
     if (vocabLists.length === 0) {
       try {
@@ -65,10 +67,16 @@ const Quizzes: React.FC = () => {
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     setGenerating(true);
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current = crypto.randomUUID();
+    }
     try {
-      const res = await api.post('/quizzes/generate', form);
+      const res = await api.post('/quizzes/generate', form, {
+        headers: { 'Idempotency-Key': idempotencyKeyRef.current },
+      });
       setQuizzes([res.data.quiz, ...quizzes]);
       setShowModal(false);
+      idempotencyKeyRef.current = null;
     } catch (err: unknown) {
       const message = getUserFacingErrorMessage(err, 'Failed to generate quiz');
       toast.error(message, { duration: 6000 });

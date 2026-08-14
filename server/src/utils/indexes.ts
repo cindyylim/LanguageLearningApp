@@ -93,6 +93,21 @@ export async function ensureIndexes(db: Db): Promise<void> {
         logger.info('Quiz indexes created');
 
         // ============================================
+        // IDEMPOTENCY KEY COLLECTION INDEXES
+        // ============================================
+        // Used in: quiz.service.ts (dedupe quiz generation retries)
+        await db.collection('IdempotencyKey').createIndex(
+            { userId: 1, key: 1 },
+            { unique: true, name: 'idx_idempotency_user_key' }
+        );
+
+        await db.collection('IdempotencyKey').createIndex(
+            { createdAt: 1 },
+            { expireAfterSeconds: 24 * 60 * 60, name: 'idx_idempotency_created_ttl' }
+        );
+        logger.info('IdempotencyKey indexes created');
+
+        // ============================================
         // QUIZ QUESTION COLLECTION INDEXES
         // ============================================
         // Used in: quizzes.ts (get all questions for a quiz)

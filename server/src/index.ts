@@ -78,7 +78,7 @@ app.use(cors({
     callback(null, false);
   },
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'Idempotency-Key'],
 }));
 // Request ID must be early so later middleware and logs can use it
 app.use(requestIdMiddleware);

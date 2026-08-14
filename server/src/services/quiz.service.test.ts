@@ -309,8 +309,11 @@ describe('QuizService', () => {
             const result = await QuizService.generateQuiz(vocabularyListId, options, userId);
 
             expect(result).toEqual({
-                ...mockQuiz,
-                questions: mockInsertedQuestions
+                quiz: {
+                    ...mockQuiz,
+                    questions: mockInsertedQuestions
+                },
+                created: true
             });
 
             expect(collections.VocabularyList.findOne).toHaveBeenCalledWith({
@@ -393,6 +396,185 @@ describe('QuizService', () => {
 
             await expect(QuizService.generateQuiz(vocabularyListId, options, userId))
                 .rejects.toThrow('No words in vocabulary list');
+        });
+
+        it('should return existing quiz for duplicate idempotency key', async () => {
+            const vocabularyListId = '507f1f77bcf86cd799439011';
+            const userId = 'user123';
+            const options = { questionCount: 5, difficulty: 'easy' as const };
+            const idempotencyKey = 'idem-key-1';
+            const existingQuizId = '507f1f77bcf86cd799439014';
+
+            const existingQuiz = {
+                _id: new ObjectId(existingQuizId),
+                title: 'Quiz: French Basics',
+                questions: []
+            };
+
+            const collections = createMockCollections({
+                IdempotencyKey: {
+                    findOne: jest.fn().mockResolvedValue({
+                        userId,
+                        key: idempotencyKey,
+                        status: 'completed',
+                        quizId: existingQuizId,
+                        createdAt: new Date()
+                    }),
+                    insertOne: jest.fn(),
+                    updateOne: jest.fn(),
+                    deleteOne: jest.fn()
+                },
+                Quiz: {
+                    findOne: jest.fn().mockResolvedValue(existingQuiz),
+                    insertOne: jest.fn()
+                },
+                QuizQuestion: {
+                    find: jest.fn().mockReturnThis(),
+                    toArray: jest.fn().mockResolvedValue([])
+                }
+            });
+
+            const result = await QuizService.generateQuiz(vocabularyListId, options, userId, idempotencyKey);
+
+            expect(result).toEqual({ quiz: existingQuiz, created: false });
+            expect(collections.IdempotencyKey.insertOne).not.toHaveBeenCalled();
+            expect(collections.Quiz.insertOne).not.toHaveBeenCalled();
+            expect(AIService.generateQuestions).not.toHaveBeenCalled();
+        });
+
+        it('should create separate quizzes for different idempotency keys', async () => {
+            const vocabularyListId = '507f1f77bcf86cd799439011';
+            const userId = 'user123';
+            const options = { questionCount: 5, difficulty: 'easy' as const };
+
+            const mockVocabularyList = createMockVocabularyList(vocabularyListId);
+            const mockWords = createMockWords();
+            const mockAIQuestions = createMockAIQuestions();
+            const mockQuizResult = { insertedId: new ObjectId('507f1f77bcf86cd799439014') };
+            const mockQuestionResult1 = { insertedId: new ObjectId('507f1f77bcf86cd799439015') };
+            const mockQuestionResult2 = { insertedId: new ObjectId('507f1f77bcf86cd799439016') };
+
+            const mockQuiz = {
+                _id: mockQuizResult.insertedId,
+                title: 'Quiz: French Basics',
+                description: 'AI-generated quiz from French Basics',
+                difficulty: 'easy',
+                questionCount: 5,
+                userId,
+                createdAt: expect.any(Date),
+                updatedAt: expect.any(Date)
+            };
+
+            const collections = createMockCollections({
+                VocabularyList: {
+                    findOne: jest.fn().mockResolvedValue(mockVocabularyList)
+                },
+                Word: {
+                    find: jest.fn().mockReturnThis(),
+                    toArray: jest.fn().mockResolvedValue(mockWords)
+                },
+                IdempotencyKey: {
+                    findOne: jest.fn().mockResolvedValue(null),
+                    insertOne: jest.fn().mockResolvedValue({ insertedId: new ObjectId() }),
+                    updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
+                    deleteOne: jest.fn()
+                },
+                Quiz: {
+                    insertOne: jest.fn().mockResolvedValue(mockQuizResult),
+                    findOne: jest.fn().mockResolvedValue(mockQuiz)
+                },
+                QuizQuestion: {
+                    insertOne: jest.fn()
+                        .mockResolvedValueOnce(mockQuestionResult1)
+                        .mockResolvedValueOnce(mockQuestionResult2)
+                        .mockResolvedValueOnce(mockQuestionResult1)
+                        .mockResolvedValueOnce(mockQuestionResult2),
+                    findOne: jest.fn()
+                        .mockResolvedValueOnce({ _id: mockQuestionResult1.insertedId })
+                        .mockResolvedValueOnce({ _id: mockQuestionResult2.insertedId })
+                        .mockResolvedValueOnce({ _id: mockQuestionResult1.insertedId })
+                        .mockResolvedValueOnce({ _id: mockQuestionResult2.insertedId })
+                }
+            });
+
+            jest.spyOn(AIService, 'generateQuestions').mockResolvedValue(mockAIQuestions);
+
+            const first = await QuizService.generateQuiz(vocabularyListId, options, userId, 'key-a');
+            const second = await QuizService.generateQuiz(vocabularyListId, options, userId, 'key-b');
+
+            expect(first?.created).toBe(true);
+            expect(second?.created).toBe(true);
+            expect(collections.Quiz.insertOne).toHaveBeenCalledTimes(2);
+            expect(collections.IdempotencyKey.insertOne).toHaveBeenCalledTimes(2);
+        });
+
+        it('should scope idempotency keys per user', async () => {
+            const vocabularyListId = '507f1f77bcf86cd799439011';
+            const options = { questionCount: 5, difficulty: 'easy' as const };
+            const idempotencyKey = 'shared-key';
+
+            const mockVocabularyList = createMockVocabularyList(vocabularyListId);
+            const mockWords = createMockWords();
+            const mockAIQuestions = createMockAIQuestions();
+            const mockQuizResult = { insertedId: new ObjectId('507f1f77bcf86cd799439014') };
+            const mockQuestionResult1 = { insertedId: new ObjectId('507f1f77bcf86cd799439015') };
+            const mockQuestionResult2 = { insertedId: new ObjectId('507f1f77bcf86cd799439016') };
+
+            const mockQuiz = {
+                _id: mockQuizResult.insertedId,
+                title: 'Quiz: French Basics',
+                description: 'AI-generated quiz from French Basics',
+                difficulty: 'easy',
+                questionCount: 5,
+                userId: 'user-a',
+                createdAt: expect.any(Date),
+                updatedAt: expect.any(Date)
+            };
+
+            const collections = createMockCollections({
+                VocabularyList: {
+                    findOne: jest.fn().mockResolvedValue(mockVocabularyList)
+                },
+                Word: {
+                    find: jest.fn().mockReturnThis(),
+                    toArray: jest.fn().mockResolvedValue(mockWords)
+                },
+                IdempotencyKey: {
+                    findOne: jest.fn().mockResolvedValue(null),
+                    insertOne: jest.fn().mockResolvedValue({ insertedId: new ObjectId() }),
+                    updateOne: jest.fn().mockResolvedValue({ modifiedCount: 1 }),
+                    deleteOne: jest.fn()
+                },
+                Quiz: {
+                    insertOne: jest.fn().mockResolvedValue(mockQuizResult),
+                    findOne: jest.fn().mockResolvedValue(mockQuiz)
+                },
+                QuizQuestion: {
+                    insertOne: jest.fn()
+                        .mockResolvedValueOnce(mockQuestionResult1)
+                        .mockResolvedValueOnce(mockQuestionResult2)
+                        .mockResolvedValueOnce(mockQuestionResult1)
+                        .mockResolvedValueOnce(mockQuestionResult2),
+                    findOne: jest.fn()
+                        .mockResolvedValueOnce({ _id: mockQuestionResult1.insertedId })
+                        .mockResolvedValueOnce({ _id: mockQuestionResult2.insertedId })
+                        .mockResolvedValueOnce({ _id: mockQuestionResult1.insertedId })
+                        .mockResolvedValueOnce({ _id: mockQuestionResult2.insertedId })
+                }
+            });
+
+            jest.spyOn(AIService, 'generateQuestions').mockResolvedValue(mockAIQuestions);
+
+            await QuizService.generateQuiz(vocabularyListId, options, 'user-a', idempotencyKey);
+            await QuizService.generateQuiz(vocabularyListId, options, 'user-b', idempotencyKey);
+
+            expect(collections.Quiz.insertOne).toHaveBeenCalledTimes(2);
+            expect(collections.IdempotencyKey.insertOne).toHaveBeenCalledWith(
+                expect.objectContaining({ userId: 'user-a', key: idempotencyKey })
+            );
+            expect(collections.IdempotencyKey.insertOne).toHaveBeenCalledWith(
+                expect.objectContaining({ userId: 'user-b', key: idempotencyKey })
+            );
         });
     });
 
