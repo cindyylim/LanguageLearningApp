@@ -154,7 +154,16 @@ export function vocabularyReducer(state: VocabularyState, action: VocabularyActi
     case 'UPDATE_AI_FORM':
       return { ...state, aiForm: { ...state.aiForm, ...action.payload } };
     case 'RESET_AI_FORM':
-      return { ...state, aiForm: initialState.aiForm };
+      return {
+        ...state,
+        aiForm: {
+          ...state.aiForm,
+          name: '',
+          description: '',
+          prompt: '',
+          wordCount: initialState.aiForm.wordCount,
+        },
+      };
     case 'SAVE_START':
       return { ...state, saving: true };
     case 'SAVE_END':

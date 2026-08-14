@@ -24,12 +24,24 @@ describe('AnalyticsService', () => {
     });
 
     describe('calculateStreak', () => {
+        const utcDaysAgo = (days: number, hour = 12) => {
+            const now = new Date();
+            return new Date(Date.UTC(
+                now.getUTCFullYear(),
+                now.getUTCMonth(),
+                now.getUTCDate() - days,
+                hour,
+                0,
+                0
+            ));
+        };
+
         it('should calculate correct streak', async () => {
             const userId = 'user123';
             const mockStats = [
-                { date: new Date() },
-                { date: new Date(Date.now() - 86400000) },
-                { date: new Date(Date.now() - 2 * 86400000) },
+                { date: utcDaysAgo(0) },
+                { date: utcDaysAgo(1) },
+                { date: utcDaysAgo(2) },
             ];
 
             mockDb.collection().toArray.mockResolvedValue(mockStats);
@@ -38,6 +50,46 @@ describe('AnalyticsService', () => {
 
             expect(typeof streak).toBe('number');
             expect(streak).toEqual(3);
+        });
+
+        it('should count consecutive UTC calendar days when timestamps are 23 hours apart', async () => {
+            const today = utcDaysAgo(0, 0);
+            today.setUTCMinutes(30);
+            const yesterday = new Date(today.getTime() - 23 * 60 * 60 * 1000);
+            const twoDaysAgo = utcDaysAgo(2, 1);
+            twoDaysAgo.setUTCMinutes(30);
+
+            mockDb.collection().toArray.mockResolvedValue([
+                { date: today },
+                { date: yesterday },
+                { date: twoDaysAgo },
+            ]);
+
+            const streak = await AnalyticsService.calculateStreak('user123');
+
+            expect(streak).toBe(3);
+        });
+
+        it('should ignore duplicate stats on the same UTC day', async () => {
+            mockDb.collection().toArray.mockResolvedValue([
+                { date: utcDaysAgo(0, 18) },
+                { date: utcDaysAgo(0, 8) },
+                { date: utcDaysAgo(1, 12) },
+            ]);
+
+            const streak = await AnalyticsService.calculateStreak('user123');
+
+            expect(streak).toBe(2);
+        });
+
+        it('should return 0 when last activity is older than yesterday', async () => {
+            mockDb.collection().toArray.mockResolvedValue([
+                { date: utcDaysAgo(2) },
+            ]);
+
+            const streak = await AnalyticsService.calculateStreak('user123');
+
+            expect(streak).toBe(0);
         });
 
         it('should return 0 for no activity', async () => {
@@ -426,6 +478,7 @@ describe('AnalyticsService', () => {
                 if (collectionName === 'Word') return wordCollection;
                 return {
                     find: jest.fn().mockReturnThis(),
+                    project: jest.fn().mockReturnThis(),
                     sort: jest.fn().mockReturnThis(),
                     limit: jest.fn().mockReturnThis(),
                     toArray: jest.fn().mockResolvedValue([])
@@ -519,6 +572,7 @@ describe('AnalyticsService', () => {
                 if (collectionName === 'Word') return wordCollection;
                 return {
                     find: jest.fn().mockReturnThis(),
+                    project: jest.fn().mockReturnThis(),
                     sort: jest.fn().mockReturnThis(),
                     limit: jest.fn().mockReturnThis(),
                     toArray: jest.fn().mockResolvedValue([])
@@ -560,6 +614,7 @@ describe('AnalyticsService', () => {
             const emptyCollection = {
                 find: jest.fn().mockReturnThis(),
                 aggregate: jest.fn().mockReturnThis(),
+                project: jest.fn().mockReturnThis(),
                 sort: jest.fn().mockReturnThis(),
                 limit: jest.fn().mockReturnThis(),
                 toArray: jest.fn().mockResolvedValue([])
@@ -612,6 +667,115 @@ describe('AnalyticsService', () => {
 
             // Verify only valid words were returned
             expect(recommendations.recommendedWords).toEqual(mockValidWords);
+        });
+
+        it('should treat vocabulary words without progress as NEW and keep existing progress', async () => {
+            const userId = 'user123';
+            const learningWordId = '507f1f77bcf86cd799439011';
+            const masteredWordId = '507f1f77bcf86cd799439012';
+            const newWordId = '507f1f77bcf86cd799439013';
+
+            const mockUserProgress = [
+                {
+                    wordId: learningWordId,
+                    userId,
+                    status: WordStatus.LEARNING,
+                    reviewCount: 2,
+                    streak: 1,
+                    lastReviewed: new Date().toISOString(),
+                },
+                {
+                    wordId: masteredWordId,
+                    userId,
+                    status: WordStatus.MASTERED,
+                    reviewCount: 10,
+                    streak: 5,
+                    lastReviewed: new Date().toISOString(),
+                },
+            ] as any;
+
+            const vocabularyListCollection = {
+                find: jest.fn().mockReturnThis(),
+                project: jest.fn().mockReturnThis(),
+                toArray: jest.fn().mockResolvedValue([{ _id: new ObjectId() }])
+            };
+
+            const wordProgressCollection = {
+                aggregate: jest.fn().mockReturnThis(),
+                toArray: jest.fn().mockResolvedValue(mockUserProgress)
+            };
+
+            const quizAttemptCollection = {
+                find: jest.fn().mockReturnThis(),
+                sort: jest.fn().mockReturnThis(),
+                limit: jest.fn().mockReturnThis(),
+                toArray: jest.fn().mockResolvedValue([])
+            };
+
+            const wordFind = jest.fn().mockImplementation((query) => {
+                if (query.vocabularyListId) {
+                    return {
+                        project: jest.fn().mockReturnThis(),
+                        toArray: jest.fn().mockResolvedValue([
+                            { _id: new ObjectId(learningWordId) },
+                            { _id: new ObjectId(masteredWordId) },
+                            { _id: new ObjectId(newWordId) },
+                        ])
+                    };
+                }
+                return {
+                    toArray: jest.fn().mockResolvedValue([])
+                };
+            });
+
+            mockDb.collection.mockImplementation((collectionName: string) => {
+                if (collectionName === 'WordProgress') return wordProgressCollection;
+                if (collectionName === 'QuizAttempt') return quizAttemptCollection;
+                if (collectionName === 'VocabularyList') return vocabularyListCollection;
+                if (collectionName === 'Word') return { find: wordFind };
+                return {
+                    find: jest.fn().mockReturnThis(),
+                    project: jest.fn().mockReturnThis(),
+                    sort: jest.fn().mockReturnThis(),
+                    limit: jest.fn().mockReturnThis(),
+                    toArray: jest.fn().mockResolvedValue([])
+                };
+            });
+
+            jest.spyOn(AIService, 'generateRecommendations').mockResolvedValue({
+                focusAreas: ['vocabulary_review'],
+                recommendedWords: [learningWordId, newWordId],
+                studyPlan: 'Focus on reviewing difficult words with contextual examples',
+                estimatedTime: 15
+            });
+
+            await AnalyticsService.getRecommendations(userId);
+
+            expect(AIService.generateRecommendations).toHaveBeenCalledWith(
+                userId,
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        wordId: learningWordId,
+                        status: WordStatus.LEARNING,
+                        reviewCount: 2,
+                        streak: 1,
+                    }),
+                    expect.objectContaining({
+                        wordId: masteredWordId,
+                        status: WordStatus.MASTERED,
+                    }),
+                    expect.objectContaining({
+                        wordId: newWordId,
+                        status: WordStatus.NEW,
+                        reviewCount: 0,
+                        streak: 0,
+                    }),
+                ]),
+                []
+            );
+
+            const progressArg = (AIService.generateRecommendations as jest.Mock).mock.calls[0][1];
+            expect(progressArg).toHaveLength(3);
         });
     });
 });

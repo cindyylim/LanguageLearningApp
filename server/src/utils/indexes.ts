@@ -1,5 +1,5 @@
-import { Db } from 'mongodb';
 import logger from './logger';
+import { Db } from 'mongodb';
 
 /**
  * Creates database indexes for query performance. Call once at startup.
@@ -137,8 +137,8 @@ export async function ensureIndexes(db: Db): Promise<void> {
         // ============================================
         // LEARNING STATS COLLECTION INDEXES
         // ============================================
-        // Used in: vocabulary.ts, quizzes.ts (find stats by userId and date range)
-        await db.collection('LearningStats').createIndex(
+        const learningStats = db.collection('LearningStats');
+        await learningStats.createIndex(
             { userId: 1, date: 1 },
             { unique: true, name: 'idx_learningstats_user_date' }
         );

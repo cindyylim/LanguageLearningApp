@@ -2,11 +2,12 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { AuthRequest } from '../middleware/auth';
 import { asyncHandler } from '../utils/asyncHandler';
-import { validateObjectId } from '../middleware/validateObjectId';
+import { validateObjectId, isValidObjectId } from '../middleware/validateObjectId';
 import { validate } from '../middleware/validate';
 import { QuizService } from '../services/quiz.service';
 import { AppError } from '../utils/AppError';
 import { createUserRateLimiter } from '../middleware/rateLimit';
+import { invalidateListCache } from '../utils/cache';
 
 const router: Router = Router();
 
@@ -14,7 +15,9 @@ const router: Router = Router();
 const quizGenerationLimiter = createUserRateLimiter(10, 60 * 1000); // 10 requests per minute
 
 const generateQuizSchema = z.object({
-  vocabularyListId: z.string(),
+  vocabularyListId: z.string().refine(isValidObjectId, {
+    message: 'Invalid vocabularyListId format',
+  }),
   questionCount: z.number().min(1).max(20).optional().default(10),
   difficulty: z.enum(['easy', 'medium', 'hard']).optional().default('medium'),
 });
@@ -67,6 +70,8 @@ router.post('/:id/submit', validateObjectId(), validate(submitQuizSchema), async
   if (!attempt) {
     throw new AppError('Quiz not found', 404);
   }
+
+  invalidateListCache(req.user!.id);
 
   res.json({ attempt });
 }));

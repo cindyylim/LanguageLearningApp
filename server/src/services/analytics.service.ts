@@ -2,6 +2,7 @@ import { getDatabase } from '../utils/getDatabase';
 import { ObjectId } from 'mongodb';
 import { AIService } from './ai';
 import { WordStatus, WordProgress, QuizAttempt, UserProgress} from "../shared/types/index";
+import { utcDayNumber } from '../utils/date';
 
 interface LearningStatsDocument {
     date: Date;
@@ -75,33 +76,25 @@ export class AnalyticsService {
             .toArray() as unknown as LearningStatsDocument[];
 
         let currentStreak = 0;
-        const today = new Date();
-
-        const toMidnight = (d: Date) => {
-            const newD = new Date(d);
-            newD.setHours(0, 0, 0, 0);
-            return newD.getTime();
-        };
-
-        const todayTime = toMidnight(today);
-        const yesterdayTime = todayTime - 86400000;
+        const todayDay = utcDayNumber(new Date());
 
         if (recentStats.length > 0) {
-            const lastActivityDate = toMidnight(recentStats[0]!.date);
+            const lastActivityDay = utcDayNumber(recentStats[0]!.date);
+            const daysSinceLastActivity = todayDay - lastActivityDay;
 
-            // Streak is valid if last activity was today or yesterday
-            if (lastActivityDate === todayTime || lastActivityDate === yesterdayTime) {
+            // Streak is valid if last activity was today or yesterday (UTC calendar days)
+            if (daysSinceLastActivity === 0 || daysSinceLastActivity === 1) {
                 currentStreak = 1;
-                let previousDate = lastActivityDate;
+                let previousDay = lastActivityDay;
 
                 for (let i = 1; i < recentStats.length; i++) {
-                    const currentDate = toMidnight(recentStats[i]!.date);
+                    const currentDay = utcDayNumber(recentStats[i]!.date);
 
-                    if (currentDate === previousDate) continue;
+                    if (currentDay === previousDay) continue;
 
-                    if (previousDate - currentDate === 86400000) {
+                    if (previousDay - currentDay === 1) {
                         currentStreak++;
-                        previousDate = currentDate;
+                        previousDay = currentDay;
                     } else {
                         break;
                     }
@@ -190,6 +183,30 @@ export class AnalyticsService {
             streak: wp.streak,
             lastReviewed: wp.lastReviewed ? new Date(wp.lastReviewed) : undefined
         }));
+
+        const progressWordIds = new Set(progressData.map((p) => p.wordId));
+        const userLists = await db.collection('VocabularyList').find({ userId }).project({ _id: 1 }).toArray();
+        const listIds = userLists.map((list) => list._id);
+
+        if (listIds.length > 0) {
+            const words = await db.collection('Word')
+                .find({ vocabularyListId: { $in: listIds } })
+                .project({ _id: 1 })
+                .toArray();
+
+            for (const word of words) {
+                const wordId = word._id.toString();
+                if (!progressWordIds.has(wordId)) {
+                    progressData.push({
+                        userId,
+                        wordId,
+                        status: WordStatus.NEW,
+                        reviewCount: 0,
+                        streak: 0,
+                    });
+                }
+            }
+        }
 
         const recommendations = await AIService.generateRecommendations(
             userId,

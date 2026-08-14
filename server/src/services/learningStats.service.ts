@@ -1,4 +1,5 @@
 import { getDatabase } from '../utils/getDatabase';
+import { toUtcStartOfDay } from '../utils/date';
 
 export class LearningStatsService {
     static async updateDailyStats(userId: string, stats: {
@@ -8,9 +9,7 @@ export class LearningStatsService {
         correctAnswers?: number;
     }) {
         const db = await getDatabase();
-        const today = new Date();
-        const startOfDay = new Date(today);
-        startOfDay.setHours(0, 0, 0, 0);
+        const startOfDay = toUtcStartOfDay();
 
         await db.collection('LearningStats').findOneAndUpdate(
             { userId, date: startOfDay },

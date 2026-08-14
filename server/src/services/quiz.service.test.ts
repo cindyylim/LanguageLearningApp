@@ -1027,6 +1027,14 @@ describe('QuizService', () => {
                 },
                 { upsert: true }
             );
+
+            const startOfDay = collections.LearningStats.findOneAndUpdate.mock.calls[0][0].date as Date;
+            const now = new Date();
+            expect(startOfDay.toISOString()).toBe(new Date(Date.UTC(
+                now.getUTCFullYear(),
+                now.getUTCMonth(),
+                now.getUTCDate()
+            )).toISOString());
         });
 
         it('should upsert new learning stats record', async () => {

@@ -694,6 +694,7 @@ describe("Vocabulary API Endpoints", () => {
         progressData.status,
         "test-user-id"
       );
+      expect(mockInvalidateListCache).toHaveBeenCalledWith("test-user-id");
     });
 
     it("should return 404 for non-existent word when updating progress", async () => {
@@ -712,6 +713,7 @@ describe("Vocabulary API Endpoints", () => {
         .expect(404);
 
       expect(response.body).toHaveProperty("message");
+      expect(mockInvalidateListCache).not.toHaveBeenCalled();
     });
   });
 
