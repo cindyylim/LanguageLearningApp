@@ -14,7 +14,7 @@ import {
   buildQuestionsPrompt,
   buildVocabularyListPrompt,
 } from './aiPrompts';
-import { WordStatus, type Difficulty, type Question, type UserProgress, type Word, type WordProgress } from '../../..//shared/types/index';
+import { WordStatus, type AIWordInput, type Difficulty, type Question, type UserProgress, type WordProgress } from '../shared/types/index';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -98,7 +98,7 @@ export class AIService {
   }
 
   static async generateQuestions(
-    words: Word[],
+    words: AIWordInput[],
     targetLanguage: string,
     nativeLanguage: string,
     questionCount: number = 10,
@@ -152,7 +152,7 @@ export class AIService {
   }
 
   static async generateContextualSentences(
-    words: Word[],
+    words: AIWordInput[],
     targetLanguage: string
   ): Promise<{ wordId: string; sentences: string[] }[]> {
     const prompt = buildContextualSentencesPrompt(words, targetLanguage);

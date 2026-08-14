@@ -1,8 +1,8 @@
 import { getLanguageName } from '../utils/languages';
-import type { Difficulty, Word } from '../../../shared/types/index';
+import type { AIWordInput, Difficulty } from '../shared/types/index';
 
 export function buildQuestionsPrompt(
-  words: Word[],
+  words: AIWordInput[],
   targetLanguage: string,
   nativeLanguage: string,
   questionCount: number,
@@ -50,7 +50,7 @@ Return the response as a JSON array with the following structure:
 }
 
 export function buildContextualSentencesPrompt(
-  words: Word[],
+  words: AIWordInput[],
   targetLanguage: string
 ): string {
   const targetLang = getLanguageName(targetLanguage);

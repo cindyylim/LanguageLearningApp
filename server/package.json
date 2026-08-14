@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "nodemon --ignore 'logs/*' --exec 'ts-node --transpile-only' src/index.ts",
     "debug": "nodemon --ignore 'logs/*' --exec 'node --inspect' dist/index.js",
-    "build": "tsc",
+    "build": "npm run prebuild && tsc",
+    "prebuild": "npm run prepare",
+    "prepare": "mkdir -p src/shared && ln -sfn ../../../shared/types src/shared/types",
     "start": "node dist/index.js",
     "test": "NODE_ENV=test jest"
   },

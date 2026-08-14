@@ -25,7 +25,12 @@
     "noImplicitOverride": true,
     "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
+    "emitDecoratorMetadata": true,
+    "baseUrl": ".",
+    "paths": {
+      "@shared/types": ["./shared/types/index"],
+      "@shared/types/*": ["./shared/types/*"]
+    }
   },
   "include": [
     "src/**/*"

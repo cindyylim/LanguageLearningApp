@@ -2,7 +2,7 @@ import { connectToDatabase } from '../utils/mongo';
 import { connectToTestDatabase } from '../utils/testMongo';
 import { ObjectId } from 'mongodb';
 import { AIService } from './ai';
-import { WordStatus, WordProgress, QuizAttempt, UserProgress} from "../../../shared/types/index";
+import { WordStatus, WordProgress, QuizAttempt, UserProgress} from "../shared/types/index";
 
 interface LearningStatsDocument {
     date: Date;

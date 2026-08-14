@@ -1,7 +1,8 @@
 import { connectToDatabase } from '../utils/mongo';
 import { connectToTestDatabase } from '../utils/testMongo';
 import { ObjectId } from 'mongodb';
-import { AIService, Question } from './ai';
+import { AIService } from './ai';
+import type { AIWordInput, Question } from '../shared/types/index';
 import { Quiz, QuizQuestion } from '../interface/Quiz';
 import { Answer } from '../interface/Answer';
 import logger from '../utils/logger';
@@ -40,8 +41,8 @@ export class QuizService {
 
         // Generate questions using AI
         const aiQuestions: Question[] = await AIService.generateQuestions(
-            words.map((w) => ({
-                id: w._id.toString(),
+            words.map((w): AIWordInput => ({
+                _id: w._id.toString(),
                 word: w.word,
                 translation: w.translation,
                 partOfSpeech: w.partOfSpeech || undefined,

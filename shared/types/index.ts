@@ -43,6 +43,15 @@ export interface Word {
     progress?: WordProgress | null;
 }
 
+/** Minimal word shape passed to AI prompt builders */
+export interface AIWordInput {
+    _id: string;
+    word: string;
+    translation: string;
+    partOfSpeech?: string;
+    difficulty?: Difficulty | string;
+}
+
 export interface VocabularyList {
     _id: string;
     name: string;

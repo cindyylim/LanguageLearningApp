@@ -1,4 +1,4 @@
-import { WordStatus } from "../../../shared/types/index";
+import { WordStatus } from "../shared/types/index";
 export interface SM2Input {
     quality: number; // 0 to 5
     repetition?: number; // current repetition / streak count (n)

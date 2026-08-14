@@ -1,5 +1,5 @@
 import { AIService } from './ai';
-import { WordStatus, type UserProgress } from '../../../shared/types/index';
+import { WordStatus, type UserProgress } from '../shared/types/index';
 
 describe('AIService.generateRecommendations', () => {
   it('returns word IDs for new and learning words', async () => {

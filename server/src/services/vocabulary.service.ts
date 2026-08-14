@@ -3,7 +3,7 @@ import { connectToTestDatabase } from '../utils/testMongo';
 import { ObjectId } from 'mongodb';
 import { AIService } from './ai';
 import { calculateFromManualStatus } from '../utils/sm2';
-import { WordStatus, WordProgress, Word, VocabularyList } from "../../../shared/types/index";
+import { WordStatus, WordProgress, Word, VocabularyList, type AIWordInput } from "../shared/types/index";
 interface WordDocument {
     _id: string;
     word: string;
@@ -374,8 +374,8 @@ export class VocabularyService {
         }
 
         const sentences = await AIService.generateContextualSentences(
-            words.map((w: WordDocument) => ({
-                id: w._id.toString(),
+            words.map((w: WordDocument): AIWordInput => ({
+                _id: w._id.toString(),
                 word: w.word,
                 translation: w.translation,
                 partOfSpeech: w.partOfSpeech || undefined,
