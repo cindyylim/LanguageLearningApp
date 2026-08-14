@@ -114,6 +114,7 @@ export interface Question {
 export interface UserProgress {
   userId: string;
   wordId: string;
+  status: WordStatus;
   reviewCount: number;
   streak: number;
   lastReviewed?: Date;

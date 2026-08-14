@@ -115,8 +115,8 @@ export class AnalyticsService {
         currentStreak: number
     ) {
         const totalWords = wordProgress.length;
-        const masteredWords = wordProgress.filter((wp: WordProgress) => wp.progress?.status == WordStatus.MASTERED).length;
-        const needsReview = wordProgress.filter((wp: WordProgress) => wp.progress?.status == WordStatus.NEW || wp.progress?.status == WordStatus.LEARNING).length;
+        const masteredWords = wordProgress.filter((wp: WordProgress) => wp.status === WordStatus.MASTERED).length;
+        const needsReview = wordProgress.filter((wp: WordProgress) => wp.status === WordStatus.NEW || wp.status === WordStatus.LEARNING).length;
         const totalQuizzesTaken = allAttempts.length;
 
         const recentAttempts = allAttempts.slice(0, 10);
@@ -175,6 +175,7 @@ export class AnalyticsService {
         const progressData: UserProgress[] = userProgress.map((wp: WordProgress) => ({
             userId,
             wordId: wp.wordId.toString(),
+            status: wp.status,
             reviewCount: wp.reviewCount,
             streak: wp.streak,
             lastReviewed: wp.lastReviewed ? new Date(wp.lastReviewed) : undefined

@@ -51,7 +51,7 @@ describe('AnalyticsService', () => {
     describe('getSummaryStats', () => {
         it('should calculate summary statistics', () => {
             const wordProgress = [
-                { status: "mastered" streak: 5 },
+                { status: "mastered", streak: 5 },
                 {  status: "learning" , streak: 2 },
                 { status: 'learning', streak: 1 },
             ] as any;
@@ -432,6 +432,7 @@ describe('AnalyticsService', () => {
                     expect.objectContaining({
                         userId,
                         wordId: '507f1f77bcf86cd799439011',
+                        status: 'learning',
                         reviewCount: 2,
                         streak: 1,
                         lastReviewed: lastReviewedDate,
@@ -439,6 +440,7 @@ describe('AnalyticsService', () => {
                     expect.objectContaining({
                         userId,
                         wordId: '507f1f77bcf86cd799439012',
+                        status: 'learning',
                         reviewCount: 3,
                         streak: 2,
                         lastReviewed: lastReviewedDate,

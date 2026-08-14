@@ -107,12 +107,12 @@ export function calculateSM2(input: SM2Input): SM2Output {
     }
 
     const nextReview = new Date(now.getTime() + newInterval * 24 * 60 * 60 * 1000);
+    const status = newRepetition >= 5 ? WordStatus.MASTERED : WordStatus.LEARNING;
 
     return {
         repetition: newRepetition,
         easeFactor: newEF,
         interval: newInterval,
-        mastery,
         status,
         nextReview
     };

@@ -1,5 +1,5 @@
 import { getLanguageName } from '../utils/languages';
-import type { Difficulty, Word } from './ai.types';
+import type { Difficulty, Word } from '../../../shared/types/index';
 
 export function buildQuestionsPrompt(
   words: Word[],
@@ -11,7 +11,7 @@ export function buildQuestionsPrompt(
   const wordsPrompt = words
     .map(
       (w) =>
-        `- [ID: ${w.id}] ${w.word} (${w.translation}) - ${w.partOfSpeech || 'unknown'}`
+        `- [ID: ${w._id}] ${w.word} (${w.translation}) - ${w.partOfSpeech || 'unknown'}`
     )
     .join('\n');
 
@@ -60,7 +60,7 @@ Generate 3 contextual sentences for each vocabulary word in ${targetLang}.
 Provide natural, everyday usage examples that help learners understand the word in context.
 
 Words:
-${words.map((w) => `- [ID: ${w.id}] ${w.word} (${w.translation})`).join('\n')}
+${words.map((w) => `- [ID: ${w._id}] ${w.word} (${w.translation})`).join('\n')}
 
 Return as JSON:
 [

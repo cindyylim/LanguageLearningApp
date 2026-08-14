@@ -14,7 +14,7 @@ import {
   buildQuestionsPrompt,
   buildVocabularyListPrompt,
 } from './aiPrompts';
-import type { Difficulty, Question, UserProgress, Word, WordProgress } from '../../..//shared/types/index';
+import { WordStatus, type Difficulty, type Question, type UserProgress, type Word, type WordProgress } from '../../..//shared/types/index';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -201,8 +201,9 @@ export class AIService {
     estimatedTime: number;
   }> {
     try {
-      const weakWords = userProgress
-        .filter((p) => p.status === WordStatus.NEW || p.status === WordStatus.LEARNING);
+      const weakWordIds = userProgress
+        .filter((p) => p.status === WordStatus.NEW || p.status === WordStatus.LEARNING)
+        .map((p) => p.wordId);
       const avgRecentScore =
         recentPerformance.length > 0
           ? recentPerformance.reduce((sum, p) => sum + p.score, 0) /
@@ -210,7 +211,7 @@ export class AIService {
           : 0.5;
 
       const focusAreas: string[] = [];
-      if (weakWords.length > 0) {
+      if (weakWordIds.length > 0) {
         focusAreas.push('vocabulary_review');
       }
       if (avgRecentScore < 0.7) {
@@ -226,7 +227,7 @@ export class AIService {
 
       const recommendations = {
         focusAreas,
-        recommendedWords: weakWords,
+        recommendedWords: weakWordIds,
         studyPlan,
         estimatedTime: focusAreas.length * 15,
       };

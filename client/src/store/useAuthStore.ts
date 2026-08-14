@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import axios from 'axios';
-import api, { fetchCSRFToken, clearCSRFToken, setAuthToken } from '../lib/api';
+import api, { fetchCSRFToken, clearCSRFToken, setAuthToken, getAuthToken } from '../lib/api';
 import toast from 'react-hot-toast';
 import { getErrorMessage } from '../types/errors';
 
@@ -30,6 +30,7 @@ interface AuthState {
   loginDemo: () => Promise<void>;
   register: (userData: RegisterData) => Promise<void>;
   logout: () => void;
+  initialize: () => Promise<void>;
 }
 
 function clearLocalSession() {
@@ -62,6 +63,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   login: async (email, password) => {
     try {
+      set({loading: true})
       const response = await api.post('/auth/login', { email, password });
       await completeAuthFlow(set, response, 'Login successful!');
     } catch (error: unknown) {
@@ -73,6 +75,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   loginDemo: async () => {
     try {
+      set({loading: true})
       const response = await api.post('/auth/demo');
       await completeAuthFlow(set, response, 'Logged in with Demo Account!');
     } catch (error: unknown) {
@@ -92,6 +95,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   register: async (userData) => {
     try {
+      set({loading: true})
       const response = await api.post('/auth/register', userData);
       await completeAuthFlow(set, response, 'Registration successful!');
     } catch (error: unknown) {
@@ -112,5 +116,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user: null, isAuthenticated: false, loading: false });
       toast.error('Logged out failed ' + error);
     }
+  },
+
+  initialize: async () => {
+    const token = getAuthToken();
+    if (!token) {
+      set({ user: null, isAuthenticated: false, loading: false });
+      return;
+    }
+
+    try {
+      const response = await api.get('/auth/profile');
+      const { user } = response.data;
+      persistSession(user);
+      await fetchCSRFToken();
+      set({ user, isAuthenticated: true });
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status !== 401) {
+        console.error('Initialization error:', error);
+      }
+      clearLocalSession();
+      set({ user: null, isAuthenticated: false });
+    }
+    set({ loading: false });
   },
 }));
