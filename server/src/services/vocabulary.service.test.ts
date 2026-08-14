@@ -1,4 +1,6 @@
 import { VocabularyService } from './vocabulary.service';
+import { LearningStatsService } from './learningStats.service';
+import { WordStatus } from '../shared/types/index';
 import { connectToTestDatabase } from '../utils/testMongo';
 import { ObjectId } from 'mongodb';
 
@@ -249,7 +251,6 @@ describe('VocabularyService', () => {
                         createdAt: expect.any(String),
                         updatedAt: expect.any(String),
                         progress: {
-                            _id: '507f1f77bcf86cd799439013',
                             wordId: '507f1f77bcf86cd799439012',
                             userId,
                             status: 'learning',
@@ -542,6 +543,7 @@ describe('VocabularyService', () => {
 
             mockCollection.findOne.mockResolvedValue(mockList);
             mockCollection.deleteOne.mockResolvedValue({ deletedCount: 1 });
+            mockCollection.deleteMany.mockResolvedValue({ deletedCount: 1 });
 
             const result = await VocabularyService.deleteWord(listId, wordId, userId);
 
@@ -553,6 +555,10 @@ describe('VocabularyService', () => {
             expect(mockCollection.deleteOne).toHaveBeenCalledWith({
                 _id: new ObjectId(wordId),
                 vocabularyListId: new ObjectId(listId)
+            });
+            expect(mockCollection.deleteMany).toHaveBeenCalledWith({
+                userId,
+                wordId: new ObjectId(wordId)
             });
             expect(result).toBe(true);
         });
@@ -637,7 +643,7 @@ describe('VocabularyService', () => {
             expect(AIService.generateContextualSentences).toHaveBeenCalledWith(
                 [
                     {
-                        id: '507f1f77bcf86cd799439012',
+                        _id: '507f1f77bcf86cd799439012',
                         word: 'bonjour',
                         translation: 'hello',
                         partOfSpeech: 'noun',
@@ -764,7 +770,7 @@ describe('VocabularyService', () => {
         it('should update existing word progress with SM-2 algorithm', async () => {
             const wordId = '507f1f77bcf86cd799439012';
             const userId = 'user123';
-            const status = 'learning'; // maps to q=2
+            const status = WordStatus.LEARNING; // maps to q=2
 
             const mockExistingProgress = {
                 _id: new ObjectId('507f1f77bcf86cd799439013'),
@@ -789,11 +795,12 @@ describe('VocabularyService', () => {
                 updatedAt: expect.any(Date)
             };
 
+            mockCollection.findOne.mockResolvedValueOnce({ _id: new ObjectId(wordId) });
             mockCollection.findOne.mockResolvedValueOnce(mockExistingProgress);
             mockCollection.updateOne.mockResolvedValue({});
             mockCollection.findOne.mockResolvedValueOnce(mockUpdatedProgress);
 
-            const result = await VocabularyService.updateWordProgress(wordId, status, userId);
+            const result = await VocabularyService.updateWordProgress(wordId, WordStatus.LEARNING, userId);
 
             expect(mockDb.collection).toHaveBeenCalledWith('WordProgress');
             expect(mockCollection.findOne).toHaveBeenCalledWith({
@@ -821,7 +828,7 @@ describe('VocabularyService', () => {
         it('should create new word progress with SM-2 defaults', async () => {
             const wordId = '507f1f77bcf86cd799439012';
             const userId = 'user123';
-            const status = 'mastered'; // maps to q=5
+            const status = WordStatus.MASTERED; // maps to q=5
 
             const mockNewProgress = {
                 _id: new ObjectId('507f1f77bcf86cd799439013'),
@@ -838,11 +845,12 @@ describe('VocabularyService', () => {
                 updatedAt: expect.any(Date)
             };
 
+            mockCollection.findOne.mockResolvedValueOnce({ _id: new ObjectId(wordId) });
             mockCollection.findOne.mockResolvedValueOnce(null);
             mockCollection.insertOne.mockResolvedValue({ insertedId: mockNewProgress._id });
             mockCollection.findOne.mockResolvedValueOnce(mockNewProgress);
 
-            const result = await VocabularyService.updateWordProgress(wordId, status, userId);
+            const result = await VocabularyService.updateWordProgress(wordId, WordStatus.MASTERED, userId);
 
             expect(mockCollection.insertOne).toHaveBeenCalledWith(
                 expect.objectContaining({
@@ -859,6 +867,19 @@ describe('VocabularyService', () => {
             );
             expect(mockCollection.insertOne.mock.calls[0][0].streak).toBeGreaterThanOrEqual(5);
             expect(result).toEqual(mockNewProgress);
+        });
+
+        it('should return null when word does not exist', async () => {
+            const wordId = '507f1f77bcf86cd799439012';
+            const userId = 'user123';
+
+            mockCollection.findOne.mockResolvedValueOnce(null);
+
+            const result = await VocabularyService.updateWordProgress(wordId, WordStatus.LEARNING, userId);
+
+            expect(result).toBeNull();
+            expect(mockCollection.updateOne).not.toHaveBeenCalled();
+            expect(mockCollection.insertOne).not.toHaveBeenCalled();
         });
     });
 
@@ -904,7 +925,7 @@ describe('VocabularyService', () => {
         });
     });
 
-    describe('updateLearningStats (private method)', () => {
+    describe('LearningStatsService.updateDailyStats', () => {
         it('should update existing learning stats', async () => {
             const userId = 'user123';
             const stats = {
@@ -920,14 +941,13 @@ describe('VocabularyService', () => {
                 totalQuestions: 15,
                 correctAnswers: 12,
                 createdAt: new Date('2025-10-10T10:10:10.000Z'),
-                updatedAt: new Date('2025-10-10T10:10:10.000Z')
+                updatedAt: new Date('2025-10-10T10:10:10.000Z'),
             };
 
             mockCollection.findOne.mockResolvedValueOnce(mockExistingStats);
             mockCollection.updateOne.mockResolvedValue({});
 
-            // Call the private method through the class
-            await (VocabularyService as any).updateLearningStats(userId, stats);
+            await LearningStatsService.updateDailyStats(userId, stats);
 
             expect(mockDb.collection).toHaveBeenCalledWith('LearningStats');
             expect(mockCollection.findOne).toHaveBeenCalledWith({
@@ -962,8 +982,7 @@ describe('VocabularyService', () => {
             mockCollection.findOne.mockResolvedValueOnce(null);
             mockCollection.insertOne.mockResolvedValue({});
 
-            // Call the private method through the class
-            await (VocabularyService as any).updateLearningStats(userId, stats);
+            await LearningStatsService.updateDailyStats(userId, stats);
 
             expect(mockDb.collection).toHaveBeenCalledWith('LearningStats');
             expect(mockCollection.findOne).toHaveBeenCalledWith({
@@ -989,8 +1008,7 @@ describe('VocabularyService', () => {
             mockCollection.findOne.mockResolvedValueOnce(null);
             mockCollection.insertOne.mockResolvedValue({});
 
-            // Call the private method through the class
-            await (VocabularyService as any).updateLearningStats(userId, stats);
+            await LearningStatsService.updateDailyStats(userId, stats);
 
             expect(mockCollection.insertOne).toHaveBeenCalledWith(
                 expect.objectContaining({

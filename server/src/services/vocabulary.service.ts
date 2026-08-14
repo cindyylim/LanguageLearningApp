@@ -1,5 +1,5 @@
-import { connectToDatabase } from '../utils/mongo';
-import { connectToTestDatabase } from '../utils/testMongo';
+import { getDatabase } from '../utils/getDatabase';
+import { LearningStatsService } from './learningStats.service';
 import { ObjectId } from 'mongodb';
 import { AIService } from './ai';
 import { calculateFromManualStatus } from '../utils/sm2';
@@ -43,7 +43,7 @@ export class VocabularyService {
      * Fetches one extra document to determine whether another page exists.
      */
     static async getUserLists(userId: string, page: number = 1, limit: number = 2) {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+        const db = await getDatabase();
         const skip = (page - 1) * limit;
 
         const lists = await db.collection('VocabularyList').aggregate([
@@ -104,7 +104,7 @@ export class VocabularyService {
      * Get specific vocabulary list with words and progress
      */
     static async getListById(listId: string, userId: string) {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+        const db = await getDatabase();
 
         const list = await db.collection('VocabularyList').findOne({
             _id: new ObjectId(listId),
@@ -172,7 +172,7 @@ export class VocabularyService {
         targetLanguage?: string;
         nativeLanguage?: string;
     }, userId: string) {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+        const db = await getDatabase();
 
         const now = new Date();
         const result = await db.collection('VocabularyList').insertOne({
@@ -200,7 +200,7 @@ export class VocabularyService {
         name: string;
         description?: string;
     }, userId: string) {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+        const db = await getDatabase();
 
         const result = await db.collection('VocabularyList').updateOne(
             { _id: new ObjectId(listId), userId },
@@ -214,7 +214,7 @@ export class VocabularyService {
      * Delete vocabulary list and cascade delete words and progress
      */
     static async deleteList(listId: string, userId: string) {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+        const db = await getDatabase();
         const listObjectId = new ObjectId(listId);
 
         const list = await db.collection('VocabularyList').findOne({
@@ -261,7 +261,7 @@ export class VocabularyService {
         partOfSpeech?: string;
         difficulty: string;
     }, userId: string) {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+        const db = await getDatabase();
 
         // Verify vocabulary list belongs to user
         const list = await db.collection('VocabularyList').findOne({
@@ -299,7 +299,7 @@ export class VocabularyService {
         partOfSpeech?: string;
         difficulty?: string;
     }, userId: string) {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+        const db = await getDatabase();
 
         // Check list ownership
         const list = await db.collection('VocabularyList').findOne({
@@ -329,7 +329,7 @@ export class VocabularyService {
      * Delete word from vocabulary list
      */
     static async deleteWord(listId: string, wordId: string, userId: string) {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+        const db = await getDatabase();
 
         // Check list ownership
         const list = await db.collection('VocabularyList').findOne({
@@ -341,11 +341,18 @@ export class VocabularyService {
             return null;
         }
 
-        // Delete word
+        // Delete word and cascade delete progress
         const result = await db.collection('Word').deleteOne({
             _id: new ObjectId(wordId),
             vocabularyListId: new ObjectId(listId)
         });
+
+        if (result.deletedCount > 0) {
+            await db.collection('WordProgress').deleteMany({
+                userId,
+                wordId: new ObjectId(wordId)
+            });
+        }
 
         return result.deletedCount > 0;
     }
@@ -354,7 +361,7 @@ export class VocabularyService {
      * Generate contextual sentences for vocabulary list
      */
     static async generateSentences(listId: string, userId: string) {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+        const db = await getDatabase();
 
         const list = await db.collection('VocabularyList').findOne({
             _id: new ObjectId(listId),
@@ -398,7 +405,7 @@ export class VocabularyService {
         prompt: string;
         wordCount?: number;
     }, userId: string) {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+        const db = await getDatabase();
 
         // Generate vocabulary words using AIService
         const aiWords = await AIService.generateVocabularyList(
@@ -453,8 +460,13 @@ export class VocabularyService {
      * Update word progress
      */
     static async updateWordProgress(wordId: string, status: WordStatus, userId: string) {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+        const db = await getDatabase();
         const now = new Date();
+
+        const word = await db.collection('Word').findOne({ _id: new ObjectId(wordId) });
+        if (!word) {
+            return null;
+        }
 
         const existingProgress = await db.collection('WordProgress').findOne({
             userId,
@@ -507,7 +519,7 @@ export class VocabularyService {
             _id: new ObjectId(insertedId)
         });
         // Update daily learning stats
-        await this.updateLearningStats(userId, { wordsReviewed: 1 });
+        await LearningStatsService.updateDailyStats(userId, { wordsReviewed: 1 });
         return updatedProgress;
     }
 
@@ -515,7 +527,7 @@ export class VocabularyService {
      * Get word progress
      */
     static async getWordProgress(wordId: string, userId: string) {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+        const db = await getDatabase();
 
         const progress = await db.collection('WordProgress').findOne({
             userId,
@@ -527,56 +539,5 @@ export class VocabularyService {
             reviewCount: 0,
             streak: 0
         };
-    }
-
-    /**
-     * Update daily learning stats
-     */
-    private static async updateLearningStats(userId: string, stats: {
-        quizzesTaken?: number;
-        wordsReviewed?: number;
-        totalQuestions?: number;
-        correctAnswers?: number;
-    }) {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
-        const today = new Date();
-        const startOfDay = new Date(today);
-        startOfDay.setHours(0, 0, 0, 0);
-
-        const nextDay = new Date(startOfDay);
-        nextDay.setDate(nextDay.getDate() + 1);
-
-        const existingStats = await db.collection('LearningStats').findOne({
-            userId,
-            date: { $gte: startOfDay, $lt: nextDay }
-        });
-
-        if (existingStats) {
-            await db.collection('LearningStats').updateOne(
-                { _id: existingStats._id },
-                {
-                    $inc: {
-                        quizzesTaken: stats.quizzesTaken || 0,
-                        wordsReviewed: stats.wordsReviewed || 0,
-                        totalQuestions: stats.totalQuestions || 0,
-                        correctAnswers: stats.correctAnswers || 0
-                    },
-                    $set: {
-                        updatedAt: new Date()
-                    }
-                }
-            );
-        } else {
-            await db.collection('LearningStats').insertOne({
-                userId,
-                date: today,
-                quizzesTaken: stats.quizzesTaken || 0,
-                wordsReviewed: stats.wordsReviewed || 0,
-                totalQuestions: stats.totalQuestions || 0,
-                correctAnswers: stats.correctAnswers || 0,
-                createdAt: new Date(),
-                updatedAt: new Date()
-            });
-        }
     }
 }

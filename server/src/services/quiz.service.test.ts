@@ -1,4 +1,6 @@
 import { QuizService } from './quiz.service';
+import { LearningStatsService } from './learningStats.service';
+import { WordStatus } from '../shared/types/index';
 import { AIService } from './ai';
 import { connectToTestDatabase } from '../utils/testMongo';
 import { ObjectId } from 'mongodb';
@@ -323,14 +325,14 @@ describe('QuizService', () => {
             expect(AIService.generateQuestions).toHaveBeenCalledWith(
                 [
                     {
-                        id: '507f1f77bcf86cd799439012',
+                        _id: '507f1f77bcf86cd799439012',
                         word: 'bonjour',
                         translation: 'hello',
                         partOfSpeech: 'noun',
                         difficulty: 'easy'
                     },
                     {
-                        id: '507f1f77bcf86cd799439013',
+                        _id: '507f1f77bcf86cd799439013',
                         word: 'merci',
                         translation: 'thank you',
                         partOfSpeech: 'interjection',
@@ -983,13 +985,14 @@ describe('QuizService', () => {
         });
     });
 
-    describe('updateLearningStats', () => {
-        it('should update existing learning stats', async () => {
+    describe('LearningStatsService.updateDailyStats', () => {
+        it('should update existing learning stats including wordsReviewed', async () => {
             const userId = 'user123';
             const stats = {
                 quizzesTaken: 2,
                 totalQuestions: 10,
-                correctAnswers: 8
+                correctAnswers: 8,
+                wordsReviewed: 3
             };
 
             const mockExistingStats = {
@@ -1011,8 +1014,7 @@ describe('QuizService', () => {
                 }
             });
 
-            // Call the private method through the class
-            await (QuizService as any).updateLearningStats(userId, stats);
+            await LearningStatsService.updateDailyStats(userId, stats);
 
             // Verify the update was called correctly
             expect(collections.LearningStats.findOne).toHaveBeenCalledWith({
@@ -1024,6 +1026,7 @@ describe('QuizService', () => {
                 {
                     $inc: {
                         quizzesTaken: 2,
+                        wordsReviewed: 3,
                         totalQuestions: 10,
                         correctAnswers: 8
                     },
@@ -1039,7 +1042,8 @@ describe('QuizService', () => {
             const stats = {
                 quizzesTaken: 1,
                 totalQuestions: 5,
-                correctAnswers: 3
+                correctAnswers: 3,
+                wordsReviewed: 2
             };
 
             const collections = createMockCollections({
@@ -1049,8 +1053,7 @@ describe('QuizService', () => {
                 }
             });
 
-            // Call the private method through the class
-            await (QuizService as any).updateLearningStats(userId, stats);
+            await LearningStatsService.updateDailyStats(userId, stats);
 
             // Verify a new record was created
             expect(collections.LearningStats.findOne).toHaveBeenCalledWith({
@@ -1061,7 +1064,7 @@ describe('QuizService', () => {
                 userId,
                 date: expect.any(Date),
                 quizzesTaken: 1,
-                wordsReviewed: 0, // Default value
+                wordsReviewed: 2,
                 totalQuestions: 5,
                 correctAnswers: 3,
                 createdAt: expect.any(Date),

@@ -1,5 +1,4 @@
-import { connectToDatabase } from '../utils/mongo';
-import { connectToTestDatabase } from '../utils/testMongo';
+import { getDatabase } from '../utils/getDatabase';
 import { ObjectId } from 'mongodb';
 import { AIService } from './ai';
 import { WordStatus, WordProgress, QuizAttempt, UserProgress} from "../shared/types/index";
@@ -18,7 +17,7 @@ export class AnalyticsService {
      * Get learning progress with stats, word progress, and attempts
      */
     static async getProgress(userId: string) {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+        const db = await getDatabase();
 
         // Get user's learning statistics
         const learningStats = await db.collection('LearningStats').find({ userId }).sort({ date: -1 }).limit(30).toArray();
@@ -42,11 +41,18 @@ export class AnalyticsService {
         const allAttempts = await db.collection('QuizAttempt').find({ userId }).sort({ createdAt: -1 }).toArray() as unknown as QuizAttempt[];
         const recentAttempts = allAttempts.slice(0, 10);
 
+        // Count total words across user's vocabulary lists
+        const userLists = await db.collection('VocabularyList').find({ userId }).project({ _id: 1 }).toArray();
+        const listIds = userLists.map(list => list._id);
+        const totalWords = listIds.length > 0
+            ? await db.collection('Word').countDocuments({ vocabularyListId: { $in: listIds } })
+            : 0;
+
         // Calculate streak
         const currentStreak = await this.calculateStreak(userId);
 
         // Calculate summary statistics
-        const summary = this.getSummaryStats(wordProgress, allAttempts, currentStreak);
+        const summary = this.getSummaryStats(wordProgress, allAttempts, currentStreak, totalWords);
 
         return {
             summary,
@@ -60,7 +66,7 @@ export class AnalyticsService {
      * Calculate current learning streak
      */
     static async calculateStreak(userId: string): Promise<number> {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+        const db = await getDatabase();
 
         const recentStats = await db.collection('LearningStats')
             .find({ userId })
@@ -112,11 +118,15 @@ export class AnalyticsService {
     static getSummaryStats(
         wordProgress: WordProgress[],
         allAttempts: QuizAttempt[],
-        currentStreak: number
+        currentStreak: number,
+        totalWords: number
     ) {
-        const totalWords = wordProgress.length;
         const masteredWords = wordProgress.filter((wp: WordProgress) => wp.status === WordStatus.MASTERED).length;
-        const needsReview = wordProgress.filter((wp: WordProgress) => wp.status === WordStatus.NEW || wp.status === WordStatus.LEARNING).length;
+        const needsReviewFromProgress = wordProgress.filter(
+            (wp: WordProgress) => wp.status === WordStatus.NEW || wp.status === WordStatus.LEARNING
+        ).length;
+        const wordsWithoutProgress = Math.max(0, totalWords - wordProgress.length);
+        const needsReview = needsReviewFromProgress + wordsWithoutProgress;
         const totalQuizzesTaken = allAttempts.length;
 
         const recentAttempts = allAttempts.slice(0, 10);
@@ -141,7 +151,7 @@ export class AnalyticsService {
      * Get AI-powered recommendations
      */
     static async getRecommendations(userId: string) {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+        const db = await getDatabase();
 
         const userProgress = await db.collection('WordProgress').aggregate<WordProgress>([
             { $match: { userId } },

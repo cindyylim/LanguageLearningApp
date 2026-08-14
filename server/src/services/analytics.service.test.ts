@@ -2,6 +2,7 @@ import { AnalyticsService } from './analytics.service';
 import { AIService } from './ai';
 import { connectToTestDatabase } from '../utils/testMongo';
 import { ObjectId } from 'mongodb';
+import { WordStatus } from '../shared/types/index';
 
 jest.mock('../utils/testMongo');
 jest.mock('./ai');
@@ -51,9 +52,9 @@ describe('AnalyticsService', () => {
     describe('getSummaryStats', () => {
         it('should calculate summary statistics', () => {
             const wordProgress = [
-                { status: "mastered", streak: 5 },
-                {  status: "learning" , streak: 2 },
-                { status: 'learning', streak: 1 },
+                { status: WordStatus.MASTERED, streak: 5 },
+                { status: WordStatus.LEARNING, streak: 2 },
+                { status: WordStatus.LEARNING, streak: 1 },
             ] as any;
 
             const allAttempts = [
@@ -61,7 +62,7 @@ describe('AnalyticsService', () => {
                 { score: 0.9 },
             ] as any;
 
-            const summary = AnalyticsService.getSummaryStats(wordProgress, allAttempts, 3);
+            const summary = AnalyticsService.getSummaryStats(wordProgress, allAttempts, 3, 3);
 
             expect(summary.totalWords).toBe(3);
             expect(summary.masteredWords).toBe(1);
@@ -69,6 +70,19 @@ describe('AnalyticsService', () => {
             expect(summary.currentStreak).toBe(3);
             expect(summary.totalQuizzesTaken).toBe(2);
             expect(summary.avgScore).toBeCloseTo(0.85);
+        });
+
+        it('should count words without progress as needing review', () => {
+            const wordProgress = [
+                { status: WordStatus.MASTERED, streak: 5 },
+                { status: WordStatus.LEARNING, streak: 2 },
+            ] as any;
+
+            const summary = AnalyticsService.getSummaryStats(wordProgress, [], 0, 5);
+
+            expect(summary.totalWords).toBe(5);
+            expect(summary.masteredWords).toBe(1);
+            expect(summary.needsReview).toBe(4);
         });
     });
 
@@ -159,10 +173,22 @@ describe('AnalyticsService', () => {
                 toArray: jest.fn().mockResolvedValue(mockAllAttempts)
             };
 
+            const vocabularyListCollection = {
+                find: jest.fn().mockReturnThis(),
+                project: jest.fn().mockReturnThis(),
+                toArray: jest.fn().mockResolvedValue([{ _id: new ObjectId() }, { _id: new ObjectId() }])
+            };
+
+            const wordCollection = {
+                countDocuments: jest.fn().mockResolvedValue(2)
+            };
+
             mockDb.collection.mockImplementation((collectionName: string) => {
                 if (collectionName === 'LearningStats') return learningStatsCollection;
                 if (collectionName === 'WordProgress') return wordProgressCollection;
                 if (collectionName === 'QuizAttempt') return quizAttemptCollection;
+                if (collectionName === 'VocabularyList') return vocabularyListCollection;
+                if (collectionName === 'Word') return wordCollection;
                 return {
                     find: jest.fn().mockReturnThis(),
                     sort: jest.fn().mockReturnThis(),
@@ -212,7 +238,9 @@ describe('AnalyticsService', () => {
                 aggregate: jest.fn().mockReturnThis(),
                 sort: jest.fn().mockReturnThis(),
                 limit: jest.fn().mockReturnThis(),
-                toArray: jest.fn().mockResolvedValue([])
+                project: jest.fn().mockReturnThis(),
+                toArray: jest.fn().mockResolvedValue([]),
+                countDocuments: jest.fn().mockResolvedValue(0)
             };
 
             mockDb.collection.mockReturnValue(emptyCollection);

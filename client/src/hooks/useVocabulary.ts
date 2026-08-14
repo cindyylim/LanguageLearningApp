@@ -4,7 +4,8 @@ import toast from 'react-hot-toast';
 import api from '../lib/api';
 import { getErrorMessage, getUserFacingErrorMessage } from '../types/errors';
 import { initialState, vocabularyReducer } from '../reducers/vocabularyReducer';
-import { WordStatus } from '../../../shared/types/index';
+import { WordStatus } from '../shared/types/index';
+import { updateWordProgressApi } from '../utils/wordProgress';
 interface User {
     id: string;
     name: string;
@@ -25,7 +26,7 @@ export const useVocabulary = (user: User | null) => {
                 type: 'FETCH_SUCCESS',
                 payload: {
                     lists,
-                    hasMore: lists.length === 20,
+                    hasMore: res.data.hasMore ?? false,
                     page
                 }
             });
@@ -125,11 +126,11 @@ export const useVocabulary = (user: User | null) => {
 
     const updateWordProgress = async (listId: string, wordId: string, status: WordStatus) => {
         try {
-            const res = await api.post(`/vocabulary/words/${wordId}/progress`, { status });
-            if (res.data.progress) {
+            const progress = await updateWordProgressApi(wordId, status);
+            if (progress) {
                 dispatch({
                     type: 'UPDATE_WORD_PROGRESS',
-                    payload: { wordId, progress: res.data.progress },
+                    payload: { wordId, progress },
                 });
             }
         } catch (err: unknown) {

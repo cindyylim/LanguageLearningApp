@@ -1,4 +1,4 @@
-import { Word, WordProgress, VocabularyList } from "../../../shared/types/index";
+import { Word, WordProgress, VocabularyList } from "../shared/types/index";
 
 export interface VocabularyState {
   lists: VocabularyList[];

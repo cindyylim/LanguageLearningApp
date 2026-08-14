@@ -4,7 +4,8 @@ import { initialState } from "../reducers/vocabularyDetailsReducer";
 import { useEffect, useReducer } from "react";
 import { getErrorMessage } from "../types/errors";
 import { useNavigate, useParams } from "react-router-dom";
-import { Word, WordStatus } from "../../../shared/types/index";
+import { Word, WordStatus } from "../shared/types/index";
+import { updateWordProgressApi } from "../utils/wordProgress";
 export const useVocabularyDetails = () => {
     const navigate = useNavigate();
 
@@ -93,8 +94,7 @@ export const useVocabularyDetails = () => {
 
     const updateWordProgress = async (_listId: string, wordId: string, status: WordStatus) => {
         try {
-            await api.post(`/vocabulary/words/${wordId}/progress`, { status });
-            // Refresh listlearning' 
+            await updateWordProgressApi(wordId, status);
             if (id) {
                 const res = await api.get(`/vocabulary/${id}`);
                 dispatch({ type: 'FETCH_SUCCESS', payload: res.data.vocabularyList });

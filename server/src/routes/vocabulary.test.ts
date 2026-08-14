@@ -95,7 +95,6 @@ jest.mock("../middleware/validateObjectId", () => ({
 
 // Import after mocking
 import vocabularyRouter from "./vocabulary";
-import { mock } from "node:test";
 
 // Create a test app instance
 const testApp = express();
@@ -252,13 +251,13 @@ describe("Vocabulary API Endpoints", () => {
         vocabularyLists: mockLists,
         hasMore: false,
         page: 1,
-        limit: 20,
+        limit: 2,
       });
 
       expect(mockGetCacheKeyUserListsRef).toHaveBeenCalledWith(
         "test-user-id",
         1,
-        20
+        2
       );
 
       const expectedKey = mockGetCacheKeyUserListsRef.mock.results[0]?.value;
@@ -321,6 +320,32 @@ describe("Vocabulary API Endpoints", () => {
         vocabularyLists: mockLists,
         hasMore: true,
         page: 1,
+        limit: 2,
+      });
+    });
+
+    it("should return hasMore false when exactly limit lists exist on page 1", async () => {
+      const mockLists: any[] = Array.from({ length: 20 }, (_, i) => ({
+        _id: new ObjectId().toString(),
+        name: `List ${i + 1}`,
+        userId: "test-user-id",
+        _count: { words: 1 },
+      }));
+
+      const { VocabularyService } = require("../services/vocabulary.service");
+      VocabularyService.getUserLists = jest.fn().mockResolvedValue({
+        lists: mockLists,
+        hasMore: false,
+      });
+
+      const response = await request(testApp)
+        .get("/api/vocabulary?page=1&limit=20")
+        .expect(200);
+
+      expect(response.body).toEqual({
+        vocabularyLists: mockLists,
+        hasMore: false,
+        page: 1,
         limit: 20,
       });
     });
@@ -349,13 +374,13 @@ describe("Vocabulary API Endpoints", () => {
         vocabularyLists: mockLists,
         hasMore: false,
         page: 1,
-        limit: 20,
+        limit: 2,
       });
 
       expect(mockGetCacheKeyUserListsRef).toHaveBeenCalledWith(
         "test-user-id",
         1,
-        20
+        2
       );
       const expectedKey = mockGetCacheKeyUserListsRef.mock.results[0]?.value;
       // Verify cache was checked before database

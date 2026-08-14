@@ -94,7 +94,7 @@ async function authenticateWithPassword(db: Db, email: string, password: string)
   const user =
     normalizedEmail === DEMO_EMAIL
       ? await getOrCreateDemoUser(db)
-      : await db.collection('User').findOne({ email });
+      : await db.collection('User').findOne({ email: normalizedEmail });
 
   if (!user) {
     return null;
@@ -110,9 +110,10 @@ async function authenticateWithPassword(db: Db, email: string, password: string)
 
 router.post('/register', validate(registerSchema), asyncHandler(async (req: Request, res: Response) => {
   const { name, email, password, nativeLanguage, targetLanguage, proficiencyLevel } = req.body;
+  const normalizedEmail = email.toLowerCase();
   const db = await getDb();
 
-  const existingUser = await db.collection('User').findOne({ email });
+  const existingUser = await db.collection('User').findOne({ email: normalizedEmail });
   if (existingUser) {
     return res.status(400).json({ error: 'User already exists with this email' });
   }
@@ -121,7 +122,7 @@ router.post('/register', validate(registerSchema), asyncHandler(async (req: Requ
 
   const userDoc = {
     name,
-    email,
+    email: normalizedEmail,
     password: hashedPassword,
     nativeLanguage,
     targetLanguage,

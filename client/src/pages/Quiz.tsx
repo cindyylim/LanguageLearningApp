@@ -4,6 +4,16 @@ import api from '../lib/api';
 import { getErrorMessage } from '../types/errors';
 import { sanitizeText } from '../utils/sanitize';
 
+function parseQuestionOptions(options: string | null | undefined): string[] {
+  if (!options) return [];
+  try {
+    const parsed = JSON.parse(options);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 export interface QuizQuestion {
   _id: string;
   question: string;
@@ -146,7 +156,7 @@ const Quiz: React.FC = () => {
             {q.context && <div className="mb-2 text-xs text-gray-500">{sanitizeText(q.context)}</div>}
             {q.type === 'multiple_choice' && q.options ? (
               <div className="space-y-1">
-                {JSON.parse(q.options).map((opt: string, i: number) => (
+                {parseQuestionOptions(q.options).map((opt: string, i: number) => (
                   <label key={i} className="flex items-center gap-2">
                     <input
                       type="radio"

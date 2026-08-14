@@ -59,7 +59,7 @@ router.post('/delete-user', asyncHandler(async (req: Request, res: Response) => 
     if (vocabListIds.length > 0) {
       // Delete words in these vocabulary lists
       await db.collection('Word').deleteMany({
-        listId: { $in: vocabListIds }
+        vocabularyListId: { $in: vocabListIds }
       });
 
       // Delete the vocabulary lists

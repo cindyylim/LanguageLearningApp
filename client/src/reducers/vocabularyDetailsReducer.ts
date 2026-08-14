@@ -1,4 +1,4 @@
-import { Word, VocabularyList } from "../../../shared/types/index";
+import { Word, VocabularyList } from "../shared/types/index";
 
 export interface VocabularyDetailsState {
     list: VocabularyList | null;

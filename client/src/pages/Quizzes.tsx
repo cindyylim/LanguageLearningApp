@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../lib/api';
 import { Link } from 'react-router-dom';
-import { VocabularyList } from '../../../shared/types/index';
+import { VocabularyList } from '../shared/types/index';
 import { QuizAttempt } from './Analytics';
 import { QuizQuestion } from './Quiz';
 import toast from 'react-hot-toast';
@@ -54,7 +54,7 @@ const Quizzes: React.FC = () => {
     setShowModal(true);
     if (vocabLists.length === 0) {
       try {
-        const res = await api.get('/vocabulary');
+        const res = await api.get('/vocabulary?limit=100');
         setVocabLists(res.data.vocabularyLists || []);
       } catch (err) {
         console.error('Failed to fetch vocabulary lists', err);

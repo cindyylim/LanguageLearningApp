@@ -1,7 +1,8 @@
 import React from 'react';
 import { PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { Word } from '../../../shared/types/index';
+import { Word, WordStatus } from '../shared/types/index';
 import { SkeletonCard } from '../components/SkeletonCard';
+import WordProgressButtons from '../components/WordProgressButtons';
 import { useVocabularyDetails } from '../hooks/useVocabularyDetails';
 import { useNavigate } from 'react-router-dom';
 
@@ -37,8 +38,8 @@ const VocabularyDetails: React.FC = () => {
 
   // Calculate progress stats
   const totalWords = list?.words?.length || 0;
-  const mastered = list?.words?.filter((w: Word) => (w.progress?.status === 'mastered')).length || 0;
-  const learning = list?.words?.filter((w: Word) => (w.progress?.status === 'learning')).length || 0;
+  const mastered = list?.words?.filter((w: Word) => w.progress?.status === WordStatus.MASTERED).length || 0;
+  const learning = list?.words?.filter((w: Word) => w.progress?.status === WordStatus.LEARNING).length || 0;
   const percentMastered = totalWords ? Math.round((mastered / totalWords) * 100) : 0;
   const percentLearning = totalWords ? Math.round((learning / totalWords) * 100) : 0;
 
@@ -205,20 +206,10 @@ const VocabularyDetails: React.FC = () => {
                       <TrashIcon className="h-5 w-5" />
                     </button>
                   </div>
-                  <div className="flex gap-1 mt-2">
-                    <button
-                      onClick={() => updateWordProgress(list._id, w._id, 'learning')}
-                      className={`px-2 py-1 text-xs rounded ${w.progress?.status === 'learning' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
-                    >
-                      Learning
-                    </button>
-                    <button
-                      onClick={() => updateWordProgress(list._id, w._id, 'mastered')}
-                      className={`px-2 py-1 text-xs rounded ${w.progress?.status === 'mastered' ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}
-                    >
-                      Mastered
-                    </button>
-                  </div>
+                  <WordProgressButtons
+                    currentStatus={w.progress?.status}
+                    onUpdate={(status) => updateWordProgress(list._id, w._id, status)}
+                  />
                 </div>
               </div>
             ))}

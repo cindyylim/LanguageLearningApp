@@ -44,10 +44,6 @@ export async function ensureIndexes(db: Db): Promise<void> {
             { vocabularyListId: 1 },
             { name: 'idx_word_vocablist' }
         );
-        await db.collection('Word').createIndex(
-            { _id: 1, userId: 1 },
-            { name: 'idx_id_user' }
-        );
 
         // Used in: vocabulary.ts (get word by id and vocabularyListId)
         await db.collection('Word').createIndex(

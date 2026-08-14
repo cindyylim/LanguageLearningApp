@@ -1,5 +1,5 @@
-import { connectToDatabase } from '../utils/mongo';
-import { connectToTestDatabase } from '../utils/testMongo';
+import { getDatabase } from '../utils/getDatabase';
+import { LearningStatsService } from './learningStats.service';
 import { ObjectId } from 'mongodb';
 import { AIService } from './ai';
 import type { AIWordInput, Question } from '../shared/types/index';
@@ -16,7 +16,7 @@ export class QuizService {
         questionCount?: number;
         difficulty?: 'easy' | 'medium' | 'hard';
     }, userId: string) {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+        const db = await getDatabase();
 
         // Get vocabulary list with words
         const vocabularyList = await db.collection('VocabularyList').findOne({
@@ -95,7 +95,7 @@ export class QuizService {
      * Get user's quizzes with attempts
      */
     static async getUserQuizzes(userId: string) {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+        const db = await getDatabase();
 
         const quizzes = await db.collection('Quiz').find({ userId }).sort({ createdAt: -1 }).toArray() as unknown as Quiz[];
 
@@ -120,7 +120,7 @@ export class QuizService {
      * Get specific quiz with questions
      */
     static async getQuizById(quizId: string, userId: string) {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+        const db = await getDatabase();
 
         const quiz = await db.collection('Quiz').findOne({ _id: new ObjectId(quizId), userId });
 
@@ -140,7 +140,7 @@ export class QuizService {
         questionId: string;
         answer: string;
     }>, userId: string) {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+        const db = await getDatabase();
 
         const quiz = await db.collection('Quiz').findOne({ _id: new ObjectId(quizId), userId });
 
@@ -203,7 +203,7 @@ export class QuizService {
         });
 
         // Update daily learning stats
-        await this.updateLearningStats(userId, {
+        await LearningStatsService.updateDailyStats(userId, {
             quizzesTaken: 1,
             totalQuestions,
             correctAnswers,
@@ -238,7 +238,7 @@ export class QuizService {
      * Get quiz results with detailed answers
      */
     static async getQuizResults(quizId: string, userId: string) {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+        const db = await getDatabase();
 
         const quiz = await db.collection('Quiz').findOne({ _id: new ObjectId(quizId), userId });
 
@@ -265,7 +265,7 @@ export class QuizService {
         wordProgressMap: Map<string, { correct: number; total: number }>,
         userId: string
     ) {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+        const db = await getDatabase();
         const now = new Date();
 
         await Promise.all(
@@ -335,55 +335,5 @@ export class QuizService {
                 }
             })
         );
-    }
-
-    /**
-     * Update daily learning stats
-     */
-    private static async updateLearningStats(userId: string, stats: {
-        quizzesTaken?: number;
-        totalQuestions?: number;
-        correctAnswers?: number;
-        wordsReviewed?: number;
-    }) {
-        const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
-        const today = new Date();
-        const startOfDay = new Date(today);
-        startOfDay.setHours(0, 0, 0, 0);
-
-        const nextDay = new Date(startOfDay);
-        nextDay.setDate(nextDay.getDate() + 1);
-
-        const existingStats = await db.collection('LearningStats').findOne({
-            userId,
-            date: { $gte: startOfDay, $lt: nextDay }
-        });
-
-        if (existingStats) {
-            await db.collection('LearningStats').updateOne(
-                { _id: existingStats._id },
-                {
-                    $inc: {
-                        quizzesTaken: stats.quizzesTaken || 0,
-                        totalQuestions: stats.totalQuestions || 0,
-                        correctAnswers: stats.correctAnswers || 0
-                    },
-                    $set: {
-                        updatedAt: new Date()
-                    }
-                }
-            );
-        } else {
-            await db.collection('LearningStats').insertOne({
-                userId,
-                date: today,
-                quizzesTaken: stats.quizzesTaken || 0,
-                wordsReviewed: stats.wordsReviewed || 0,
-                totalQuestions: stats.totalQuestions || 0,
-                correctAnswers: stats.correctAnswers || 0,
-                createdAt: new Date(),
-                updatedAt: new Date()
-            });
-        }
     }
 }

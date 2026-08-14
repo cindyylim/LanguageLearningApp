@@ -3,8 +3,10 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useNavigate } from 'react-router-dom';
 import LanguageDropdown from '../components/LanguageDropdown';
 import { useVocabulary } from '../hooks/useVocabulary';
-import { Word, VocabularyList } from "../../../shared/types/index";
+import { Word, VocabularyList } from "../shared/types/index";
 import { SkeletonCard } from '../components/SkeletonCard';
+import WordProgressButtons from '../components/WordProgressButtons';
+import { getProgressBarColor, getProgressBarWidth, getProgressColor, getProgressText } from '../utils/wordProgress';
 
 const Vocabulary: React.FC = () => {
   const { user } = useAuthStore();
@@ -47,24 +49,6 @@ const Vocabulary: React.FC = () => {
   };
   const handleListNativeLanguageChange = (code: string) => {
     dispatch({ type: 'UPDATE_LIST_FORM', payload: { nativeLanguage: code } });
-  };
-
-  const getProgressColor = (status?: string) => {
-    if (status === 'mastered') return 'text-green-600';
-    if (status === 'learning') return 'text-yellow-600';
-    return 'text-red-600';
-  };
-
-  const getProgressText = (status?: string) => {
-    if (status === 'mastered') return 'Mastered';
-    if (status === 'learning') return 'Learning';
-    return 'New';
-  };
-
-  const getProgressBarColor = (status?: string) => {
-    if (status === 'mastered') return 'bg-green-500';
-    if (status === 'learning') return 'bg-yellow-500';
-    return 'bg-red-500';
   };
 
   return (
@@ -212,25 +196,16 @@ const Vocabulary: React.FC = () => {
                           <div className="flex-1 bg-gray-200 rounded-full h-2">
                             <div
                               className={`h-2 rounded-full ${getProgressBarColor(w.progress?.status)}`}
+                              style={{ width: getProgressBarWidth(w.progress?.status) }}
                             />
                           </div>
                           <span className={`text-xs font-medium ${getProgressColor(w.progress?.status)}`}>{getProgressText(w.progress?.status)}</span>
                         </div>
                       </div>
-                      <div className="flex gap-1 ml-2">
-                        <button
-                          onClick={() => updateWordProgress(list._id, w._id, 'learning')}
-                          className={`px-2 py-1 text-xs rounded ${w.progress?.status === 'learning' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
-                        >
-                          Learning
-                        </button>
-                        <button
-                          onClick={() => updateWordProgress(list._id, w._id, 'mastered')}
-                          className={`px-2 py-1 text-xs rounded ${w.progress?.status === 'mastered' ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}
-                        >
-                          Mastered
-                        </button>
-                      </div>
+                      <WordProgressButtons
+                        currentStatus={w.progress?.status}
+                        onUpdate={(status) => updateWordProgress(list._id, w._id, status)}
+                      />
                     </div>
                   );
                 }) : <span className="text-gray-400">No words</span>}

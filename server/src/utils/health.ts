@@ -1,6 +1,5 @@
-import { connectToDatabase } from './mongo';
+import { getDatabase } from './getDatabase';
 import { redisHealthCheck } from './redis';
-import { connectToTestDatabase } from './testMongo';
 import logger from './logger';
 
 export type HealthStatus = 'OK' | 'DEGRADED';
@@ -32,7 +31,7 @@ export async function getHealthStatus(): Promise<HealthPayload> {
   };
 
   try {
-    const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
+    const db = await getDatabase();
     await db.admin().ping();
     health.checks.database = 'healthy';
   } catch (error) {
