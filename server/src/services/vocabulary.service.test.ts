@@ -135,6 +135,47 @@ describe('VocabularyService', () => {
             expect(result.hasMore).toBe(false);
             expect(result.lists).toHaveLength(limit);
         });
+
+        describe('limit+1 pagination across pages', () => {
+            const userId = 'user123';
+            const limit = 20;
+
+            const createListDocs = (count: number) =>
+                Array.from({ length: count }, (_, i) => ({
+                    _id: new ObjectId(),
+                    name: `List ${i + 1}`,
+                    userId,
+                    _count: { words: 0 },
+                }));
+
+            it('should return 20 lists on page 1 with hasMore true when 21 lists exist', async () => {
+                const twentyOneLists = createListDocs(21);
+                mockCollection.toArray.mockResolvedValue(twentyOneLists);
+
+                const result = await VocabularyService.getUserLists(userId, 1, limit);
+
+                expect(result.lists).toHaveLength(20);
+                expect(result.hasMore).toBe(true);
+
+                const pipeline = mockCollection.aggregate.mock.calls[0][0];
+                expect(pipeline[2]).toEqual({ $skip: 0 });
+                expect(pipeline[3]).toEqual({ $limit: 21 });
+            });
+
+            it('should return 1 list on page 2 with hasMore false when 21 lists exist', async () => {
+                const lastList = createListDocs(1);
+                mockCollection.toArray.mockResolvedValue(lastList);
+
+                const result = await VocabularyService.getUserLists(userId, 2, limit);
+
+                expect(result.lists).toHaveLength(1);
+                expect(result.hasMore).toBe(false);
+
+                const pipeline = mockCollection.aggregate.mock.calls[0][0];
+                expect(pipeline[2]).toEqual({ $skip: 20 });
+                expect(pipeline[3]).toEqual({ $limit: 21 });
+            });
+        });
     });
 
     describe('createList', () => {
@@ -902,6 +943,44 @@ describe('VocabularyService', () => {
             expect(result).toBeNull();
             expect(mockCollection.updateOne).not.toHaveBeenCalled();
             expect(mockCollection.insertOne).not.toHaveBeenCalled();
+        });
+
+        it('should mark word mastered immediately on manual Mastered click (not quiz path)', async () => {
+            const wordId = '507f1f77bcf86cd799439012';
+            const userId = 'user123';
+
+            const mockNewProgress = {
+                _id: new ObjectId('507f1f77bcf86cd799439013'),
+                wordId,
+                userId,
+                status: WordStatus.MASTERED,
+                reviewCount: 1,
+                streak: 6,
+                easeFactor: expect.any(Number),
+                interval: expect.any(Number),
+                lastReviewed: expect.any(Date),
+                nextReview: expect.any(Date),
+                createdAt: expect.any(Date),
+                updatedAt: expect.any(Date),
+            };
+
+            mockCollection.findOne.mockResolvedValueOnce({ _id: new ObjectId(wordId), vocabularyListId: new ObjectId('507f1f77bcf86cd799439011') });
+            mockCollection.findOne.mockResolvedValueOnce({ _id: new ObjectId('507f1f77bcf86cd799439011'), userId });
+            mockCollection.findOne.mockResolvedValueOnce(null);
+            mockCollection.insertOne.mockResolvedValue({ insertedId: mockNewProgress._id });
+            mockCollection.findOne.mockResolvedValueOnce(mockNewProgress);
+
+            const result = await VocabularyService.updateWordProgress(wordId, WordStatus.MASTERED, userId);
+
+            expect(mockCollection.insertOne).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    status: WordStatus.MASTERED,
+                    streak: expect.any(Number),
+                })
+            );
+            expect(mockCollection.insertOne.mock.calls[0][0].streak).toBeGreaterThanOrEqual(5);
+            expect(result?.status).toBe(WordStatus.MASTERED);
+            expect(result?.streak).toBeGreaterThanOrEqual(5);
         });
 
         it('should not update stats when status is unchanged', async () => {

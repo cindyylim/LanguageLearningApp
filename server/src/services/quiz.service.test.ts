@@ -723,6 +723,179 @@ describe('QuizService', () => {
         });
     });
 
+    describe('SM-2 product path integration', () => {
+        const wordId = '507f1f77bcf86cd799439014';
+        const userId = 'user123';
+
+        const runQuizReview = async (
+            collections: ReturnType<typeof createMockCollections>,
+            existingProgress: ReturnType<typeof createMockWordProgress> | null,
+            accuracy: { correct: number; total: number }
+        ) => {
+            const mockWord = createMockWord();
+
+            collections.WordProgress.findOne.mockResolvedValueOnce(existingProgress);
+            collections.Word.findOne.mockResolvedValue(mockWord);
+
+            const wordProgressMap = new Map<string, { correct: number; total: number }>();
+            wordProgressMap.set(wordId, accuracy);
+
+            await (QuizService as any).updateWordProgressFromQuiz(wordProgressMap, userId);
+
+            if (!existingProgress) {
+                const inserted = collections.WordProgress.insertOne.mock.calls[
+                    collections.WordProgress.insertOne.mock.calls.length - 1
+                ][0];
+                return {
+                    _id: new ObjectId(),
+                    userId,
+                    wordId: new ObjectId(wordId),
+                    ...inserted,
+                };
+            }
+
+            const updateCall = collections.WordProgress.updateOne.mock.calls[
+                collections.WordProgress.updateOne.mock.calls.length - 1
+            ];
+            return {
+                ...existingProgress,
+                status: updateCall[1].$set.status,
+                streak: updateCall[1].$set.streak,
+                reviewCount: updateCall[1].$set.reviewCount,
+                easeFactor: updateCall[1].$set.easeFactor,
+                interval: updateCall[1].$set.interval,
+            };
+        };
+
+        const runConsecutiveQuizReviews = async (
+            collections: ReturnType<typeof createMockCollections>,
+            count: number,
+            accuracy: { correct: number; total: number }
+        ) => {
+            let progress: ReturnType<typeof createMockWordProgress> | null = null;
+
+            for (let i = 0; i < count; i++) {
+                progress = await runQuizReview(collections, progress, accuracy);
+            }
+
+            return progress;
+        };
+
+        it('should set status learning and streak 1 on first perfect quiz for a new word', async () => {
+            const collections = createMockCollections({
+                WordProgress: {
+                    findOne: jest.fn(),
+                    updateOne: jest.fn(),
+                    insertOne: jest.fn(),
+                },
+                Word: {
+                    findOne: jest.fn(),
+                },
+            });
+
+            const progress = await runQuizReview(collections, null, { correct: 1, total: 1 });
+
+            expect(progress.status).toBe(WordStatus.LEARNING);
+            expect(progress.streak).toBe(1);
+            expect(collections.WordProgress.insertOne).toHaveBeenCalled();
+            expect(collections.WordProgress.updateOne).not.toHaveBeenCalled();
+        });
+
+        it('should reach mastered status after five consecutive perfect quiz reviews', async () => {
+            const collections = createMockCollections({
+                WordProgress: {
+                    findOne: jest.fn(),
+                    updateOne: jest.fn(),
+                    insertOne: jest.fn(),
+                },
+                Word: {
+                    findOne: jest.fn(),
+                },
+            });
+
+            const progress = await runConsecutiveQuizReviews(collections, 5, { correct: 1, total: 1 });
+
+            expect(progress?.status).toBe(WordStatus.MASTERED);
+            expect(progress?.streak).toBe(5);
+            expect(collections.WordProgress.insertOne).toHaveBeenCalledTimes(1);
+            expect(collections.WordProgress.updateOne).toHaveBeenCalledTimes(4);
+        });
+
+        it('should reset streak to 0 on quiz fail and recover to streak 1 on next success', async () => {
+            const collections = createMockCollections({
+                WordProgress: {
+                    findOne: jest.fn(),
+                    updateOne: jest.fn(),
+                    insertOne: jest.fn(),
+                },
+                Word: {
+                    findOne: jest.fn(),
+                },
+            });
+
+            const streakThree = createMockWordProgress({
+                status: WordStatus.LEARNING,
+                streak: 3,
+                reviewCount: 3,
+                easeFactor: 2.6,
+                interval: 6,
+            });
+
+            const afterFail = await runQuizReview(collections, streakThree, { correct: 1, total: 4 });
+            expect(afterFail.status).toBe(WordStatus.LEARNING);
+            expect(afterFail.streak).toBe(0);
+
+            const afterSuccess = await runQuizReview(collections, afterFail, { correct: 1, total: 1 });
+            expect(afterSuccess.status).toBe(WordStatus.LEARNING);
+            expect(afterSuccess.streak).toBe(1);
+        });
+
+        it('should reset manually mastered word to learning when quiz fails (quiz path uses calculateSM2)', async () => {
+            const collections = createMockCollections({
+                WordProgress: {
+                    findOne: jest.fn(),
+                    updateOne: jest.fn(),
+                    insertOne: jest.fn(),
+                },
+                Word: {
+                    findOne: jest.fn(),
+                },
+            });
+
+            const manualMastered = createMockWordProgress({
+                status: WordStatus.MASTERED,
+                streak: 5,
+                reviewCount: 5,
+                easeFactor: 2.6,
+                interval: 6,
+            });
+
+            const afterFail = await runQuizReview(collections, manualMastered, { correct: 1, total: 4 });
+
+            expect(afterFail.status).toBe(WordStatus.LEARNING);
+            expect(afterFail.streak).toBe(0);
+        });
+
+        it('should keep new word on learning after perfect quiz (contrast with manual mastered shortcut)', async () => {
+            const collections = createMockCollections({
+                WordProgress: {
+                    findOne: jest.fn(),
+                    updateOne: jest.fn(),
+                    insertOne: jest.fn(),
+                },
+                Word: {
+                    findOne: jest.fn(),
+                },
+            });
+
+            const quizProgress = await runQuizReview(collections, null, { correct: 1, total: 1 });
+
+            expect(quizProgress.status).toBe(WordStatus.LEARNING);
+            expect(quizProgress.streak).toBe(1);
+            expect(quizProgress.streak).toBeLessThan(5);
+        });
+    });
+
     describe('updateWordProgressFromQuiz', () => {
         it('should update existing word progress using SM-2 for good accuracy (q=4)', async () => {
             const userId = 'user123';
