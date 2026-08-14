@@ -139,8 +139,8 @@ export async function ensureIndexes(db: Db): Promise<void> {
         // ============================================
         // Used in: vocabulary.ts, quizzes.ts (find stats by userId and date range)
         await db.collection('LearningStats').createIndex(
-            { userId: 1, date: -1 },
-            { name: 'idx_learningstats_user_date' }
+            { userId: 1, date: 1 },
+            { unique: true, name: 'idx_learningstats_user_date' }
         );
         logger.info('LearningStats indexes created');
 

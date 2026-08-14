@@ -67,6 +67,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const response = await api.post('/auth/login', { email, password });
       await completeAuthFlow(set, response, 'Login successful!');
     } catch (error: unknown) {
+      set({ loading: false });
       const message = getErrorMessage(error) || 'Login failed';
       toast.error(message);
       throw error;
@@ -86,6 +87,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         });
         await completeAuthFlow(set, response, 'Logged in with Demo Account!');
       } catch (fallbackErr: unknown) {
+        set({ loading: false });
         const message = getErrorMessage(fallbackErr) || 'Demo login failed';
         toast.error(message);
         throw fallbackErr;
@@ -99,6 +101,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const response = await api.post('/auth/register', userData);
       await completeAuthFlow(set, response, 'Registration successful!');
     } catch (error: unknown) {
+      set({ loading: false });
       const message = getErrorMessage(error) || 'Registration failed';
       toast.error(message);
       throw error;

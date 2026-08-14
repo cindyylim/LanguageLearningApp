@@ -233,11 +233,6 @@ export class VocabularyService {
             .toArray() as unknown as { _id: ObjectId }[];
         const wordIds = words.map((w: { _id: ObjectId }) => w._id.toString());
 
-        await db.collection('VocabularyList').deleteOne({ _id: listObjectId });
-        const wordsDeleteResult = await db
-            .collection('Word')
-            .deleteMany({ vocabularyListId: listObjectId });
-
         let progressDeleteResult = { deletedCount: 0 };
         if (wordIds.length > 0) {
             progressDeleteResult = await db.collection('WordProgress').deleteMany({
@@ -246,10 +241,32 @@ export class VocabularyService {
             });
         }
 
+        const wordsDeleteResult = await db
+            .collection('Word')
+            .deleteMany({ vocabularyListId: listObjectId });
+
+        await db.collection('VocabularyList').deleteOne({ _id: listObjectId });
+
         return {
             deletedWords: wordsDeleteResult.deletedCount || 0,
             deletedWordProgress: progressDeleteResult.deletedCount || 0
         };
+    }
+
+    private static async verifyWordOwnership(wordId: string, userId: string): Promise<boolean> {
+        const db = await getDatabase();
+
+        const word = await db.collection('Word').findOne({ _id: new ObjectId(wordId) });
+        if (!word) {
+            return false;
+        }
+
+        const list = await db.collection('VocabularyList').findOne({
+            _id: new ObjectId(word.vocabularyListId.toString()),
+            userId
+        });
+
+        return !!list;
     }
 
     /**
@@ -463,8 +480,7 @@ export class VocabularyService {
         const db = await getDatabase();
         const now = new Date();
 
-        const word = await db.collection('Word').findOne({ _id: new ObjectId(wordId) });
-        if (!word) {
+        if (!(await this.verifyWordOwnership(wordId, userId))) {
             return null;
         }
 
@@ -479,6 +495,15 @@ export class VocabularyService {
             interval: existingProgress?.interval ?? 1,
             now
         });
+
+        const previousStatus = existingProgress?.status ?? 'new';
+        if (previousStatus === sm2Result.status) {
+            return existingProgress ?? {
+                status: 'new',
+                reviewCount: 0,
+                streak: 0
+            };
+        }
 
         let insertedId = existingProgress?._id.toString();
         if (existingProgress) {
@@ -518,7 +543,6 @@ export class VocabularyService {
         const updatedProgress = await db.collection('WordProgress').findOne({
             _id: new ObjectId(insertedId)
         });
-        // Update daily learning stats
         await LearningStatsService.updateDailyStats(userId, { wordsReviewed: 1 });
         return updatedProgress;
     }
@@ -528,6 +552,10 @@ export class VocabularyService {
      */
     static async getWordProgress(wordId: string, userId: string) {
         const db = await getDatabase();
+
+        if (!(await this.verifyWordOwnership(wordId, userId))) {
+            return null;
+        }
 
         const progress = await db.collection('WordProgress').findOne({
             userId,

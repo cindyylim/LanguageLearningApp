@@ -7,8 +7,8 @@ const router: Router = Router();
 
 // Middleware to ensure these endpoints are only available in test environment
 const testOnlyMiddleware = (req: Request, res: Response, next: NextFunction) => {
-  if (process.env.NODE_ENV === 'production') {
-    return res.status(403).json({ error: 'Test database endpoints are not available in production' });
+  if (process.env.NODE_ENV !== 'test') {
+    return res.status(403).json({ error: 'Test database endpoints are only available in test environment' });
   }
   return next();
 };
@@ -49,9 +49,11 @@ router.post('/delete-user', asyncHandler(async (req: Request, res: Response) => 
       return res.status(404).json({ error: 'User not found' });
     }
 
+    const userId = user._id.toString();
+
     // Delete user's vocabulary lists and words
     const vocabLists = await db.collection('VocabularyList').find({
-      userId: user._id
+      userId
     }).toArray();
 
     const vocabListIds = vocabLists.map(list => list._id);
@@ -64,17 +66,17 @@ router.post('/delete-user', asyncHandler(async (req: Request, res: Response) => 
 
       // Delete the vocabulary lists
       await db.collection('VocabularyList').deleteMany({
-        userId: user._id
+        userId
       });
     }
 
     // Delete user's quiz attempts and progress
     await db.collection('QuizAttempt').deleteMany({
-      userId: user._id
+      userId
     });
 
     await db.collection('WordProgress').deleteMany({
-      userId: user._id
+      userId
     });
 
     // Delete the user

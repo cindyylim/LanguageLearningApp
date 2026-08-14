@@ -569,8 +569,7 @@ describe('QuizService', () => {
                     findOne: jest.fn().mockResolvedValue(mockWord)
                 },
                 LearningStats: {
-                    findOne: jest.fn().mockResolvedValue(null),
-                    insertOne: jest.fn()
+                    findOneAndUpdate: jest.fn()
                 }
             });
 
@@ -621,16 +620,18 @@ describe('QuizService', () => {
                 wordId: new ObjectId('507f1f77bcf86cd799439015')
             });
             expect(collections.WordProgress.updateOne).toHaveBeenCalledTimes(2);
-            expect(collections.LearningStats.insertOne).toHaveBeenCalledWith({
-                userId,
-                date: expect.any(Date),
-                quizzesTaken: 1,
-                wordsReviewed: 2,
-                totalQuestions: 2,
-                correctAnswers: 2,
-                createdAt: expect.any(Date),
-                updatedAt: expect.any(Date)
-            });
+            expect(collections.LearningStats.findOneAndUpdate).toHaveBeenCalledWith(
+                { userId, date: expect.any(Date) },
+                expect.objectContaining({
+                    $inc: {
+                        quizzesTaken: 1,
+                        wordsReviewed: 2,
+                        totalQuestions: 2,
+                        correctAnswers: 2
+                    }
+                }),
+                { upsert: true }
+            );
         });
 
         it('should return null if quiz does not exist', async () => {
@@ -926,8 +927,7 @@ describe('QuizService', () => {
                     findOne: jest.fn()
                 },
                 LearningStats: {
-                    findOne: jest.fn().mockResolvedValue(null),
-                    insertOne: jest.fn()
+                    findOneAndUpdate: jest.fn()
                 }
             });
 
@@ -956,10 +956,14 @@ describe('QuizService', () => {
             expect(collections.WordProgress.insertOne).not.toHaveBeenCalled();
 
             // Verify LearningStats was still called with 0 wordsReviewed
-            expect(collections.LearningStats.insertOne).toHaveBeenCalledWith(
+            expect(collections.LearningStats.findOneAndUpdate).toHaveBeenCalledWith(
+                { userId, date: expect.any(Date) },
                 expect.objectContaining({
-                    wordsReviewed: 0 // No valid words were reviewed
-                })
+                    $inc: expect.objectContaining({
+                        wordsReviewed: 0
+                    })
+                }),
+                { upsert: true }
             );
         });
 
@@ -986,7 +990,7 @@ describe('QuizService', () => {
     });
 
     describe('LearningStatsService.updateDailyStats', () => {
-        it('should update existing learning stats including wordsReviewed', async () => {
+        it('should upsert learning stats including wordsReviewed', async () => {
             const userId = 'user123';
             const stats = {
                 quizzesTaken: 2,
@@ -995,34 +999,16 @@ describe('QuizService', () => {
                 wordsReviewed: 3
             };
 
-            const mockExistingStats = {
-                _id: new ObjectId('507f1f77bcf86cd799439017'),
-                userId: 'user123',
-                date: new Date('2025-10-10T10:10:10.000Z'),
-                quizzesTaken: 5,
-                wordsReviewed: 8,
-                totalQuestions: 8,
-                correctAnswers: 6,
-                createdAt: '2025-10-10T10:10:10.000Z',
-                updatedAt: '2025-10-10T10:10:10.000Z'
-            };
-
             const collections = createMockCollections({
                 LearningStats: {
-                    findOne: jest.fn().mockResolvedValue(mockExistingStats),
-                    updateOne: jest.fn()
+                    findOneAndUpdate: jest.fn()
                 }
             });
 
             await LearningStatsService.updateDailyStats(userId, stats);
 
-            // Verify the update was called correctly
-            expect(collections.LearningStats.findOne).toHaveBeenCalledWith({
-                userId,
-                date: expect.any(Object) // Date range check
-            });
-            expect(collections.LearningStats.updateOne).toHaveBeenCalledWith(
-                { _id: mockExistingStats._id },
+            expect(collections.LearningStats.findOneAndUpdate).toHaveBeenCalledWith(
+                { userId, date: expect.any(Date) },
                 {
                     $inc: {
                         quizzesTaken: 2,
@@ -1030,14 +1016,20 @@ describe('QuizService', () => {
                         totalQuestions: 10,
                         correctAnswers: 8
                     },
+                    $setOnInsert: {
+                        userId,
+                        date: expect.any(Date),
+                        createdAt: expect.any(Date)
+                    },
                     $set: {
                         updatedAt: expect.any(Date)
                     }
-                }
+                },
+                { upsert: true }
             );
         });
 
-        it('should create new learning stats record', async () => {
+        it('should upsert new learning stats record', async () => {
             const userId = 'user123';
             const stats = {
                 quizzesTaken: 1,
@@ -1048,28 +1040,24 @@ describe('QuizService', () => {
 
             const collections = createMockCollections({
                 LearningStats: {
-                    findOne: jest.fn().mockResolvedValue(null), // No existing stats
-                    insertOne: jest.fn()
+                    findOneAndUpdate: jest.fn()
                 }
             });
 
             await LearningStatsService.updateDailyStats(userId, stats);
 
-            // Verify a new record was created
-            expect(collections.LearningStats.findOne).toHaveBeenCalledWith({
-                userId,
-                date: expect.any(Object) // Date range check
-            });
-            expect(collections.LearningStats.insertOne).toHaveBeenCalledWith({
-                userId,
-                date: expect.any(Date),
-                quizzesTaken: 1,
-                wordsReviewed: 2,
-                totalQuestions: 5,
-                correctAnswers: 3,
-                createdAt: expect.any(Date),
-                updatedAt: expect.any(Date)
-            });
+            expect(collections.LearningStats.findOneAndUpdate).toHaveBeenCalledWith(
+                { userId, date: expect.any(Date) },
+                expect.objectContaining({
+                    $inc: {
+                        quizzesTaken: 1,
+                        wordsReviewed: 2,
+                        totalQuestions: 5,
+                        correctAnswers: 3
+                    }
+                }),
+                { upsert: true }
+            );
         });
     });
 });

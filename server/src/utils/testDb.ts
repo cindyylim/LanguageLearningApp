@@ -160,6 +160,17 @@ export async function cleanupTestData() {
       userId: { $in: testUserIds }
     });
 
+    const userQuizzes = await db.collection('Quiz').find({
+      userId: { $in: testUserIds }
+    }).toArray();
+    const quizIds = userQuizzes.map(quiz => quiz._id.toString());
+
+    if (quizIds.length > 0) {
+      await db.collection('QuizQuestion').deleteMany({
+        quizId: { $in: quizIds }
+      });
+    }
+
     await db.collection('Quiz').deleteMany({
       userId: { $in: testUserIds }
     });
@@ -171,11 +182,6 @@ export async function cleanupTestData() {
     await db.collection('WordProgress').deleteMany({
       userId: { $in: testUserIds }
     });
-
-    await db.collection('QuizQuestion').deleteMany({
-      userId: { $in: testUserIds }
-    });
-
 
     await db.collection('LearningStats').deleteMany({
       userId: { $in: testUserIds }

@@ -5,6 +5,7 @@ import { AIService } from './ai';
 import type { AIWordInput, Question } from '../shared/types/index';
 import { Quiz, QuizQuestion } from '../interface/Quiz';
 import { Answer } from '../interface/Answer';
+import { AppError } from '../utils/AppError';
 import logger from '../utils/logger';
 import { calculateSM2, mapAccuracyToQuality } from '../utils/sm2';
 
@@ -155,7 +156,7 @@ export class QuizService {
 
         const processedAnswers = answers.map((answer) => {
             const question = questions.find((q: QuizQuestion) => q._id.toString() === answer.questionId);
-            if (!question) throw new Error(`Question ${answer.questionId} not found`);
+            if (!question) throw new AppError(`Question ${answer.questionId} not found`, 400);
 
             const isCorrect = answer.answer.toLowerCase().trim() === question.correctAnswer.toLowerCase().trim();
             if (isCorrect) correctAnswers++;

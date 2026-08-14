@@ -29,7 +29,7 @@ const addWordSchema = z.object({
 });
 
 const updateProgressSchema = z.object({
-  status: z.enum(['learning', 'mastered', 'new']).optional()
+  status: z.enum(['learning', 'mastered', 'new'])
 });
 
 const updateWordSchema = z.object({
@@ -91,6 +91,11 @@ router.post('/', validate(createVocabularyListSchema), asyncHandler(async (req: 
 router.get('/words/:wordId/progress', validateObjectId('wordId'), asyncHandler(async (req: AuthRequest, res: Response) => {
   const { wordId } = req.params;
   const progress = await VocabularyService.getWordProgress(wordId as string, req.user!.id);
+
+  if (!progress) {
+    throw new AppError('Word not found', 404);
+  }
+
   return res.json({ progress });
 }));
 

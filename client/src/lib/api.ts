@@ -26,13 +26,14 @@ api.interceptors.request.use(
     (error) => Promise.reject(error)
 );
 
-export const fetchCSRFToken = async (): Promise<void> => {
-    try {
-        const response = await api.get('/csrf-token');
-        csrfToken = response.data.csrfToken;
-    } catch (error) {
-        console.error('Failed to fetch CSRF token:', error);
+export const fetchCSRFToken = async (): Promise<string> => {
+    const response = await api.get('/csrf-token');
+    const token = response.data?.csrfToken;
+    if (!token || typeof token !== 'string') {
+        throw new Error('CSRF token not returned');
     }
+    csrfToken = token;
+    return token;
 };
 
 export const clearCSRFToken = (): void => {

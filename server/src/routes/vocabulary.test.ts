@@ -636,6 +636,19 @@ describe("Vocabulary API Endpoints", () => {
         "test-user-id"
       );
     });
+
+    it("should return 404 for non-owned word when getting progress", async () => {
+      const wordId = new ObjectId();
+
+      const { VocabularyService } = require("../services/vocabulary.service");
+      VocabularyService.getWordProgress = jest.fn().mockResolvedValue(null);
+
+      const response = await request(testApp)
+        .get(`/api/vocabulary/words/${wordId}/progress`)
+        .expect(404);
+
+      expect(response.body).toHaveProperty("message");
+    });
   });
 
   describe("POST /api/vocabulary/words/:wordId/progress", () => {
