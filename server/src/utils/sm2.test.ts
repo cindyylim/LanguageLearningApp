@@ -1,4 +1,4 @@
-import { calculateSM2, mapAccuracyToQuality, mapStatusToQuality } from './sm2';
+import { calculateSM2, calculateFromManualStatus, mapAccuracyToQuality, mapStatusToQuality } from './sm2';
 
 describe('SM-2 Spaced Repetition Utility', () => {
     describe('mapAccuracyToQuality', () => {
@@ -75,7 +75,6 @@ describe('SM-2 Spaced Repetition Utility', () => {
 
             expect(result.repetition).toBe(0);
             expect(result.interval).toBe(1);
-            expect(result.mastery).toBe(0.0);
             expect(result.status).toBe('learning');
             expect(result.nextReview).toEqual(new Date('2026-07-28T00:00:00Z'));
         });
@@ -83,6 +82,29 @@ describe('SM-2 Spaced Repetition Utility', () => {
         it('should not allow easeFactor to drop below 1.3', () => {
             let result = calculateSM2({ quality: 0, easeFactor: 1.3 });
             expect(result.easeFactor).toBe(1.3);
+        });
+    });
+
+    describe('calculateFromManualStatus', () => {
+        it('should mark a word mastered on the first Mastered click', () => {
+            const now = new Date('2026-07-27T00:00:00Z');
+            const result = calculateFromManualStatus('mastered', { now });
+
+            expect(result.status).toBe('mastered');
+            expect(result.repetition).toBeGreaterThanOrEqual(5);
+        });
+
+        it('should persist learning status when Learning is selected', () => {
+            const now = new Date('2026-07-27T00:00:00Z');
+            const result = calculateFromManualStatus('learning', {
+                repetition: 4,
+                easeFactor: 2.5,
+                interval: 15,
+                now,
+            });
+
+            expect(result.status).toBe('learning');
+            expect(result.repetition).toBe(0);
         });
     });
 });

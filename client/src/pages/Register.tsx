@@ -24,7 +24,6 @@ const Register: React.FC = () => {
   const { register } = useAuthStore();
   const navigate = useNavigate();
 
-  // Password validation function
   const isPasswordValid = (pw: string) => {
     return (
       pw.length >= 8 &&

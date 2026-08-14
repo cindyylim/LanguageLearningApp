@@ -14,9 +14,7 @@ import {
   buildQuestionsPrompt,
   buildVocabularyListPrompt,
 } from './aiPrompts';
-import type { Difficulty, Question, UserProgress, Word } from './ai.types';
-
-export type { Difficulty, Question, UserProgress, Word } from './ai.types';
+import type { Difficulty, Question, UserProgress, Word, WordProgress } from '../../..//shared/types/index';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -204,8 +202,7 @@ export class AIService {
   }> {
     try {
       const weakWords = userProgress
-        .filter((p) => p.mastery < 1.0)
-        .map((p) => p.wordId);
+        .filter((p) => p.status === WordStatus.NEW || p.status === WordStatus.LEARNING);
       const avgRecentScore =
         recentPerformance.length > 0
           ? recentPerformance.reduce((sum, p) => sum + p.score, 0) /

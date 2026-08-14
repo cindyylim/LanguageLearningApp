@@ -1,9 +1,8 @@
 import { connectToDatabase } from '../utils/mongo';
 import { connectToTestDatabase } from '../utils/testMongo';
 import { ObjectId } from 'mongodb';
-import { AIService, UserProgress } from './ai';
-import { WordProgress } from '../interface/WordProgress';
-import { QuizAttempt } from '../interface/Quiz';
+import { AIService } from './ai';
+import { WordStatus, WordProgress, QuizAttempt, UserProgress} from "../../../shared/types/index";
 
 interface LearningStatsDocument {
     date: Date;
@@ -116,8 +115,8 @@ export class AnalyticsService {
         currentStreak: number
     ) {
         const totalWords = wordProgress.length;
-        const masteredWords = wordProgress.filter((wp: WordProgress) => wp.mastery == 1.0).length;
-        const needsReview = wordProgress.filter((wp: WordProgress) => wp.mastery < 1.0).length;
+        const masteredWords = wordProgress.filter((wp: WordProgress) => wp.progress?.status == WordStatus.MASTERED).length;
+        const needsReview = wordProgress.filter((wp: WordProgress) => wp.progress?.status == WordStatus.NEW || wp.progress?.status == WordStatus.LEARNING).length;
         const totalQuizzesTaken = allAttempts.length;
 
         const recentAttempts = allAttempts.slice(0, 10);
@@ -176,7 +175,6 @@ export class AnalyticsService {
         const progressData: UserProgress[] = userProgress.map((wp: WordProgress) => ({
             userId,
             wordId: wp.wordId.toString(),
-            mastery: wp.mastery,
             reviewCount: wp.reviewCount,
             streak: wp.streak,
             lastReviewed: wp.lastReviewed ? new Date(wp.lastReviewed) : undefined

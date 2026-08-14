@@ -239,7 +239,10 @@ describe("Vocabulary API Endpoints", () => {
 
       // Mock the vocabulary service
       const { VocabularyService } = require("../services/vocabulary.service");
-      VocabularyService.getUserLists = jest.fn().mockResolvedValue(mockLists);
+      VocabularyService.getUserLists = jest.fn().mockResolvedValue({
+        lists: mockLists,
+        hasMore: false,
+      });
 
       const response = await request(testApp)
         .get("/api/vocabulary")
@@ -247,6 +250,7 @@ describe("Vocabulary API Endpoints", () => {
 
       expect(response.body).toEqual({
         vocabularyLists: mockLists,
+        hasMore: false,
         page: 1,
         limit: 20,
       });
@@ -258,10 +262,10 @@ describe("Vocabulary API Endpoints", () => {
       );
 
       const expectedKey = mockGetCacheKeyUserListsRef.mock.results[0]?.value;
-      expect(mockVocabularyCacheSet).toHaveBeenCalledWith(
-        expectedKey,
-        mockLists
-      );
+      expect(mockVocabularyCacheSet).toHaveBeenCalledWith(expectedKey, {
+        vocabularyLists: mockLists,
+        hasMore: false,
+      });
     });
 
     it("should support pagination", async () => {
@@ -269,13 +273,17 @@ describe("Vocabulary API Endpoints", () => {
 
       // Mock the vocabulary service
       const { VocabularyService } = require("../services/vocabulary.service");
-      VocabularyService.getUserLists = jest.fn().mockResolvedValue(mockLists);
+      VocabularyService.getUserLists = jest.fn().mockResolvedValue({
+        lists: mockLists,
+        hasMore: false,
+      });
       const response = await request(testApp)
         .get("/api/vocabulary?page=2&limit=5")
         .expect(200);
 
       expect(response.body).toEqual({
         vocabularyLists: [],
+        hasMore: false,
         page: 2,
         limit: 5,
       });
@@ -285,11 +293,38 @@ describe("Vocabulary API Endpoints", () => {
         5
       );
       const expectedKey = mockGetCacheKeyUserListsRef.mock.results[0]?.value;
-      expect(mockVocabularyCacheSet).toHaveBeenCalledWith(
-        expectedKey,
-        mockLists
-      );
+      expect(mockVocabularyCacheSet).toHaveBeenCalledWith(expectedKey, {
+        vocabularyLists: mockLists,
+        hasMore: false,
+      });
     });
+
+    it("should return hasMore true when another page exists", async () => {
+      const mockLists: any[] = Array.from({ length: 20 }, (_, i) => ({
+        _id: new ObjectId().toString(),
+        name: `List ${i + 1}`,
+        userId: "test-user-id",
+        _count: { words: 1 },
+      }));
+
+      const { VocabularyService } = require("../services/vocabulary.service");
+      VocabularyService.getUserLists = jest.fn().mockResolvedValue({
+        lists: mockLists,
+        hasMore: true,
+      });
+
+      const response = await request(testApp)
+        .get("/api/vocabulary")
+        .expect(200);
+
+      expect(response.body).toEqual({
+        vocabularyLists: mockLists,
+        hasMore: true,
+        page: 1,
+        limit: 20,
+      });
+    });
+
     it("should return cached list", async () => {
       const mockLists: any[] = [
         {
@@ -301,7 +336,10 @@ describe("Vocabulary API Endpoints", () => {
       ];
 
       // Mock vocabularyCache to return cached data
-      mockVocabularyCacheGet.mockReturnValue(mockLists);
+      mockVocabularyCacheGet.mockReturnValue({
+        vocabularyLists: mockLists,
+        hasMore: false,
+      });
 
       const response = await request(testApp)
         .get("/api/vocabulary")
@@ -309,6 +347,7 @@ describe("Vocabulary API Endpoints", () => {
 
       expect(response.body).toEqual({
         vocabularyLists: mockLists,
+        hasMore: false,
         page: 1,
         limit: 20,
       });
@@ -542,7 +581,6 @@ describe("Vocabulary API Endpoints", () => {
         _id: new ObjectId(),
         wordId: wordId,
         userId: "test-user-id",
-        mastery: 0.7,
         status: "learning",
         reviewCount: 3,
         lastReviewed: new Date(),
@@ -563,7 +601,6 @@ describe("Vocabulary API Endpoints", () => {
           _id: mockProgress._id.toString(),
           wordId: mockProgress.wordId.toString(),
           userId: mockProgress.userId,
-          mastery: mockProgress.mastery,
           status: mockProgress.status,
           reviewCount: mockProgress.reviewCount,
           lastReviewed: expect.any(String),
@@ -581,7 +618,6 @@ describe("Vocabulary API Endpoints", () => {
       const wordId = new ObjectId();
       const progressData = {
         status: "mastered",
-        mastery: 0.9,
       };
 
       const mockUpdatedProgress = {
@@ -610,7 +646,6 @@ describe("Vocabulary API Endpoints", () => {
           _id: mockUpdatedProgress._id.toString(),
           wordId: mockUpdatedProgress.wordId.toString(),
           userId: mockUpdatedProgress.userId,
-          mastery: mockUpdatedProgress.mastery,
           status: mockUpdatedProgress.status,
           reviewCount: mockUpdatedProgress.reviewCount,
           lastReviewed: expect.any(String),

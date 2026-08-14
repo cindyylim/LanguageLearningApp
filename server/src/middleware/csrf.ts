@@ -40,11 +40,6 @@ export const getCSRFToken = asyncHandler(async (req: Request, res: Response): Pr
     }
 
     const identity = getIdentity(req);
-    if (!identity) {
-        res.status(401).json({ error: 'Authentication required' });
-        return;
-    }
-
     const key = keyFor(identity);
 
     let token = await redis.get(key);
@@ -82,11 +77,6 @@ export const verifyCSRFToken = asyncHandler(async (req: Request, res: Response, 
     }
 
     const identity = getIdentity(req);
-    if (!identity) {
-        res.status(401).json({ error: 'Authentication required' });
-        return;
-    }
-
     const key = keyFor(identity);
 
     let storedToken: string | null;

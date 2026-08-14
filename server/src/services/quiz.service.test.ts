@@ -216,7 +216,6 @@ describe('QuizService', () => {
         _id: new ObjectId('507f1f77bcf86cd799439017'),
         userId: 'user123',
         wordId: new ObjectId('507f1f77bcf86cd799439014'),
-        mastery: 0.5,
         status: 'learning',
         reviewCount: 2,
         streak: 1,
@@ -729,7 +728,6 @@ describe('QuizService', () => {
 
             // streak=1 means SM-2 repetition=1, so next will be repetition=2 -> interval=6
             const mockExistingProgress = createMockWordProgress({
-                mastery: 0.5,
                 streak: 1,
                 easeFactor: 2.5,
                 interval: 1
@@ -757,7 +755,6 @@ describe('QuizService', () => {
                 { _id: mockExistingProgress._id },
                 {
                     $set: {
-                        mastery: expect.any(Number),
                         status: 'learning',
                         reviewCount: 6, // 2 + 4
                         streak: 2, // SM-2 repetition incremented
@@ -777,7 +774,6 @@ describe('QuizService', () => {
             wordProgressMap.set('507f1f77bcf86cd799439014', { correct: 1, total: 1 }); // 100% -> q=5
 
             const mockExistingProgress = createMockWordProgress({
-                mastery: 0.5,
                 streak: 1,
                 easeFactor: 2.5,
                 interval: 1
@@ -809,7 +805,6 @@ describe('QuizService', () => {
             wordProgressMap.set('507f1f77bcf86cd799439014', { correct: 1, total: 4 }); // 25% -> q=2
 
             const mockExistingProgress = createMockWordProgress({
-                mastery: 0.7,
                 status: 'learning',
                 reviewCount: 5,
                 streak: 3,
@@ -835,7 +830,6 @@ describe('QuizService', () => {
                 { _id: mockExistingProgress._id },
                 {
                     $set: {
-                        mastery: 0, // SM-2: repetition reset to 0
                         status: 'learning',
                         reviewCount: 9, // 5 + 4
                         streak: 0, // SM-2: repetition reset to 0
@@ -876,7 +870,6 @@ describe('QuizService', () => {
             expect(collections.WordProgress.insertOne).toHaveBeenCalledWith({
                 userId,
                 wordId: new ObjectId('507f1f77bcf86cd799439014'),
-                mastery: expect.any(Number),
                 status: 'learning',
                 reviewCount: 4,
                 streak: 1,

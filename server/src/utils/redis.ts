@@ -23,7 +23,7 @@ export function getRedisClient(): Redis | null {
         });
 
         client.on('connect', () => {
-            logger.info('🔌 Redis connected');
+            logger.info('Redis connected');
         });
 
         client.on('error', (err) => {

@@ -4,8 +4,7 @@ import { initialState } from "../reducers/vocabularyDetailsReducer";
 import { useEffect, useReducer } from "react";
 import { getErrorMessage } from "../types/errors";
 import { useNavigate, useParams } from "react-router-dom";
-import { Word } from "../types/vocabulary";
-
+import { Word, WordStatus } from "../../../shared/types/index";
 export const useVocabularyDetails = () => {
     const navigate = useNavigate();
 
@@ -28,7 +27,7 @@ export const useVocabularyDetails = () => {
 
     const handleEditList = async (e: React.FormEvent) => {
         e.preventDefault();
-        dispatch({ type: 'ACTION_START' });
+        dispatch({ type: 'ACTION_START', payload: 'save' });
         try {
             await api.put(`/vocabulary/${id}`, state.editListForm);
             dispatch({ type: 'CLOSE_EDIT_LIST_MODAL' });
@@ -43,10 +42,11 @@ export const useVocabularyDetails = () => {
     };
 
     const handleDeleteList = async () => {
-        dispatch({ type: 'ACTION_START' });
+        dispatch({ type: 'ACTION_START', payload: 'delete' });
         try {
             await api.delete(`/vocabulary/${id}`);
             dispatch({ type: 'ACTION_END' });
+            dispatch({ type: 'CLOSE_DELETE_LIST_MODAL' });
             navigate('/vocabulary');
         } catch (err: unknown) {
             alert(getErrorMessage(err) || 'Failed to delete list');
@@ -61,7 +61,7 @@ export const useVocabularyDetails = () => {
     const handleEditWord = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!state.showEditWordModal) return;
-        dispatch({ type: 'ACTION_START' });
+        dispatch({ type: 'ACTION_START', payload: 'save' });
         try {
             await api.put(`/vocabulary/${id}/words/${state.editWordForm.id}`, state.editWordForm);
             dispatch({ type: 'CLOSE_EDIT_WORD_MODAL' });
@@ -77,7 +77,7 @@ export const useVocabularyDetails = () => {
 
     const handleDeleteWord = async () => {
         if (!state.deleteWordId) return;
-        dispatch({ type: 'ACTION_START' });
+        dispatch({ type: 'ACTION_START', payload: 'delete' });
         try {
             await api.delete(`/vocabulary/${id}/words/${state.deleteWordId}`);
             dispatch({ type: 'SET_DELETE_WORD_ID', payload: null });
@@ -91,11 +91,10 @@ export const useVocabularyDetails = () => {
         }
     };
 
-    // Add function to update word progress
-    const updateWordProgress = async (listId: string, wordId: string, status: 'learning' | 'mastered') => {
+    const updateWordProgress = async (_listId: string, wordId: string, status: WordStatus) => {
         try {
-            await api.post(`/vocabulary/words/${wordId}/progress`, { status, listId });
-            // Refresh list
+            await api.post(`/vocabulary/words/${wordId}/progress`, { status });
+            // Refresh listlearning' 
             if (id) {
                 const res = await api.get(`/vocabulary/${id}`);
                 dispatch({ type: 'FETCH_SUCCESS', payload: res.data.vocabularyList });

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../lib/api';
 import { Link } from 'react-router-dom';
-import { ListVocabulary } from '../types/vocabulary';
+import { VocabularyList } from '../../../shared/types/index';
 import { QuizAttempt } from './Analytics';
 import { QuizQuestion } from './Quiz';
 import toast from 'react-hot-toast';
@@ -26,7 +26,7 @@ const Quizzes: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const [vocabLists, setVocabLists] = useState<ListVocabulary[]>([]);
+  const [vocabLists, setVocabLists] = useState<VocabularyList[]>([]);
   const [form, setForm] = useState({
     vocabularyListId: '',
     difficulty: 'medium',
@@ -98,7 +98,7 @@ const Quizzes: React.FC = () => {
                   onChange={e => setForm(f => ({ ...f, vocabularyListId: e.target.value }))}
                 >
                   <option value="">Select a list</option>
-                  {vocabLists.map((list: ListVocabulary) => (
+                  {vocabLists.map((list: VocabularyList) => (
                     <option key={list._id} value={list._id}>{list.name}</option>
                   ))}
                 </select>

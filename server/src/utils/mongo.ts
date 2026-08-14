@@ -4,38 +4,26 @@ import logger from './logger';
 
 const MONGODB_URI = process.env.MONGODB_URI as string;
 
-// 1. Basic Validation
 if (!MONGODB_URI) {
   throw new Error('Please define the MONGODB_URI environment variable');
 }
 
-// 2. Global Cache Variables
-// We cache the Promise, not just the connection. This prevents
-// "Race Conditions" where 5 requests hit the server at once and 
-// all try to open a connection simultaneously.
+// Cache the connection promise so concurrent callers share one in-flight connect.
 let cachedClient: MongoClient | null = null;
 let cachedDb: Db | null = null;
-
-// This variable will hold the promise of the connection
 let connectionPromise: Promise<{ client: MongoClient; db: Db }> | null = null;
-
-// Track if indexes have been created
 let indexesCreated = false;
 
 export async function connectToDatabase(): Promise<Db> {
-  // A. If we are already connected, return the cached DB immediately.
   if (cachedDb) {
     return cachedDb;
   }
 
-  // B. If a connection is currently in progress, wait for it.
-  //    This handles the "thundering herd" problem on server startup.
   if (connectionPromise) {
     const { db } = await connectionPromise;
     return db;
   }
 
-  // C. Otherwise, start a new connection.
   connectionPromise = (async () => {
     try {
       if (!cachedClient) {
@@ -45,7 +33,6 @@ export async function connectToDatabase(): Promise<Db> {
           minPoolSize: 2,
           maxIdleTimeMS: 30000,
         });
-        // CLEAR CACHE ON ERROR
         cachedClient.on('topologyClosed', () => {
           logger.warn('MongoDB topology closed. Clearing cache.');
           cachedClient = null;
@@ -57,10 +44,8 @@ export async function connectToDatabase(): Promise<Db> {
       await cachedClient.connect();
       const db = cachedClient.db();
 
-      // Save to cache for future use
       cachedDb = db;
 
-      // Create indexes on first connection
       if (!indexesCreated) {
         await ensureIndexes(db);
         indexesCreated = true;
@@ -68,7 +53,6 @@ export async function connectToDatabase(): Promise<Db> {
 
       return { client: cachedClient, db };
     } catch (error) {
-      // If connection fails, clear the promise so the next request can try again
       connectionPromise = null;
       throw error;
     }

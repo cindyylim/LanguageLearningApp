@@ -51,9 +51,9 @@ describe('AnalyticsService', () => {
     describe('getSummaryStats', () => {
         it('should calculate summary statistics', () => {
             const wordProgress = [
-                { mastery: 1.0, streak: 5 },
-                { mastery: 0.5, streak: 2 },
-                { mastery: 0.3, streak: 1 },
+                { status: "mastered" streak: 5 },
+                {  status: "learning" , streak: 2 },
+                { status: 'learning', streak: 1 },
             ] as any;
 
             const allAttempts = [
@@ -88,7 +88,6 @@ describe('AnalyticsService', () => {
                     _id: 'wp1',
                     wordId: 'word1',
                     userId,
-                    mastery: 1.0,
                     status: 'mastered',
                     reviewCount: 5,
                     streak: 3,
@@ -102,7 +101,6 @@ describe('AnalyticsService', () => {
                     _id: 'wp2',
                     wordId: 'word2',
                     userId,
-                    mastery: 0.5,
                     status: 'learning',
                     reviewCount: 2,
                     streak: 1,
@@ -257,7 +255,6 @@ describe('AnalyticsService', () => {
                     _id: 'wp1',
                     wordId: '507f1f77bcf86cd799439011',
                     userId,
-                    mastery: 0.5,
                     status: 'learning',
                     reviewCount: 2,
                     streak: 1,
@@ -271,7 +268,6 @@ describe('AnalyticsService', () => {
                     _id: 'wp2',
                     wordId: '507f1f77bcf86cd799439012',
                     userId,
-                    mastery: 0.8,
                     status: 'learning',
                     reviewCount: 3,
                     streak: 2,
@@ -436,7 +432,6 @@ describe('AnalyticsService', () => {
                     expect.objectContaining({
                         userId,
                         wordId: '507f1f77bcf86cd799439011',
-                        mastery: 0.5,
                         reviewCount: 2,
                         streak: 1,
                         lastReviewed: lastReviewedDate,
@@ -444,7 +439,6 @@ describe('AnalyticsService', () => {
                     expect.objectContaining({
                         userId,
                         wordId: '507f1f77bcf86cd799439012',
-                        mastery: 0.8,
                         reviewCount: 3,
                         streak: 2,
                         lastReviewed: lastReviewedDate,

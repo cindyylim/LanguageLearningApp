@@ -96,7 +96,7 @@ function sendProductionError(res: Response, req: Request, err: unknown): void {
   }
 
   const log = req.logger || logger;
-  log.error('ERROR 💥', { error: err });
+  log.error('ERROR', { error: err });
   res.status(500).json({
     status: 'error',
     message: 'Something went very wrong!',

@@ -2,28 +2,23 @@ import { Db } from 'mongodb';
 import logger from './logger';
 
 /**
- * Creates all necessary database indexes for optimal query performance.
- * This function should be called once during application startup.
- * 
- * Indexes are created based on actual query patterns found in:
- * - routes/vocabulary.ts
- * - routes/quizzes.ts
- * - routes/analytics.ts
- * - routes/auth.ts
+ * Creates database indexes for query performance. Call once at startup.
+ *
+ * Indexes match query patterns in the vocabulary, quiz, analytics, and auth services.
  */
 export async function ensureIndexes(db: Db): Promise<void> {
-    logger.info('📊 Creating database indexes...');
+    logger.info('Creating database indexes...');
 
     try {
         // ============================================
         // USER COLLECTION INDEXES
         // ============================================
-        // Used in: auth.ts (login, register, profile lookup)
+        // Used in: auth.ts (login, register)
         await db.collection('User').createIndex(
             { email: 1 },
             { unique: true, name: 'idx_user_email' }
         );
-        logger.info('✅ User indexes created');
+        logger.info('User indexes created');
 
         // ============================================
         // VOCABULARY LIST COLLECTION INDEXES
@@ -39,7 +34,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
             { _id: 1, userId: 1 },
             { name: 'idx_vocablist_id_user' }
         );
-        logger.info('✅ VocabularyList indexes created');
+        logger.info('VocabularyList indexes created');
 
         // ============================================
         // WORD COLLECTION INDEXES
@@ -66,7 +61,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
             { word: 'text', translation: 'text' },
             { name: 'idx_word_text_search' }
         );
-        logger.info('✅ Word indexes created');
+        logger.info('Word indexes created');
 
         // ============================================
         // WORD PROGRESS COLLECTION INDEXES
@@ -83,19 +78,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
             { name: 'idx_wordprogress_user' }
         );
 
-        // Used in: analytics.ts (spaced repetition - get words due for review)
-        await db.collection('WordProgress').createIndex(
-            { userId: 1, nextReview: 1 },
-            { name: 'idx_wordprogress_user_nextreview' }
-        );
-
-        // Used in: analytics.ts (find challenging words by mastery)
-        await db.collection('WordProgress').createIndex(
-            { userId: 1, mastery: 1 },
-            { name: 'idx_wordprogress_user_mastery' }
-        );
-
-        logger.info('✅ WordProgress indexes created');
+        logger.info('WordProgress indexes created');
 
         // ============================================
         // QUIZ COLLECTION INDEXES
@@ -111,7 +94,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
             { _id: 1, userId: 1 },
             { name: 'idx_quiz_id_user' }
         );
-        logger.info('✅ Quiz indexes created');
+        logger.info('Quiz indexes created');
 
         // ============================================
         // QUIZ QUESTION COLLECTION INDEXES
@@ -122,7 +105,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
             { name: 'idx_quizquestion_quiz' }
         );
 
-        logger.info('✅ QuizQuestion indexes created');
+        logger.info('QuizQuestion indexes created');
 
         // ============================================
         // QUIZ ATTEMPT COLLECTION INDEXES
@@ -138,7 +121,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
             { quizId: 1, userId: 1, createdAt: -1 },
             { name: 'idx_quizattempt_quiz_user_created' }
         );
-        logger.info('✅ QuizAttempt indexes created');
+        logger.info('QuizAttempt indexes created');
 
         // ============================================
         // QUIZ ANSWER COLLECTION INDEXES
@@ -153,7 +136,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
             { userId: 1 },
             { name: 'idx_quizanswer_user' }
         );
-        logger.info('✅ QuizAnswer indexes created');
+        logger.info('QuizAnswer indexes created');
 
         // ============================================
         // LEARNING STATS COLLECTION INDEXES
@@ -163,12 +146,12 @@ export async function ensureIndexes(db: Db): Promise<void> {
             { userId: 1, date: -1 },
             { name: 'idx_learningstats_user_date' }
         );
-        logger.info('✅ LearningStats indexes created');
+        logger.info('LearningStats indexes created');
 
-        logger.info('✅ All database indexes created successfully!');
-        logger.info('📈 Performance optimization complete');
+        logger.info('All database indexes created successfully!');
+        logger.info('Performance optimization complete');
     } catch (error) {
-        logger.error('❌ Error creating indexes:', { error });
+        logger.error('Error creating indexes:', { error });
         throw error;
     }
 }

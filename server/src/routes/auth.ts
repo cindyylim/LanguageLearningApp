@@ -157,24 +157,6 @@ router.post('/login', validate(loginSchema), asyncHandler(async (req: Request, r
   return authResponse(res, token, toPublicUser(user), 'Login successful');
 }));
 
-router.get('/profile', asyncHandler(async (req: Request, res: Response) => {
-  const token = extractAuthToken(req);
-  if (!token) {
-    return res.status(401).json({ error: 'Access denied. No token provided.' });
-  }
-
-  const decoded = jwt.verify(token, getJwtSecret()) as jwtToken;
-  const db = await getDb();
-  const user = await db.collection('User').findOne({ _id: new ObjectId(decoded.userId) });
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
-  }
-
-  return res.json({
-    user: toPublicUser(user),
-  });
-}));
-
 router.post('/logout', asyncHandler(async (_req: Request, res: Response) => {
   return res.json({ message: 'Logged out successfully' });
 }));

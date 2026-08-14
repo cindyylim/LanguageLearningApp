@@ -1,36 +1,32 @@
 import { MongoClient, Db } from 'mongodb';
 
-// Test database connection utility
-// This uses a separate TESTDB_URI environment variable to avoid conflicts
-// with the main application database
-
-const TESTDB_URI = process.env.TESTDB_URI as string;
-
-// 1. Basic Validation
-if (!TESTDB_URI) {
-  throw new Error('Please define the TESTDB_URI environment variable for test database');
-}
-
-// 2. Global Cache Variables
+// Separate TESTDB_URI so tests don't touch the application database.
+// Read lazily so production/dev can import this module without TESTDB_URI set.
+// Cache the connection promise so concurrent callers share one in-flight connect.
 let cachedClient: MongoClient | null = null;
 let cachedDb: Db | null = null;
-
-// This variable will hold the promise of the connection
 let connectionPromise: Promise<{ client: MongoClient; db: Db }> | null = null;
 
+function getTestDbUri(): string {
+  const uri = process.env.TESTDB_URI;
+  if (!uri) {
+    throw new Error('Please define the TESTDB_URI environment variable for test database');
+  }
+  return uri;
+}
+
 export async function connectToTestDatabase(): Promise<Db> {
-  // A. If we are already connected, return the cached DB immediately.
   if (cachedDb) {
     return cachedDb;
   }
 
-  // B. If a connection is currently in progress, wait for it.
   if (connectionPromise) {
     const { db } = await connectionPromise;
     return db;
   }
 
-  // C. Otherwise, start a new connection.
+  const TESTDB_URI = getTestDbUri();
+
   connectionPromise = (async () => {
     try {
       if (!cachedClient) {
@@ -40,8 +36,7 @@ export async function connectToTestDatabase(): Promise<Db> {
           minPoolSize: 2,
           maxIdleTimeMS: 30000,
         });
-        
-        // CLEAR CACHE ON ERROR
+
         cachedClient.on('topologyClosed', () => {
           cachedClient = null;
           cachedDb = null;
@@ -52,12 +47,10 @@ export async function connectToTestDatabase(): Promise<Db> {
       await cachedClient.connect();
       const db = cachedClient.db();
 
-      // Save to cache for future use
       cachedDb = db;
 
       return { client: cachedClient, db };
     } catch (error) {
-      // If connection fails, clear the promise so the next request can try again.
       connectionPromise = null;
       throw error;
     }

@@ -2,9 +2,8 @@ import { connectToDatabase } from '../utils/mongo';
 import { connectToTestDatabase } from '../utils/testMongo';
 import { ObjectId } from 'mongodb';
 import { AIService } from './ai';
-import { Word } from '../interface/Word';
-import { calculateSM2, mapStatusToQuality } from '../utils/sm2';
-
+import { calculateFromManualStatus } from '../utils/sm2';
+import { WordStatus, WordProgress, Word, VocabularyList } from "../../../shared/types/index";
 interface WordDocument {
     _id: string;
     word: string;
@@ -20,7 +19,6 @@ interface WordProgressDocument {
     _id: ObjectId;
     wordId: string;
     userId: string;
-    mastery: number;
     status: string;
     reviewCount: number;
     streak: number;
@@ -41,9 +39,10 @@ type ProgressMap = Record<string, WordProgressDocument>;
 
 export class VocabularyService {
     /**
-     * Get all vocabulary lists for a user with word counts
+     * Get paginated vocabulary lists for a user with word counts.
+     * Fetches one extra document to determine whether another page exists.
      */
-    static async getUserLists(userId: string, page: number = 1, limit: number = 20) {
+    static async getUserLists(userId: string, page: number = 1, limit: number = 2) {
         const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
         const skip = (page - 1) * limit;
 
@@ -51,7 +50,7 @@ export class VocabularyService {
             { $match: { userId } },
             { $sort: { updatedAt: -1 } },
             { $skip: skip },
-            { $limit: limit },
+            { $limit: limit + 1 },
             {
                 $lookup: {
                     from: 'Word',
@@ -94,7 +93,11 @@ export class VocabularyService {
             }
         ]).toArray();
 
-        return lists;
+        const hasMore = lists.length > limit;
+        return {
+            lists: hasMore ? lists.slice(0, limit) : lists,
+            hasMore,
+        };
     }
 
     /**
@@ -140,10 +143,8 @@ export class VocabularyService {
                 createdAt: word.createdAt instanceof Date ? word.createdAt.toISOString() : String(word.createdAt),
                 updatedAt: word.updatedAt instanceof Date ? word.updatedAt.toISOString() : String(word.updatedAt),
                 progress: progress ? {
-                    _id: progress._id.toString(),
                     wordId: progress.wordId,
                     userId: progress.userId,
-                    mastery: progress.mastery,
                     status: progress.status,
                     reviewCount: progress.reviewCount,
                     streak: progress.streak,
@@ -152,8 +153,7 @@ export class VocabularyService {
                     createdAt: progress.createdAt,
                     updatedAt: progress.updatedAt
                 } : {
-                    mastery: 0,
-                    status: 'not_started',
+                    status: 'new',
                     reviewCount: 0,
                     streak: 0
                 }
@@ -452,7 +452,7 @@ export class VocabularyService {
     /**
      * Update word progress
      */
-    static async updateWordProgress(wordId: string, status: string, userId: string) {
+    static async updateWordProgress(wordId: string, status: WordStatus, userId: string) {
         const db = process.env.NODE_ENV === 'test' ? await connectToTestDatabase() : await connectToDatabase();
         const now = new Date();
 
@@ -461,12 +461,7 @@ export class VocabularyService {
             wordId: new ObjectId(wordId)
         });
 
-        // Map manual status to SM-2 quality grade
-        const quality = mapStatusToQuality(status);
-
-        // Run SM-2 algorithm
-        const sm2Result = calculateSM2({
-            quality,
+        const sm2Result = calculateFromManualStatus(status, {
             repetition: existingProgress?.streak ?? 0,
             easeFactor: existingProgress?.easeFactor ?? 2.5,
             interval: existingProgress?.interval ?? 1,
@@ -480,7 +475,6 @@ export class VocabularyService {
                 { _id: existingProgress._id },
                 {
                     $set: {
-                        mastery: sm2Result.mastery,
                         status: sm2Result.status,
                         streak: sm2Result.repetition,
                         easeFactor: sm2Result.easeFactor,
@@ -497,7 +491,6 @@ export class VocabularyService {
             const document = await db.collection('WordProgress').insertOne({
                 userId,
                 wordId: new ObjectId(wordId),
-                mastery: sm2Result.mastery,
                 status: sm2Result.status,
                 reviewCount: 1,
                 streak: sm2Result.repetition,
@@ -530,8 +523,7 @@ export class VocabularyService {
         });
 
         return progress || {
-            mastery: 0,
-            status: 'not_started',
+            status: 'new',
             reviewCount: 0,
             streak: 0
         };

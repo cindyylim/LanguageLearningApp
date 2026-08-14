@@ -53,10 +53,9 @@ export const invalidateListCache = (userId: string, listId?: string) => {
  */
 export const warmCacheForUser = async (userId: string) => {
     try {
-        // Pre-fetch first page
-        const lists = await VocabularyService.getUserLists(userId, 1, 20);
+        const { lists, hasMore } = await VocabularyService.getUserLists(userId, 1, 20);
         const cacheKey = getCacheKey.userLists(userId, 1, 20);
-        vocabularyCache.set(cacheKey, lists);
+        vocabularyCache.set(cacheKey, { vocabularyLists: lists, hasMore });
 
         return true;
     } catch (error) {

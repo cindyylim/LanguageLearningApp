@@ -16,7 +16,11 @@ export function getAuthToken(): string | null {
   return authToken;
 }
 
-export function setAuthToken(token: string | null): void {
+export function setAuthToken(token: string | null | undefined): void {
+  if (token === undefined) {
+    return;
+  }
+
   authToken = token;
 
   try {
@@ -26,6 +30,5 @@ export function setAuthToken(token: string | null): void {
       sessionStorage.removeItem(AUTH_TOKEN_KEY);
     }
   } catch {
-    // Ignore storage errors (e.g. private browsing restrictions)
   }
 }

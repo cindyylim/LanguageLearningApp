@@ -4,7 +4,12 @@ import jwt from 'jsonwebtoken';
 const JWT_EXPIRY = '7d';
 
 export function getJwtSecret(): string {
-  return process.env.JWT_SECRET || 'language_learning_jwt_secret_key_2026';
+  const secret = process.env.JWT_SECRET;
+  if (secret) {
+    return secret;
+  }
+
+  throw new Error('JWT_SECRET environment variable is required');
 }
 
 export function signAuthToken(userId: string): string {

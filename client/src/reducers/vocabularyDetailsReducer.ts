@@ -1,7 +1,7 @@
-import { ListVocabulary, Word } from '../types/vocabulary';
+import { Word, VocabularyList } from "../../../shared/types/index";
 
 export interface VocabularyDetailsState {
-    list: ListVocabulary | null;
+    list: VocabularyList | null;
     loading: boolean;
     error: string | null;
     showEditListModal: boolean;
@@ -10,6 +10,7 @@ export interface VocabularyDetailsState {
     editWordForm: { id: string; word: string; translation: string; partOfSpeech: string; difficulty: string };
     deleting: boolean;
     deleteWordId: string | null;
+    showDeleteListModal: boolean;
     saving: boolean;
 }
 
@@ -23,12 +24,13 @@ export const initialState: VocabularyDetailsState = {
     editWordForm: { id: '', word: '', translation: '', partOfSpeech: '', difficulty: 'medium' },
     deleting: false,
     deleteWordId: null,
+    showDeleteListModal: false,
     saving: false,
 };
 
 export type VocabularyDetailsAction =
     | { type: 'FETCH_START' }
-    | { type: 'FETCH_SUCCESS'; payload: ListVocabulary }
+    | { type: 'FETCH_SUCCESS'; payload: VocabularyList }
     | { type: 'FETCH_ERROR'; payload: string }
     | { type: 'OPEN_EDIT_LIST_MODAL' }
     | { type: 'CLOSE_EDIT_LIST_MODAL' }
@@ -37,9 +39,10 @@ export type VocabularyDetailsAction =
     | { type: 'CLOSE_EDIT_WORD_MODAL' }
     | { type: 'UPDATE_EDIT_WORD_FORM'; payload: Partial<VocabularyDetailsState['editWordForm']> }
     | { type: 'SET_DELETE_WORD_ID'; payload: string | null }
-    | { type: 'ACTION_START' }
-    | { type: 'ACTION_END' }
-    | { type: 'ACTION_ERROR'; payload: string };
+    | { type: 'OPEN_DELETE_LIST_MODAL' }
+    | { type: 'CLOSE_DELETE_LIST_MODAL' }
+    | { type: 'ACTION_START'; payload: 'save' | 'delete' }
+    | { type: 'ACTION_END' };
 
 export const vocabularyDetailsReducer = (state: VocabularyDetailsState, action: VocabularyDetailsAction): VocabularyDetailsState => {
     switch (action.type) {
@@ -78,12 +81,16 @@ export const vocabularyDetailsReducer = (state: VocabularyDetailsState, action: 
         case 'UPDATE_EDIT_WORD_FORM':
             return { ...state, editWordForm: { ...state.editWordForm, ...action.payload } };
         case 'SET_DELETE_WORD_ID':
-            return { ...state, deleteWordId: action.payload };
+            return { ...state, deleteWordId: action.payload, showDeleteListModal: false };
+        case 'OPEN_DELETE_LIST_MODAL':
+            return { ...state, showDeleteListModal: true, deleteWordId: null };
+        case 'CLOSE_DELETE_LIST_MODAL':
+            return { ...state, showDeleteListModal: false };
         case 'ACTION_START':
-            return { ...state, saving: true, deleting: true };
+            return action.payload === 'delete'
+                ? { ...state, deleting: true }
+                : { ...state, saving: true };
         case 'ACTION_END':
-            return { ...state, saving: false, deleting: false };
-        case 'ACTION_ERROR':
             return { ...state, saving: false, deleting: false };
         default:
             return state;

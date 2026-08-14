@@ -76,7 +76,7 @@ describe('VocabularyService', () => {
             expect(connectToTestDatabase).toHaveBeenCalled();
             expect(mockDb.collection).toHaveBeenCalledWith('VocabularyList');
             expect(mockCollection.aggregate).toHaveBeenCalled();
-            expect(result).toEqual(mockLists);
+            expect(result).toEqual({ lists: mockLists, hasMore: false });
 
             // Verify aggregation pipeline structure
             const pipeline = mockCollection.aggregate.mock.calls[0][0];
@@ -94,9 +94,43 @@ describe('VocabularyService', () => {
             await VocabularyService.getUserLists(userId, page, limit);
 
             const pipeline = mockCollection.aggregate.mock.calls[0][0];
-            // Skip should be (page-1) * limit = 10
+            // Skip should be (page-1) * limit = 10; fetch one extra to compute hasMore
             expect(pipeline[2]).toEqual({ $skip: 10 });
-            expect(pipeline[3]).toEqual({ $limit: 10 });
+            expect(pipeline[3]).toEqual({ $limit: 11 });
+        });
+
+        it('should set hasMore true when more than one page of lists exists', async () => {
+            const userId = 'user123';
+            const limit = 20;
+            const extraPage = Array.from({ length: limit + 1 }, (_, i) => ({
+                _id: new ObjectId(),
+                name: `List ${i + 1}`,
+                userId,
+            }));
+
+            mockCollection.toArray.mockResolvedValue(extraPage);
+
+            const result = await VocabularyService.getUserLists(userId, 1, limit);
+
+            expect(result.hasMore).toBe(true);
+            expect(result.lists).toHaveLength(limit);
+        });
+
+        it('should set hasMore false when the last page has exactly `limit` lists', async () => {
+            const userId = 'user123';
+            const limit = 20;
+            const exactPage = Array.from({ length: limit }, (_, i) => ({
+                _id: new ObjectId(),
+                name: `List ${i + 1}`,
+                userId,
+            }));
+
+            mockCollection.toArray.mockResolvedValue(exactPage);
+
+            const result = await VocabularyService.getUserLists(userId, 1, limit);
+
+            expect(result.hasMore).toBe(false);
+            expect(result.lists).toHaveLength(limit);
         });
     });
 
@@ -165,7 +199,6 @@ describe('VocabularyService', () => {
                     _id: new ObjectId('507f1f77bcf86cd799439013'),
                     wordId: '507f1f77bcf86cd799439012',
                     userId,
-                    mastery: 0.8,
                     status: 'learning',
                     reviewCount: 5,
                     streak: 2,
@@ -219,7 +252,6 @@ describe('VocabularyService', () => {
                             _id: '507f1f77bcf86cd799439013',
                             wordId: '507f1f77bcf86cd799439012',
                             userId,
-                            mastery: 0.8,
                             status: 'learning',
                             reviewCount: 5,
                             streak: 2,
@@ -738,8 +770,7 @@ describe('VocabularyService', () => {
                 _id: new ObjectId('507f1f77bcf86cd799439013'),
                 wordId,
                 userId,
-                mastery: 0.5,
-                status: 'not_started',
+                status: 'new',
                 reviewCount: 0,
                 streak: 0,
                 easeFactor: 2.5,
@@ -748,7 +779,6 @@ describe('VocabularyService', () => {
 
             const mockUpdatedProgress = {
                 ...mockExistingProgress,
-                mastery: expect.any(Number),
                 status: 'learning',
                 reviewCount: 1,
                 streak: 0, // q=2 resets repetition
@@ -774,7 +804,6 @@ describe('VocabularyService', () => {
                 { _id: mockExistingProgress._id },
                 {
                     $set: {
-                        mastery: expect.any(Number),
                         status: 'learning',
                         streak: 0, // SM-2: q=2 resets repetition
                         easeFactor: expect.any(Number),
@@ -798,12 +827,11 @@ describe('VocabularyService', () => {
                 _id: new ObjectId('507f1f77bcf86cd799439013'),
                 wordId,
                 userId,
-                mastery: expect.any(Number),
-                status: 'learning', // SM-2: first repetition is still learning
+                status: 'mastered',
                 reviewCount: 1,
-                streak: 1, // SM-2: first successful repetition
+                streak: 6,
                 easeFactor: expect.any(Number),
-                interval: 1, // SM-2: n=1 -> interval=1
+                interval: expect.any(Number),
                 lastReviewed: expect.any(Date),
                 nextReview: expect.any(Date),
                 createdAt: expect.any(Date),
@@ -820,16 +848,16 @@ describe('VocabularyService', () => {
                 expect.objectContaining({
                     userId,
                     wordId: new ObjectId(wordId),
-                    mastery: expect.any(Number),
-                    status: 'learning', // SM-2: n=1 is still learning
+                    status: 'mastered',
                     reviewCount: 1,
-                    streak: 1, // SM-2: first successful repetition
+                    streak: expect.any(Number),
                     easeFactor: expect.any(Number),
-                    interval: 1, // SM-2: n=1 -> interval=1
+                    interval: expect.any(Number),
                     createdAt: expect.any(Date),
                     updatedAt: expect.any(Date)
                 })
             );
+            expect(mockCollection.insertOne.mock.calls[0][0].streak).toBeGreaterThanOrEqual(5);
             expect(result).toEqual(mockNewProgress);
         });
     });
@@ -843,7 +871,6 @@ describe('VocabularyService', () => {
                 _id: new ObjectId('507f1f77bcf86cd799439013'),
                 wordId,
                 userId,
-                mastery: 0.8,
                 status: 'learning',
                 reviewCount: 5,
                 streak: 2
@@ -870,8 +897,7 @@ describe('VocabularyService', () => {
             const result = await VocabularyService.getWordProgress(wordId, userId);
 
             expect(result).toEqual({
-                mastery: 0,
-                status: 'not_started',
+                status: 'new',
                 reviewCount: 0,
                 streak: 0
             });

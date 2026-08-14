@@ -305,7 +305,6 @@ export class QuizService {
                         { _id: existingProgress._id },
                         {
                             $set: {
-                                mastery: sm2Result.mastery,
                                 status: sm2Result.status,
                                 reviewCount: newReviewCount,
                                 streak: sm2Result.repetition,
@@ -322,7 +321,6 @@ export class QuizService {
                     await db.collection('WordProgress').insertOne({
                         userId,
                         wordId: new ObjectId(wordId),
-                        mastery: sm2Result.mastery,
                         status: sm2Result.status,
                         reviewCount: stats.total,
                         streak: sm2Result.repetition,

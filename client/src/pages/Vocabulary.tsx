@@ -3,7 +3,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useNavigate } from 'react-router-dom';
 import LanguageDropdown from '../components/LanguageDropdown';
 import { useVocabulary } from '../hooks/useVocabulary';
-import { ListVocabulary, Word } from '../types/vocabulary';
+import { Word, VocabularyList } from "../../../shared/types/index";
 import { SkeletonCard } from '../components/SkeletonCard';
 
 const Vocabulary: React.FC = () => {
@@ -49,21 +49,21 @@ const Vocabulary: React.FC = () => {
     dispatch({ type: 'UPDATE_LIST_FORM', payload: { nativeLanguage: code } });
   };
 
-  const getProgressColor = (mastery: number) => {
-    if (mastery >= 1.0) return 'text-green-600';
-    if (mastery >= 0) return 'text-yellow-600';
+  const getProgressColor = (status?: string) => {
+    if (status === 'mastered') return 'text-green-600';
+    if (status === 'learning') return 'text-yellow-600';
     return 'text-red-600';
   };
 
-  const getProgressText = (mastery: number) => {
-    if (mastery >= 1.0) return 'Mastered';
-    if (mastery >= 0) return 'Learning';
+  const getProgressText = (status?: string) => {
+    if (status === 'mastered') return 'Mastered';
+    if (status === 'learning') return 'Learning';
     return 'New';
   };
 
-  const getProgressBarColor = (mastery: number) => {
-    if (mastery >= 1.0) return 'bg-green-500';
-    if (mastery >= 0) return 'bg-yellow-500';
+  const getProgressBarColor = (status?: string) => {
+    if (status === 'mastered') return 'bg-green-500';
+    if (status === 'learning') return 'bg-yellow-500';
     return 'bg-red-500';
   };
 
@@ -182,16 +182,16 @@ const Vocabulary: React.FC = () => {
         </div>
       ) : error ? (
         <div className="text-red-500 text-center">{error}</div>
-      ) : lists.length === 0 ? (
+      ) : lists.length === 0 && state.page === 1 ? (
         <div className="text-gray-500 text-center">No vocabulary lists found. Add your first list!</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {lists.map((list: ListVocabulary) => (
+          {lists.map((list: VocabularyList) => (
             <div
               key={list._id}
               className="card cursor-pointer hover:shadow-lg transition-shadow vocabulary-list"
               onClick={e => {
-                // Prevent click if add word button is clicked
+                // Nested buttons should not navigate to the list
                 if ((e.target as HTMLElement).closest('button')) return;
                 navigate(`/vocabulary/${list._id}`);
               }}
@@ -203,8 +203,6 @@ const Vocabulary: React.FC = () => {
               <div className="text-sm text-gray-600 mb-1">{list.description || 'No description'}</div>
               <div className="space-y-2 mt-4">
                 {list.words && list.words.length > 0 ? list.words.slice(0, 8).map((w: Word) => {
-                  const mastery = w.progress?.mastery || 0;
-                  const status = w.progress?.status || 'not_started';
                   return (
                     <div key={w._id} className="flex items-center justify-between p-2 bg-gray-50 rounded word-item">
                       <div className="flex-1">
@@ -213,23 +211,22 @@ const Vocabulary: React.FC = () => {
                         <div className="flex items-center gap-2 mt-1">
                           <div className="flex-1 bg-gray-200 rounded-full h-2">
                             <div
-                              className={`h-2 rounded-full ${getProgressBarColor(mastery)}`}
-                              style={{ width: `${mastery * 100}%` }}
-                            ></div>
+                              className={`h-2 rounded-full ${getProgressBarColor(w.progress?.status)}`}
+                            />
                           </div>
-                          <span className={`text-xs font-medium ${getProgressColor(mastery)}`}>{getProgressText(mastery)}</span>
+                          <span className={`text-xs font-medium ${getProgressColor(w.progress?.status)}`}>{getProgressText(w.progress?.status)}</span>
                         </div>
                       </div>
                       <div className="flex gap-1 ml-2">
                         <button
                           onClick={() => updateWordProgress(list._id, w._id, 'learning')}
-                          className={`px-2 py-1 text-xs rounded ${status === 'learning' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+                          className={`px-2 py-1 text-xs rounded ${w.progress?.status === 'learning' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
                         >
                           Learning
                         </button>
                         <button
                           onClick={() => updateWordProgress(list._id, w._id, 'mastered')}
-                          className={`px-2 py-1 text-xs rounded ${status === 'mastered' ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}
+                          className={`px-2 py-1 text-xs rounded ${w.progress?.status === 'mastered' ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}
                         >
                           Mastered
                         </button>
@@ -246,7 +243,7 @@ const Vocabulary: React.FC = () => {
           ))}
         </div>
       )}
-      {!loading && !error && lists.length > 0 && (
+      {!loading && !error && (lists.length > 0 || state.page > 1) && (
         <div className="flex justify-center gap-4 mt-8">
           <button
             className="btn-secondary disabled:opacity-50"

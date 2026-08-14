@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../lib/api';
-import { Word, WordProgress } from '../types/vocabulary';
+import { Word, WordStatus, WordProgress } from "../../../shared/types/index";
 import { getErrorMessage } from '../types/errors';
 import { SkeletonCard } from '../components/SkeletonCard';
 

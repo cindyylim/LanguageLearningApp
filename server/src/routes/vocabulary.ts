@@ -29,8 +29,7 @@ const addWordSchema = z.object({
 });
 
 const updateProgressSchema = z.object({
-  mastery: z.number().min(0).max(1).optional(),
-  status: z.enum(['learning', 'mastered', 'not_started']).optional()
+  status: z.enum(['learning', 'mastered', 'new']).optional()
 });
 
 const updateWordSchema = z.object({
@@ -53,19 +52,20 @@ const generateAIListSchema = z.object({
 // Get all vocabulary lists for user
 router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
   const page = parseInt(req.query.page as string) || 1;
-  const limit = parseInt(req.query.limit as string) || 20;
+  const limit = parseInt(req.query.limit as string) || 2;
 
   const cacheKey = getCacheKey.userLists(req.user!.id, page, limit);
-  const cached = vocabularyCache.get(cacheKey);
+  const cached = vocabularyCache.get<{ vocabularyLists: unknown[]; hasMore: boolean }>(cacheKey);
 
   if (cached) {
-    return res.json({ vocabularyLists: cached, page, limit });
+    return res.json({ vocabularyLists: cached.vocabularyLists, hasMore: cached.hasMore, page, limit });
   }
 
-  const lists = await VocabularyService.getUserLists(req.user!.id, page, limit);
-  vocabularyCache.set(cacheKey, lists);
+  const { lists, hasMore } = await VocabularyService.getUserLists(req.user!.id, page, limit);
+  const payload = { vocabularyLists: lists, hasMore };
+  vocabularyCache.set(cacheKey, payload);
 
-  return res.json({ vocabularyLists: lists, page, limit });
+  return res.json({ ...payload, page, limit });
 }));
 
 // Create new vocabulary list
@@ -85,6 +85,29 @@ router.post('/', validate(createVocabularyListSchema), asyncHandler(async (req: 
   await warmCacheForUser(req.user!.id).catch(err => console.error('Cache warming failed:', err));
 
   return res.status(201).json({ vocabularyList: list });
+}));
+
+// Get word progress for a specific word
+router.get('/words/:wordId/progress', validateObjectId('wordId'), asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { wordId } = req.params;
+  const progress = await VocabularyService.getWordProgress(wordId as string, req.user!.id);
+  return res.json({ progress });
+}));
+
+// Update word progress manually
+router.post('/words/:wordId/progress', validateObjectId('wordId'), validate(updateProgressSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { wordId } = req.params;
+  const updatedProgress = await VocabularyService.updateWordProgress(wordId as string, req.body.status, req.user!.id);
+
+  if (!updatedProgress) {
+    throw new AppError('Word not found', 404);
+  }
+  invalidateListCache(req.user!.id);
+
+  return res.json({
+    message: 'Word progress updated successfully',
+    progress: updatedProgress
+  });
 }));
 
 // Get specific vocabulary list with words
@@ -170,28 +193,6 @@ router.post('/:id/generate-sentences', validateObjectId(), aiGenerationLimiter, 
   return res.json({ sentences });
 }));
 
-// Get word progress for a specific word
-router.get('/words/:wordId/progress', validateObjectId('wordId'), asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { wordId } = req.params;
-  const progress = await VocabularyService.getWordProgress(wordId as string, req.user!.id);
-  return res.json({ progress });
-}));
-
-// Update word progress manually
-router.post('/words/:wordId/progress', validateObjectId('wordId'), validate(updateProgressSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { wordId } = req.params;
-  const updatedProgress = await VocabularyService.updateWordProgress(wordId as string, req.body.status, req.user!.id);
-
-  if (!updatedProgress) {
-    throw new AppError('Word not found', 404);
-  }
-  invalidateListCache(req.user!.id);
-
-  return res.json({
-    message: 'Word progress updated successfully',
-    progress: updatedProgress
-  });
-}));
 // Edit a word in a vocabulary list
 router.put('/:listId/words/:wordId', validateObjectId('listId'), validateObjectId('wordId'), validate(updateWordSchema), asyncHandler(async (req: AuthRequest, res: Response) => {
   const { listId, wordId } = req.params;

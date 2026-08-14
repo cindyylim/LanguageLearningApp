@@ -30,19 +30,17 @@ interface AuthState {
   loginDemo: () => Promise<void>;
   register: (userData: RegisterData) => Promise<void>;
   logout: () => void;
-  updateUser: (userData: Partial<User>) => void;
-  initialize: () => Promise<void>;
-}
-
-function persistSession(user: User, token: string) {
-  setAuthToken(token);
-  return { user, isAuthenticated: true };
 }
 
 function clearLocalSession() {
   clearCSRFToken();
   setAuthToken(null);
-  return { user: null, isAuthenticated: false };
+}
+
+function persistSession(user: User, token?: string) {
+  if (token) {
+    setAuthToken(token);
+  } ;
 }
 
 async function completeAuthFlow(
@@ -51,8 +49,9 @@ async function completeAuthFlow(
   successMessage: string
 ) {
   const { user, token } = response.data;
-  set(persistSession(user, token));
+  persistSession(user, token);
   await fetchCSRFToken();
+  set({ user, isAuthenticated: true, loading: false })
   toast.success(successMessage);
 }
 
@@ -105,34 +104,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     try {
       await api.post('/auth/logout');
-      set(clearLocalSession());
+      clearLocalSession()
+      set({ user: null, isAuthenticated: false, loading: false });
       toast.success('Logged out successfully');
     } catch (error) {
-      set(clearLocalSession());
+      clearLocalSession()
+      set({ user: null, isAuthenticated: false, loading: false });
       toast.error('Logged out failed ' + error);
     }
-  },
-
-  updateUser: (userData) => {
-    const { user } = get();
-    if (user) {
-      set({ user: { ...user, ...userData } });
-    }
-  },
-
-  initialize: async () => {
-    try {
-      const response = await api.get('/auth/profile');
-      const { user, token } = response.data;
-
-      set(persistSession(user, token));
-      await fetchCSRFToken();
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status !== 401) {
-        console.error('Initialization error:', error);
-      }
-      set(clearLocalSession());
-    }
-    set({ loading: false });
   },
 }));

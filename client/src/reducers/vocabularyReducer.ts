@@ -1,7 +1,7 @@
-import { ListVocabulary, Word } from '../types/vocabulary';
+import { Word, WordProgress, VocabularyList } from "../../../shared/types/index";
 
 export interface VocabularyState {
-  lists: ListVocabulary[];
+  lists: VocabularyList[];
   loading: boolean;
   error: string | null;
   showListModal: boolean;
@@ -68,9 +68,9 @@ export const initialState: VocabularyState = {
   hasMore: true,
 };
 
-export type VocbularyAction =
+export type VocabularyAction =
   | { type: 'FETCH_START' }
-  | { type: 'FETCH_SUCCESS'; payload: { lists: ListVocabulary[]; hasMore: boolean; page: number } }
+  | { type: 'FETCH_SUCCESS'; payload: { lists: VocabularyList[]; hasMore: boolean; page: number } }
   | { type: 'FETCH_ERROR'; payload: string }
   | { type: 'OPEN_LIST_MODAL' }
   | { type: 'CLOSE_LIST_MODAL' }
@@ -90,13 +90,13 @@ export type VocbularyAction =
   | { type: 'AI_GENERATE_END' }
   | { type: 'AI_GENERATE_ERROR'; payload: string }
   | { type: 'ADD_WORD_SUCCESS'; payload: { listId: string; word: Word } }
-  | { type: 'UPDATE_WORD_PROGRESS'; payload: { wordId: string; status: 'learning' | 'mastered'; mastery: number } };
+  | { type: 'UPDATE_WORD_PROGRESS'; payload: { wordId: string; progress: WordProgress } };
 
 function addWordToList(
-  lists: ListVocabulary[],
+  lists: VocabularyList[],
   listId: string,
   word: Word
-): ListVocabulary[] {
+): VocabularyList[] {
   return lists.map((list) => {
     if (list._id !== listId) {
       return list;
@@ -110,54 +110,7 @@ function addWordToList(
   });
 }
 
-function buildOptimisticProgress(
-  word: Word,
-  status: 'learning' | 'mastered',
-  mastery: number
-): Word['progress'] {
-  const now = new Date().toISOString();
-  const intervalDays = word.progress?.interval || 1;
-
-  return {
-    ...word.progress,
-    status,
-    mastery,
-    _id: word.progress?._id || 'temp-id',
-    wordId: word.progress?.wordId || word._id,
-    userId: word.progress?.userId || 'temp-user',
-    reviewCount: word.progress?.reviewCount || 0,
-    streak: word.progress?.streak || 0,
-    lastReviewed: now,
-    nextReview: new Date(
-      Date.now() + intervalDays * 24 * 60 * 60 * 1000
-    ).toISOString(),
-    createdAt: word.progress?.createdAt || now,
-    updatedAt: now,
-  };
-}
-
-function applyWordProgressUpdate(
-  lists: ListVocabulary[],
-  wordId: string,
-  status: 'learning' | 'mastered',
-  mastery: number
-): ListVocabulary[] {
-  return lists.map((list) => ({
-    ...list,
-    words: list.words?.map((word) => {
-      if (word._id !== wordId) {
-        return word;
-      }
-
-      return {
-        ...word,
-        progress: buildOptimisticProgress(word, status, mastery),
-      } as Word;
-    }),
-  }));
-}
-
-export function vocabularyReducer(state: VocabularyState, action: VocbularyAction): VocabularyState {
+export function vocabularyReducer(state: VocabularyState, action: VocabularyAction): VocabularyState {
   switch (action.type) {
     case 'FETCH_START':
       return { ...state, loading: true, error: null };
@@ -186,7 +139,14 @@ export function vocabularyReducer(state: VocabularyState, action: VocbularyActio
     case 'UPDATE_LIST_FORM':
       return { ...state, listForm: { ...state.listForm, ...action.payload } };
     case 'RESET_LIST_FORM':
-      return { ...state, listForm: initialState.listForm };
+      return {
+        ...state,
+        listForm: {
+          ...state.listForm,
+          name: '',
+          description: '',
+        },
+      };
     case 'UPDATE_WORD_FORM':
       return { ...state, wordForm: { ...state.wordForm, ...action.payload } };
     case 'RESET_WORD_FORM':
@@ -213,12 +173,14 @@ export function vocabularyReducer(state: VocabularyState, action: VocbularyActio
     case 'UPDATE_WORD_PROGRESS':
       return {
         ...state,
-        lists: applyWordProgressUpdate(
-          state.lists,
-          action.payload.wordId,
-          action.payload.status,
-          action.payload.mastery
-        ),
+        lists: state.lists.map(list => ({
+          ...list,
+          words: (list.words ?? []).map(word =>
+            word._id === action.payload.wordId
+              ? { ...word, progress: action.payload.progress }
+              : word
+          ),
+        })),
       };
     default:
       return state;

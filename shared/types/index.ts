@@ -1,7 +1,11 @@
 // Shared type definitions for client and server
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
-export type WordStatus = 'not_started' | 'learning' | 'mastered';
+export enum WordStatus {
+  NEW = 'new',
+  LEARNING = 'learning',
+  MASTERED = 'mastered',
+}
 export type QuestionType = 'multiple_choice' | 'fill_blank' | 'sentence_completion';
 
 export interface User {
@@ -14,10 +18,8 @@ export interface User {
 }
 
 export interface WordProgress {
-    _id: string;
     wordId: string;
     userId: string;
-    mastery: number;
     status: WordStatus;
     reviewCount: number;
     streak: number;
@@ -96,4 +98,23 @@ export interface QuizAnswer {
     questionId: string;
     createdAt: Date | string;
     question?: QuizQuestion;
+}
+
+
+export interface Question {
+  question: string;
+  type: QuestionType;
+  correctAnswer: string;
+  options?: string[];
+  context?: string;
+  difficulty: string;
+  wordId?: string;
+}
+
+export interface UserProgress {
+  userId: string;
+  wordId: string;
+  reviewCount: number;
+  streak: number;
+  lastReviewed?: Date;
 }

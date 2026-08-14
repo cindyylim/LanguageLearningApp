@@ -1,3 +1,4 @@
+import { WordStatus } from "../../../shared/types/index";
 export interface SM2Input {
     quality: number; // 0 to 5
     repetition?: number; // current repetition / streak count (n)
@@ -10,8 +11,7 @@ export interface SM2Output {
     repetition: number;
     easeFactor: number;
     interval: number;
-    mastery: number;
-    status: 'learning' | 'mastered';
+    status: WordStatus;
     nextReview: Date;
 }
 
@@ -32,13 +32,42 @@ export function mapAccuracyToQuality(accuracy: number): number {
  */
 export function mapStatusToQuality(status: string): number {
     switch (status) {
-        case 'mastered':
+        case WordStatus.MASTERED:
             return 5;
-        case 'learning':
+        case WordStatus.LEARNING:
             return 2;
+        case WordStatus.NEW:
+            return 1;
         default:
             return 3;
     }
+}
+
+export function calculateFromManualStatus(
+    status: string,
+    existing?: Omit<SM2Input, 'quality'>
+): SM2Output {
+    const isMastered = status === WordStatus.MASTERED;
+    const result = calculateSM2({
+        quality: mapStatusToQuality(status),
+        repetition: isMastered ? 5 : (existing?.repetition ?? 0),
+        easeFactor: existing?.easeFactor,
+        interval: existing?.interval,
+        now: existing?.now,
+    });
+
+    if (isMastered) {
+        return {
+            ...result,
+            status: WordStatus.MASTERED,
+            repetition: Math.max(result.repetition, 5),
+        };
+    }
+
+    return {
+        ...result,
+        status: WordStatus.LEARNING
+    };
 }
 
 /**
@@ -77,16 +106,6 @@ export function calculateSM2(input: SM2Input): SM2Output {
         newInterval = 1;
     }
 
-    // 3. Calculate Mastery (0.0 to 1.0 scale)
-    let mastery = Math.min(1.0, (newRepetition / 5) * (newEF / 2.5));
-    if (newRepetition >= 5) {
-        mastery = 1.0;
-    } else if (newRepetition === 0) {
-        mastery = 0.0;
-    }
-    mastery = parseFloat(mastery.toFixed(2));
-
-    const status: 'learning' | 'mastered' = mastery >= 1.0 ? 'mastered' : 'learning';
     const nextReview = new Date(now.getTime() + newInterval * 24 * 60 * 60 * 1000);
 
     return {
