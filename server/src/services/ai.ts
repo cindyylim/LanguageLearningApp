@@ -7,6 +7,7 @@ import { assertAllContentAllowed, assertContentAllowed } from '../utils/moderati
 import {
   categorizeAIError,
   executeWithRetry,
+  isRetryableAIError,
   parseJsonWithSchema,
 } from './aiHelpers';
 import {
@@ -61,6 +62,7 @@ export class AIService {
   private static readonly circuitBreaker = new CircuitBreaker({
     failureThreshold: 5,
     resetTimeout: 60000,
+    countFailure: isRetryableAIError,
   });
 
   private static readonly requestQueue = new RequestQueue({

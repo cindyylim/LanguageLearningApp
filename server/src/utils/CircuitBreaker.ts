@@ -7,6 +7,8 @@ export enum CircuitState {
 interface CircuitBreakerOptions {
     failureThreshold: number;
     resetTimeout: number;
+    /** When false, failure does not increment toward opening the circuit. Defaults to true. */
+    countFailure?: (error: unknown) => boolean;
 }
 
 export class CircuitBreaker {
@@ -33,7 +35,7 @@ export class CircuitBreaker {
             this.onSuccess();
             return result;
         } catch (error) {
-            this.onFailure();
+            this.onFailure(error);
             throw error;
         }
     }
@@ -43,7 +45,12 @@ export class CircuitBreaker {
         this.state = CircuitState.CLOSED;
     }
 
-    private onFailure() {
+    private onFailure(error: unknown) {
+        const shouldCount = this.options.countFailure?.(error) ?? true;
+        if (!shouldCount) {
+            return;
+        }
+
         this.failureCount++;
         if (this.failureCount >= this.options.failureThreshold) {
             this.state = CircuitState.OPEN;

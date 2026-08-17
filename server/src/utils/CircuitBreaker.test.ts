@@ -72,4 +72,26 @@ describe('CircuitBreaker', () => {
         const result = await breaker.execute(successAction);
         expect(result).toBe('success');
     });
+
+    it('should not count failures when countFailure returns false', async () => {
+        const breaker = new CircuitBreaker({
+            failureThreshold: 2,
+            resetTimeout: 5000,
+            countFailure: (error) => (error as Error).message !== 'permanent',
+        });
+        const permanentAction = jest.fn().mockRejectedValue(new Error('permanent'));
+        const transientAction = jest.fn().mockRejectedValue(new Error('transient'));
+
+        for (let i = 0; i < 3; i++) {
+            try {
+                await expect(breaker.execute(permanentAction)).rejects.toThrow('permanent');
+            } catch (e) {
+                // expected
+            }
+        }
+
+        await expect(breaker.execute(transientAction)).rejects.toThrow('transient');
+        await expect(breaker.execute(transientAction)).rejects.toThrow('transient');
+        await expect(breaker.execute(transientAction)).rejects.toThrow('Circuit is OPEN');
+    });
 });
