@@ -24,3 +24,7 @@ const LANGUAGE_NAMES: Record<string, string> = {
 export function getLanguageName(code: string): string {
   return LANGUAGE_NAMES[code] ?? code;
 }
+
+export function isChineseLanguage(code: string): boolean {
+  return code === 'zh' || code.startsWith('zh-');
+}

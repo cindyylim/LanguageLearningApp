@@ -7,6 +7,7 @@ import { Word, VocabularyList } from "../shared/types/index";
 import { SkeletonCard } from '../components/SkeletonCard';
 import WordProgressButtons from '../components/WordProgressButtons';
 import { getProgressBarColor, getProgressBarWidth, getProgressColor, getProgressText } from '../utils/wordProgress';
+import { pinyinFieldForList } from '../utils/chinese';
 
 const Vocabulary: React.FC = () => {
   const { user } = useAuthStore();
@@ -187,11 +188,18 @@ const Vocabulary: React.FC = () => {
               <div className="text-sm text-gray-600 mb-1">{list.description || 'No description'}</div>
               <div className="space-y-2 mt-4">
                 {list.words && list.words.length > 0 ? list.words.slice(0, 8).map((w: Word) => {
+                  const pinyinField = pinyinFieldForList(list.targetLanguage, list.nativeLanguage);
                   return (
                     <div key={w._id} className="flex items-center justify-between p-2 bg-gray-50 rounded word-item">
                       <div className="flex-1">
                         <div className="font-medium">{w.word}</div>
+                        {pinyinField === 'word' && w.pinyin && (
+                          <div className="text-sm text-gray-400">{w.pinyin}</div>
+                        )}
                         <div className="text-sm text-gray-500">{w.translation}</div>
+                        {pinyinField === 'translation' && w.pinyin && (
+                          <div className="text-sm text-gray-400">{w.pinyin}</div>
+                        )}
                         <div className="flex items-center gap-2 mt-1">
                           <div className="flex-1 bg-gray-200 rounded-full h-2">
                             <div

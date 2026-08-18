@@ -24,6 +24,7 @@ const createVocabularyListSchema = z.object({
 const addWordSchema = z.object({
   word: z.string().min(1),
   translation: z.string().min(1),
+  pinyin: z.string().optional(),
   partOfSpeech: z.string().optional(),
   difficulty: z.enum(['easy', 'medium', 'hard']).optional().default('medium')
 });
@@ -35,6 +36,7 @@ const updateProgressSchema = z.object({
 const updateWordSchema = z.object({
   word: z.string().min(1),
   translation: z.string().min(1),
+  pinyin: z.string().optional(),
   partOfSpeech: z.string().optional(),
   difficulty: z.enum(['easy', 'medium', 'hard']).optional()
 });
@@ -172,6 +174,7 @@ router.post('/:id/words', validateObjectId(), validate(addWordSchema), asyncHand
   const sanitizedWordData = {
     word: sanitizeWordInput(req.body.word),
     translation: sanitizeWordInput(req.body.translation),
+    pinyin: req.body.pinyin ? sanitizeWordInput(req.body.pinyin) : undefined,
     partOfSpeech: sanitizeWordInput(req.body.partOfSpeech),
     difficulty: req.body.difficulty
   };
@@ -206,6 +209,7 @@ router.put('/:listId/words/:wordId', validateObjectId('listId'), validateObjectI
   const sanitizedWordData = {
     word: sanitizeWordInput(req.body.word),
     translation: sanitizeWordInput(req.body.translation),
+    pinyin: req.body.pinyin ? sanitizeWordInput(req.body.pinyin) : undefined,
     partOfSpeech: sanitizeWordInput(req.body.partOfSpeech),
     difficulty: req.body.difficulty
   };

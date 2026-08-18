@@ -1,4 +1,4 @@
-import { getLanguageName } from '../utils/languages';
+import { getLanguageName, isChineseLanguage } from '../utils/languages';
 import type { AIWordInput, Difficulty } from '../shared/types/index';
 
 export function buildQuestionsPrompt(
@@ -84,6 +84,16 @@ export function buildVocabularyListPrompt(
 ): string {
   const targetLang = getLanguageName(targetLanguage);
   const nativeLang = getLanguageName(nativeLanguage);
+  const targetIsChinese = isChineseLanguage(targetLanguage);
+  const nativeIsChinese = isChineseLanguage(nativeLanguage);
+
+  const pinyinInstructions = targetIsChinese
+    ? `- Include a "pinyin" field with Hanyu Pinyin (tone marks) for the Chinese characters in the "word" field.`
+    : nativeIsChinese
+      ? `- Include a "pinyin" field with Hanyu Pinyin (tone marks) for the Chinese characters in the "translation" field.`
+      : '';
+
+  const pinyinJsonField = targetIsChinese || nativeIsChinese ? ', "pinyin": "..."' : '';
 
   return `
 Generate a list of ${wordCount} useful vocabulary words for language learners based on the following topic or keywords: "${prompt}".
@@ -92,7 +102,7 @@ IMPORTANT:
 - The "word" field MUST be written in ${targetLang} (the language being learned).
 - The "translation" field MUST be written in ${nativeLang} (the learner's native language).
 - Do NOT use any other language for these fields.
-
+${pinyinInstructions ? `${pinyinInstructions}\n` : ''}
 For each word, provide:
 - The word in ${targetLang}
 - Its translation in ${nativeLang}
@@ -101,7 +111,7 @@ For each word, provide:
 
 Return the result as a JSON array with this structure:
 [
-  { "word": "...", "translation": "...", "partOfSpeech": "...", "difficulty": "easy|medium|hard" },
+  { "word": "...", "translation": "...", "partOfSpeech": "...", "difficulty": "easy|medium|hard"${pinyinJsonField} },
   ...
 ]
 `;

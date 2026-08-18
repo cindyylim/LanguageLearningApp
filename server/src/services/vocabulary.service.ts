@@ -8,6 +8,7 @@ interface WordDocument {
     _id: string;
     word: string;
     translation: string;
+    pinyin?: string | null;
     partOfSpeech?: string | null;
     difficulty: string;
     vocabularyListId: string;
@@ -31,6 +32,7 @@ interface WordProgressDocument {
 interface AIWord {
     word: string;
     translation: string;
+    pinyin?: string;
     partOfSpeech?: string;
     difficulty?: string;
 }
@@ -137,6 +139,7 @@ export class VocabularyService {
                 _id: word._id.toString(),
                 word: word.word,
                 translation: word.translation,
+                ...(word.pinyin ? { pinyin: word.pinyin } : {}),
                 partOfSpeech: word.partOfSpeech || '',
                 difficulty: word.difficulty,
                 vocabularyListId: word.vocabularyListId.toString(),
@@ -275,6 +278,7 @@ export class VocabularyService {
     static async addWord(listId: string, wordData: {
         word: string;
         translation: string;
+        pinyin?: string;
         partOfSpeech?: string;
         difficulty: string;
     }, userId: string) {
@@ -294,6 +298,7 @@ export class VocabularyService {
         const data = {
             word: wordData.word,
             translation: wordData.translation,
+            pinyin: wordData.pinyin || null,
             partOfSpeech: wordData.partOfSpeech || null,
             difficulty: wordData.difficulty,
             vocabularyListId: new ObjectId(listId),
@@ -313,6 +318,7 @@ export class VocabularyService {
     static async updateWord(listId: string, wordId: string, wordData: {
         word: string;
         translation: string;
+        pinyin?: string;
         partOfSpeech?: string;
         difficulty?: string;
     }, userId: string) {
@@ -453,6 +459,7 @@ export class VocabularyService {
         const wordDocs = aiWords.map((w: AIWord) => ({
             word: w.word,
             translation: w.translation,
+            pinyin: w.pinyin || null,
             partOfSpeech: w.partOfSpeech || null,
             difficulty: w.difficulty || 'medium',
             vocabularyListId: listId,

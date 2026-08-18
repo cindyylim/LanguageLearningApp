@@ -35,6 +35,7 @@ export interface Word {
     _id: string;
     word: string;
     translation: string;
+    pinyin?: string;
     partOfSpeech: string;
     difficulty: Difficulty;
     vocabularyListId: string;

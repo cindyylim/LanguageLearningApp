@@ -5,6 +5,7 @@ import { SkeletonCard } from '../components/SkeletonCard';
 import WordProgressButtons from '../components/WordProgressButtons';
 import { useVocabularyDetails } from '../hooks/useVocabularyDetails';
 import { useNavigate } from 'react-router-dom';
+import { pinyinFieldForList } from '../utils/chinese';
 
 
 const VocabularyDetails: React.FC = () => {
@@ -42,6 +43,7 @@ const VocabularyDetails: React.FC = () => {
   const learning = list?.words?.filter((w: Word) => w.progress?.status === WordStatus.LEARNING).length || 0;
   const percentMastered = totalWords ? Math.round((mastered / totalWords) * 100) : 0;
   const percentLearning = totalWords ? Math.round((learning / totalWords) * 100) : 0;
+  const pinyinField = pinyinFieldForList(list?.targetLanguage, list?.nativeLanguage);
 
   return (
     <div className="max-w-2xl mx-auto p-4">
@@ -183,7 +185,13 @@ const VocabularyDetails: React.FC = () => {
               <div key={w._id} className="word-item p-3 bg-gray-50 rounded flex flex-col md:flex-row md:items-center md:justify-between">
                 <div>
                   <div className="font-medium text-lg">{w.word}</div>
+                  {pinyinField === 'word' && w.pinyin && (
+                    <div className="text-sm text-gray-400">{w.pinyin}</div>
+                  )}
                   <div className="text-sm text-gray-500">{w.translation}</div>
+                  {pinyinField === 'translation' && w.pinyin && (
+                    <div className="text-sm text-gray-400">{w.pinyin}</div>
+                  )}
                   {w.partOfSpeech && <div className="text-xs text-gray-400">{w.partOfSpeech}</div>}
                   <div className="text-xs text-gray-400">Created: {w.createdAt ? new Date(w.createdAt).toLocaleDateString() : '-'}</div>
                   <div className="text-xs text-gray-400">Updated: {w.updatedAt ? new Date(w.updatedAt).toLocaleDateString() : '-'}</div>

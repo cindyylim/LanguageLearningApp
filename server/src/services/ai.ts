@@ -48,6 +48,7 @@ const RecommendationsSchema = z.object({
 const VocabularyWordSchema = z.object({
   word: z.string(),
   translation: z.string(),
+  pinyin: z.string().optional(),
   partOfSpeech: z.string().optional(),
   difficulty: z.string().optional(),
 });
@@ -265,6 +266,7 @@ export class AIService {
     {
       word: string;
       translation: string;
+      pinyin?: string;
       partOfSpeech?: string;
       difficulty?: string;
     }[]
@@ -290,7 +292,11 @@ export class AIService {
         );
 
         await assertAllContentAllowed(
-          vocabularyList.flatMap((entry) => [entry.word, entry.translation]),
+          vocabularyList.flatMap((entry) => [
+            entry.word,
+            entry.translation,
+            entry.pinyin ?? '',
+          ]),
           'Generated content'
         );
 
