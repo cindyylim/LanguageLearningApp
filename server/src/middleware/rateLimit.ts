@@ -18,7 +18,7 @@ export interface UserRateLimiterOptions {
     requireUser?: boolean;
 }
 
-class RedisRateLimitStore implements Store {
+export class RedisRateLimitStore implements Store {
     private redis: Redis;
     private windowMs = 0;
     private readonly redisKeyPrefix = 'rate-limit:';

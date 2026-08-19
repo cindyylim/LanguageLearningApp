@@ -17,6 +17,7 @@ describe('SM-2 Spaced Repetition Utility', () => {
         it('should map status strings to quality grades', () => {
             expect(mapStatusToQuality('mastered')).toBe(5);
             expect(mapStatusToQuality('learning')).toBe(2);
+            expect(mapStatusToQuality('new')).toBe(1);
             expect(mapStatusToQuality('unknown')).toBe(3);
         });
     });

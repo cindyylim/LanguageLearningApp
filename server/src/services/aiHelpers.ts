@@ -106,19 +106,7 @@ export function categorizeAIError(error: unknown): AIErrorType {
   return 'UNKNOWN_ERROR';
 }
 
-export function isRetryableAIError(error: unknown): boolean {
-  if (error instanceof ModerationError) {
-    return false;
-  }
-  if (error instanceof z.ZodError) {
-    return false;
-  }
-  if (error instanceof SyntaxError) {
-    return false;
-  }
-
-  const errorType = categorizeAIError(error);
-
+export function isRetryableForErrorType(errorType: string): boolean {
   switch (errorType) {
     case 'RATE_LIMIT_ERROR':
     case 'TIMEOUT_ERROR':
@@ -136,6 +124,20 @@ export function isRetryableAIError(error: unknown): boolean {
     default:
       return false;
   }
+}
+
+export function isRetryableAIError(error: unknown): boolean {
+  if (error instanceof ModerationError) {
+    return false;
+  }
+  if (error instanceof z.ZodError) {
+    return false;
+  }
+  if (error instanceof SyntaxError) {
+    return false;
+  }
+
+  return isRetryableForErrorType(categorizeAIError(error));
 }
 
 export function toAIAppError(error: unknown, errorType?: AIErrorType): AppError {

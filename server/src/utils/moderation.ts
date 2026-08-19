@@ -5,7 +5,7 @@ import { AppError } from './AppError';
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const MODERATION_MODEL = process.env.OPENAI_MODERATION_MODEL || 'omni-moderation-latest';
-const SCORE_THRESHOLD = Number(process.env.MODERATION_SCORE_THRESHOLD ?? '0.2');
+const SCORE_THRESHOLD = Number(process.env.MODERATION_SCORE_THRESHOLD ?? '0.3');
 
 const FLAGGED_CATEGORIES = [
   'hate',

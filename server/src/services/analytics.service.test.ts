@@ -99,6 +99,18 @@ describe('AnalyticsService', () => {
 
             expect(streak).toBe(0);
         });
+
+        it('should stop counting when activity days are not consecutive', async () => {
+            mockDb.collection().toArray.mockResolvedValue([
+                { date: utcDaysAgo(0) },
+                { date: utcDaysAgo(1) },
+                { date: utcDaysAgo(4) },
+            ]);
+
+            const streak = await AnalyticsService.calculateStreak('user123');
+
+            expect(streak).toBe(2);
+        });
     });
 
     describe('getSummaryStats', () => {

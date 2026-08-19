@@ -893,5 +893,23 @@ describe("Vocabulary API Endpoints", () => {
         "test-user-id"
       );
     });
+
+    it("should return 400 when AI list generation returns empty object", async () => {
+      const { VocabularyService } = require("../services/vocabulary.service");
+      VocabularyService.generateAIList = jest.fn().mockResolvedValue({});
+
+      const response = await request(testApp)
+        .post("/api/vocabulary/generate-ai-list")
+        .send({
+          name: "AI Generated List",
+          targetLanguage: "fr",
+          nativeLanguage: "en",
+          prompt: "Basic French greetings",
+          wordCount: 5,
+        })
+        .expect(400);
+
+      expect(response.body.message).toBe("Vocabulary list cannot be generated");
+    });
   });
 });

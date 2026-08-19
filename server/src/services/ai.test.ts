@@ -206,4 +206,42 @@ describe('AIService.generateRecommendations', () => {
     );
     expect(result.estimatedTime).toBe(45);
   });
+
+    it('throws when OpenAI returns empty content', async () => {
+    mockChatCompletionsCreate.mockResolvedValue({
+      choices: [{ message: { content: '' } }],
+    });
+
+    await expect(
+      AIService.generateQuestions(sampleWords, 'fr', 'en', 1, 'easy')
+    ).rejects.toMatchObject({ statusCode: 503 });
+    expect(mockChatCompletionsCreate).toHaveBeenCalled();
+  });
+
+  it('returns fallback recommendations when recommendation generation fails', async () => {
+    const { WordStatus } = require('../shared/types/index');
+    const userProgress = [
+      {
+        get status() {
+          throw new Error('progress read failed');
+        },
+        wordId: '507f1f77bcf86cd799439011',
+        reviewCount: 1,
+        streak: 0,
+      },
+    ];
+
+    const result = await AIService.generateRecommendations(
+      'user1',
+      userProgress as any,
+      []
+    );
+
+    expect(result).toEqual({
+      focusAreas: ['general_practice'],
+      recommendedWords: [],
+      studyPlan: 'Continue with regular study routine',
+      estimatedTime: 20,
+    });
+  });
 });

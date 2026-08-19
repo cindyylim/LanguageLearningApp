@@ -1,6 +1,30 @@
 import { RequestQueue } from './RequestQueue';
 
 describe('RequestQueue', () => {
+    it('uses default concurrency of 3 when no options are provided', async () => {
+        jest.useFakeTimers();
+        const queue = new RequestQueue();
+        let concurrent = 0;
+        let maxConcurrent = 0;
+
+        const task = async () => {
+            concurrent++;
+            maxConcurrent = Math.max(maxConcurrent, concurrent);
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            concurrent--;
+            return 'done';
+        };
+
+        const promises = Array.from({ length: 5 }, () => queue.add(task));
+
+        await Promise.resolve();
+        expect(maxConcurrent).toBe(3);
+
+        await jest.advanceTimersByTimeAsync(500);
+        await Promise.all(promises);
+        jest.useRealTimers();
+    });
+
     it('should process tasks', async () => {
         const queue = new RequestQueue({ concurrency: 2, rateLimit: 10, interval: 60000 });
 
@@ -19,6 +43,23 @@ describe('RequestQueue', () => {
 
         await expect(queue.add(failTask)).rejects.toThrow('Task failed');
         expect(failTask).toHaveBeenCalled();
+    });
+
+    it('ignores empty queue items after shift', async () => {
+        const queue = new RequestQueue({ concurrency: 5, rateLimit: 10, interval: 60000 });
+        const internalQueue = (queue as any).queue as Array<unknown>;
+
+        internalQueue.push({
+            task: async () => 'done',
+            resolve: jest.fn(),
+            reject: jest.fn(),
+        });
+
+        jest.spyOn(internalQueue, 'shift').mockReturnValue(undefined);
+
+        await (queue as any).processQueue();
+
+        expect(internalQueue.shift).toHaveBeenCalled();
     });
 });
 

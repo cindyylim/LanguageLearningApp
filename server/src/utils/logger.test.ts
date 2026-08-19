@@ -65,3 +65,49 @@ describe('Logger', () => {
         expect(logger.child).toHaveBeenCalledWith({ requestId });
     });
 });
+
+describe('Logger stream and formatting', () => {
+    beforeEach(() => {
+        jest.resetModules();
+        jest.unmock('winston');
+    });
+
+    it('writes trimmed messages through stream', () => {
+        const { stream, logger } = require('./logger');
+        const infoSpy = jest.spyOn(logger, 'info');
+
+        stream.write('http log line\n');
+
+        expect(infoSpy).toHaveBeenCalledWith('http log line');
+        infoSpy.mockRestore();
+    });
+
+    it('formats logs with stack traces and metadata', () => {
+        const { logger } = require('./logger');
+        const error = new Error('boom');
+
+        expect(() => {
+            logger.error(error);
+        }).not.toThrow();
+    });
+
+    it('uses info log level in production', () => {
+        const originalEnv = process.env.NODE_ENV;
+        process.env.NODE_ENV = 'production';
+
+        jest.resetModules();
+        jest.unmock('winston');
+
+        const winston = require('winston');
+        const createLoggerSpy = jest.spyOn(winston, 'createLogger');
+
+        require('./logger');
+
+        expect(createLoggerSpy).toHaveBeenCalledWith(
+            expect.objectContaining({ level: 'info' })
+        );
+
+        createLoggerSpy.mockRestore();
+        process.env.NODE_ENV = originalEnv;
+    });
+});

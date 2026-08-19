@@ -6,10 +6,12 @@ import {
   cleanJsonResponse,
   executeWithRetry,
   isRetryableAIError,
+  isRetryableForErrorType,
   logAIMetrics,
   parseJsonWithSchema,
   toAIAppError,
 } from './aiHelpers';
+import { AppError } from '../utils/AppError';
 import logger from '../utils/logger';
 
 jest.mock('../utils/logger', () => ({
@@ -102,6 +104,10 @@ describe('isRetryableAIError', () => {
     expect(categorizeAIError(new Error('flagged by moderation'))).toBe('MODERATION_ERROR');
     expect(categorizeAIError(new Error('something else'))).toBe('UNKNOWN_ERROR');
   });
+
+  it('returns false for unrecognized categorized error types', () => {
+    expect(isRetryableForErrorType('FUTURE_ERROR')).toBe(false);
+  });
 });
 
 describe('toAIAppError', () => {
@@ -124,6 +130,11 @@ describe('toAIAppError', () => {
     const appError = toAIAppError(moderationError);
     expect(appError.statusCode).toBe(400);
     expect(appError).toBe(moderationError);
+  });
+
+  it('returns existing AppError unchanged', () => {
+    const existing = new AppError('Already handled', 400);
+    expect(toAIAppError(existing)).toBe(existing);
   });
 
   it('maps validation and bad request errors to 500', () => {
@@ -160,6 +171,12 @@ describe('toAIAppError', () => {
     const appError = toAIAppError(new Error('flagged'), 'MODERATION_ERROR');
     expect(appError).toBeInstanceOf(ModerationError);
     expect(appError.statusCode).toBe(400);
+  });
+
+  it('maps unrecognized error types to generic 503', () => {
+    const appError = toAIAppError(new Error('unexpected'), 'FUTURE_ERROR' as any);
+    expect(appError.statusCode).toBe(503);
+    expect(appError.message).toBe('AI service temporarily unavailable');
   });
 });
 
@@ -288,5 +305,16 @@ describe('executeWithRetry', () => {
       expect.any(OpenAI.BadRequestError),
       'BAD_REQUEST_ERROR'
     );
+  });
+
+  it('throws when maxRetries is zero and no attempt runs', async () => {
+    await expect(
+      executeWithRetry({
+        operation: 'testZeroRetries',
+        maxRetries: 0,
+        initialDelayMs: 1,
+        runAttempt: jest.fn(),
+      })
+    ).rejects.toThrow('Failed testZeroRetries due to unexpected flow.');
   });
 });

@@ -73,4 +73,13 @@ describe('getHealthStatus', () => {
         expect(health.checks.ai).toBe('optional');
         expect(AIService.healthCheck).not.toHaveBeenCalled();
     });
+
+    it('returns DEGRADED when redis health check throws', async () => {
+        (redisHealthCheck as jest.Mock).mockRejectedValue(new Error('redis connection failed'));
+
+        const health = await getHealthStatus();
+
+        expect(health.status).toBe('DEGRADED');
+        expect(health.checks.redis).toBe('unhealthy');
+    });
 });

@@ -149,4 +149,32 @@ describe('Error Handler Middleware', () => {
             })
         );
     });
+
+    it('should use custom statusCode and status from error in development', () => {
+        process.env.NODE_ENV = 'development';
+        const error = Object.assign(new Error('Custom dev error'), {
+            statusCode: 422,
+            status: 'custom_status',
+        });
+
+        errorHandler(error, mockReq as Request, mockRes as Response, mockNext);
+
+        expect(mockRes.status).toHaveBeenCalledWith(422);
+        expect(mockRes.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                status: 'custom_status',
+                message: 'Custom dev error',
+            })
+        );
+    });
+
+    it('should delegate to next when response headers were already sent', () => {
+        const error = new Error('Late error');
+        (mockRes as Response).headersSent = true;
+
+        errorHandler(error, mockReq as Request, mockRes as Response, mockNext);
+
+        expect(mockNext).toHaveBeenCalledWith(error);
+        expect(mockRes.status).not.toHaveBeenCalled();
+    });
 });

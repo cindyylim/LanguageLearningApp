@@ -17,7 +17,7 @@ jest.mock('../utils/logger', () => ({
     },
 }));
 
-import { createUserRateLimiter } from './rateLimit';
+import { createUserRateLimiter, RedisRateLimitStore } from './rateLimit';
 
 function buildApp(maxRequests: number, windowMs: number, keyPrefix: string) {
     const app = express();
@@ -153,5 +153,38 @@ describe('createUserRateLimiter with Redis store', () => {
 
         expect(mockIncr).toHaveBeenCalled();
         expect(mockPexpire).toHaveBeenCalledWith(expect.stringContaining('rate-limit:'), 60_000);
+    });
+
+    it('decrements redis counter and deletes key when count reaches zero', async () => {
+        const store = new RedisRateLimitStore({
+            incr: mockIncr,
+            pexpire: mockPexpire,
+            pttl: mockPttl,
+            decr: mockDecr,
+            del: mockDel,
+        } as any);
+        store.init({ windowMs: 60_000 } as any);
+
+        mockDecr.mockResolvedValueOnce(0);
+
+        await store.decrement('decr-test:user');
+
+        expect(mockDecr).toHaveBeenCalledWith('rate-limit:decr-test:user');
+        expect(mockDel).toHaveBeenCalledWith('rate-limit:decr-test:user');
+    });
+
+    it('resets redis key via store resetKey', async () => {
+        const store = new RedisRateLimitStore({
+            incr: mockIncr,
+            pexpire: mockPexpire,
+            pttl: mockPttl,
+            decr: mockDecr,
+            del: mockDel,
+        } as any);
+        store.init({ windowMs: 60_000 } as any);
+
+        await store.resetKey('reset-test:user');
+
+        expect(mockDel).toHaveBeenCalledWith('rate-limit:reset-test:user');
     });
 });

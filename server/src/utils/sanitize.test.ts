@@ -23,6 +23,11 @@ describe('Sanitize Utils', () => {
     });
 
     describe('sanitizeObject', () => {
+        it('should return non-object values unchanged', () => {
+            expect(sanitizeObject(null as any)).toBeNull();
+            expect(sanitizeObject('plain' as any)).toBe('plain');
+        });
+
         it('should recursively sanitize string properties', () => {
             const obj = {
                 name: '<b>Test</b>',
@@ -60,6 +65,10 @@ describe('Sanitize Utils', () => {
             const result = sanitizeText('<p>Hello <b>World</b></p>');
             expect(result).toBe('Hello World');
         });
+
+        it('should return non-string input unchanged', () => {
+            expect(sanitizeText(42 as any)).toBe(42);
+        });
     });
 
     describe('sanitizeVocabularyListName', () => {
@@ -71,6 +80,12 @@ describe('Sanitize Utils', () => {
 
         it('should throw error for empty name', () => {
             expect(() => sanitizeVocabularyListName('')).toThrow();
+        });
+
+        it('should throw error when sanitized name becomes empty', () => {
+            expect(() => sanitizeVocabularyListName('\x00\x01')).toThrow(
+                'Name cannot be empty'
+            );
         });
 
         it('should throw error for name exceeding 100 characters', () => {
@@ -87,6 +102,10 @@ describe('Sanitize Utils', () => {
 
         it('should throw error for empty input', () => {
             expect(() => sanitizeWordInput('')).toThrow('Invalid input');
+        });
+
+        it('should throw error when sanitized input becomes empty', () => {
+            expect(() => sanitizeWordInput('\x00\x01')).toThrow('Input cannot be empty');
         });
     });
 

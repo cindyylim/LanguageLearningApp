@@ -59,4 +59,19 @@ describe('Validate Middleware', () => {
             expect((error as AppError).message).toContain('Validation error');
         }
     });
+
+    it('should forward non-Zod errors via next', () => {
+        const schema = {
+            parse: jest.fn().mockImplementation(() => {
+                throw new Error('Unexpected parse failure');
+            }),
+        } as unknown as z.ZodSchema;
+
+        const middleware = validate(schema);
+        const unexpectedError = new Error('Unexpected parse failure');
+
+        middleware(mockReq as Request, mockRes as Response, mockNext);
+
+        expect(mockNext).toHaveBeenCalledWith(unexpectedError);
+    });
 });

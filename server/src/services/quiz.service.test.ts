@@ -442,6 +442,113 @@ describe('QuizService', () => {
             expect(AIService.generateQuestions).not.toHaveBeenCalled();
         });
 
+        it('should throw 500 when idempotency record references missing quiz at start', async () => {
+            const vocabularyListId = '507f1f77bcf86cd799439011';
+            const userId = 'user123';
+            const options = { questionCount: 5, difficulty: 'easy' as const };
+            const idempotencyKey = 'orphan-at-start';
+            const existingQuizId = '507f1f77bcf86cd799439014';
+
+            createMockCollections({
+                IdempotencyKey: {
+                    findOne: jest.fn().mockResolvedValue({
+                        userId,
+                        key: idempotencyKey,
+                        quizId: existingQuizId,
+                    }),
+                },
+                Quiz: {
+                    findOne: jest.fn().mockResolvedValue(null),
+                },
+            });
+
+            await expect(
+                QuizService.generateQuiz(vocabularyListId, options, userId, idempotencyKey)
+            ).rejects.toMatchObject({
+                statusCode: 500,
+                message: 'Idempotent quiz not found',
+            });
+        });
+
+        it('should return existing quiz after duplicate claim resolves', async () => {
+            const vocabularyListId = '507f1f77bcf86cd799439011';
+            const userId = 'user123';
+            const options = { questionCount: 5, difficulty: 'easy' as const };
+            const idempotencyKey = 'resolved-duplicate';
+            const existingQuizId = '507f1f77bcf86cd799439014';
+
+            const mockVocabularyList = createMockVocabularyList(vocabularyListId);
+            const mockWords = createMockWords();
+            const existingQuiz = {
+                _id: new ObjectId(existingQuizId),
+                title: 'Quiz: French Basics',
+            };
+
+            createMockCollections({
+                VocabularyList: {
+                    findOne: jest.fn().mockResolvedValue(mockVocabularyList),
+                },
+                Word: {
+                    find: jest.fn().mockReturnThis(),
+                    toArray: jest.fn().mockResolvedValue(mockWords),
+                },
+                IdempotencyKey: {
+                    findOne: jest.fn()
+                        .mockResolvedValueOnce(null)
+                        .mockResolvedValue({
+                            userId,
+                            key: idempotencyKey,
+                            quizId: existingQuizId,
+                        }),
+                    insertOne: jest.fn().mockRejectedValue({ code: 11000 }),
+                },
+                Quiz: {
+                    findOne: jest.fn().mockResolvedValue(existingQuiz),
+                },
+            });
+
+            const result = await QuizService.generateQuiz(
+                vocabularyListId,
+                options,
+                userId,
+                idempotencyKey
+            );
+
+            expect(result).toEqual({
+                quiz: existingQuiz,
+                created: false,
+            });
+            expect(AIService.generateQuestions).not.toHaveBeenCalled();
+        });
+
+        it('should throw when idempotency claim fails with non-duplicate error', async () => {
+            const vocabularyListId = '507f1f77bcf86cd799439011';
+            const userId = 'user123';
+            const options = { questionCount: 5, difficulty: 'easy' as const };
+            const idempotencyKey = 'claim-failure';
+
+            const mockVocabularyList = createMockVocabularyList(vocabularyListId);
+            const mockWords = createMockWords();
+
+            createMockCollections({
+                VocabularyList: {
+                    findOne: jest.fn().mockResolvedValue(mockVocabularyList),
+                },
+                Word: {
+                    find: jest.fn().mockReturnThis(),
+                    toArray: jest.fn().mockResolvedValue(mockWords),
+                },
+                IdempotencyKey: {
+                    findOne: jest.fn().mockResolvedValue(null),
+                    insertOne: jest.fn().mockRejectedValue(new Error('database unavailable')),
+                },
+            });
+
+            await expect(
+                QuizService.generateQuiz(vocabularyListId, options, userId, idempotencyKey)
+            ).rejects.toThrow('database unavailable');
+        });
+
         it('should create separate quizzes for different idempotency keys', async () => {
             const vocabularyListId = '507f1f77bcf86cd799439011';
             const userId = 'user123';

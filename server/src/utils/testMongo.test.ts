@@ -71,4 +71,93 @@ describe('testMongo', () => {
         expect(mockConnect).toHaveBeenCalled();
         expect(db).toEqual({ name: 'testdb' });
     });
+
+    it('returns cached database on subsequent calls', async () => {
+        const mockConnect = jest.fn().mockResolvedValue(undefined);
+        const mockDb = { name: 'cached-testdb' };
+        const mockOn = jest.fn();
+
+        jest.resetModules();
+        jest.doMock('mongodb', () => ({
+            MongoClient: jest.fn().mockImplementation(() => ({
+                connect: mockConnect,
+                db: jest.fn().mockReturnValue(mockDb),
+                on: mockOn,
+            })),
+        }));
+
+        process.env.NODE_ENV = 'test';
+        process.env.TESTDB_URI = 'mongodb://localhost:27017/language-learning-test';
+
+        const { connectToTestDatabase } = require('./testMongo');
+        const first = await connectToTestDatabase();
+        const second = await connectToTestDatabase();
+
+        expect(first).toBe(mockDb);
+        expect(second).toBe(mockDb);
+        expect(mockConnect).toHaveBeenCalledTimes(1);
+    });
+
+    it('clears connection promise when test database connect fails', async () => {
+        const mockConnect = jest
+            .fn()
+            .mockRejectedValueOnce(new Error('test connect failed'))
+            .mockResolvedValue(undefined);
+        const mockDb = { name: 'retry-testdb' };
+        const mockOn = jest.fn();
+
+        jest.resetModules();
+        jest.doMock('mongodb', () => ({
+            MongoClient: jest.fn().mockImplementation(() => ({
+                connect: mockConnect,
+                db: jest.fn().mockReturnValue(mockDb),
+                on: mockOn,
+            })),
+        }));
+
+        process.env.NODE_ENV = 'test';
+        process.env.TESTDB_URI = 'mongodb://localhost:27017/language-learning-test';
+
+        const { connectToTestDatabase } = require('./testMongo');
+
+        await expect(connectToTestDatabase()).rejects.toThrow('test connect failed');
+        await expect(connectToTestDatabase()).resolves.toBe(mockDb);
+        expect(mockConnect).toHaveBeenCalledTimes(2);
+    });
+
+    it('clears cache when topology closes and closes test connection', async () => {
+        const mockConnect = jest.fn().mockResolvedValue(undefined);
+        const mockClose = jest.fn().mockResolvedValue(undefined);
+        const mockDb = { name: 'closable-testdb' };
+        let topologyHandler: (() => void) | undefined;
+        const mockOn = jest.fn((_event: string, handler: () => void) => {
+            topologyHandler = handler;
+        });
+
+        jest.resetModules();
+        jest.doMock('mongodb', () => ({
+            MongoClient: jest.fn().mockImplementation(() => ({
+                connect: mockConnect,
+                db: jest.fn().mockReturnValue(mockDb),
+                on: mockOn,
+                close: mockClose,
+            })),
+        }));
+
+        process.env.NODE_ENV = 'test';
+        process.env.TESTDB_URI = 'mongodb://localhost:27017/language-learning-test';
+
+        const { connectToTestDatabase, closeTestDatabaseConnection } = require('./testMongo');
+        await connectToTestDatabase();
+
+        expect(topologyHandler).toBeDefined();
+        topologyHandler?.();
+
+        mockConnect.mockClear();
+        await connectToTestDatabase();
+        expect(mockConnect).toHaveBeenCalledTimes(1);
+
+        await closeTestDatabaseConnection();
+        expect(mockClose).toHaveBeenCalled();
+    });
 });
