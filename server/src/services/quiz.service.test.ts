@@ -508,6 +508,127 @@ describe('QuizService', () => {
             expect(collections.IdempotencyKey.insertOne).toHaveBeenCalledTimes(2);
         });
 
+        it('should release idempotency key when quiz generation fails', async () => {
+            const vocabularyListId = '507f1f77bcf86cd799439011';
+            const userId = 'user123';
+            const options = { questionCount: 5, difficulty: 'easy' as const };
+            const idempotencyKey = 'release-key';
+
+            const mockVocabularyList = createMockVocabularyList(vocabularyListId);
+            const mockWords = createMockWords();
+
+            const collections = createMockCollections({
+                VocabularyList: {
+                    findOne: jest.fn().mockResolvedValue(mockVocabularyList)
+                },
+                Word: {
+                    find: jest.fn().mockReturnThis(),
+                    toArray: jest.fn().mockResolvedValue(mockWords)
+                },
+                IdempotencyKey: {
+                    findOne: jest.fn().mockResolvedValue(null),
+                    insertOne: jest.fn().mockResolvedValue({ insertedId: new ObjectId() }),
+                    deleteOne: jest.fn().mockResolvedValue({ deletedCount: 1 })
+                },
+                Quiz: {
+                    insertOne: jest.fn().mockRejectedValue(new Error('insert failed'))
+                }
+            });
+
+            jest.spyOn(AIService, 'generateQuestions').mockResolvedValue(createMockAIQuestions());
+
+            await expect(
+                QuizService.generateQuiz(vocabularyListId, options, userId, idempotencyKey)
+            ).rejects.toThrow('insert failed');
+
+            expect(collections.IdempotencyKey.deleteOne).toHaveBeenCalledWith({
+                userId,
+                key: idempotencyKey,
+                status: 'pending'
+            });
+        });
+
+        it('should throw 409 when duplicate idempotency key never resolves', async () => {
+            jest.useFakeTimers();
+            const vocabularyListId = '507f1f77bcf86cd799439011';
+            const userId = 'user123';
+            const options = { questionCount: 5, difficulty: 'easy' as const };
+            const idempotencyKey = 'stale-key';
+
+            const mockVocabularyList = createMockVocabularyList(vocabularyListId);
+            const mockWords = createMockWords();
+
+            createMockCollections({
+                VocabularyList: {
+                    findOne: jest.fn().mockResolvedValue(mockVocabularyList)
+                },
+                Word: {
+                    find: jest.fn().mockReturnThis(),
+                    toArray: jest.fn().mockResolvedValue(mockWords)
+                },
+                IdempotencyKey: {
+                    findOne: jest.fn()
+                        .mockResolvedValueOnce(null)
+                        .mockResolvedValue({ userId, key: idempotencyKey, status: 'pending' }),
+                    insertOne: jest.fn().mockRejectedValue({ code: 11000 })
+                }
+            });
+
+            const promise = QuizService.generateQuiz(vocabularyListId, options, userId, idempotencyKey);
+            const expectation = expect(promise).rejects.toMatchObject({
+                statusCode: 409,
+                message: 'Quiz generation already in progress'
+            });
+
+            await jest.advanceTimersByTimeAsync(6000);
+            await expectation;
+            jest.useRealTimers();
+        });
+
+        it('should throw 500 when duplicate idempotency key resolves but quiz is missing', async () => {
+            const vocabularyListId = '507f1f77bcf86cd799439011';
+            const userId = 'user123';
+            const options = { questionCount: 5, difficulty: 'easy' as const };
+            const idempotencyKey = 'orphan-key';
+            const existingQuizId = '507f1f77bcf86cd799439014';
+
+            const mockVocabularyList = createMockVocabularyList(vocabularyListId);
+            const mockWords = createMockWords();
+
+            createMockCollections({
+                VocabularyList: {
+                    findOne: jest.fn().mockResolvedValue(mockVocabularyList)
+                },
+                Word: {
+                    find: jest.fn().mockReturnThis(),
+                    toArray: jest.fn().mockResolvedValue(mockWords)
+                },
+                IdempotencyKey: {
+                    findOne: jest.fn()
+                        .mockResolvedValueOnce(null)
+                        .mockResolvedValue({
+                            userId,
+                            key: idempotencyKey,
+                            status: 'completed',
+                            quizId: existingQuizId
+                        }),
+                    insertOne: jest.fn().mockRejectedValue({ code: 11000 })
+                },
+                Quiz: {
+                    findOne: jest.fn().mockResolvedValue(null)
+                }
+            });
+
+            await expect(
+                QuizService.generateQuiz(vocabularyListId, options, userId, idempotencyKey)
+            ).rejects.toMatchObject({
+                statusCode: 500,
+                message: 'Idempotent quiz not found'
+            });
+
+            expect(AIService.generateQuestions).not.toHaveBeenCalled();
+        });
+
         it('should scope idempotency keys per user', async () => {
             const vocabularyListId = '507f1f77bcf86cd799439011';
             const options = { questionCount: 5, difficulty: 'easy' as const };
@@ -1254,7 +1375,7 @@ describe('QuizService', () => {
                     question: 'What is "hello" in French?',
                     type: 'multiple_choice',
                     correctAnswer: 'bonjour',
-                    wordId: 'invalidWordId' // This is an invalid wordId (not 24 characters)
+                    wordId: 'invalidWordId'
                 }
             ];
             const mockAttemptResult = { insertedId: new ObjectId('507f1f77bcf86cd799439016') };
@@ -1320,6 +1441,34 @@ describe('QuizService', () => {
                 }),
                 { upsert: true }
             );
+        });
+
+        it('should skip progress update when the word was deleted', async () => {
+            const userId = 'user123';
+            const deletedWordId = '507f1f77bcf86cd799439014';
+            const wordProgressMap = new Map<string, { correct: number; total: number }>([
+                [deletedWordId, { correct: 1, total: 1 }],
+            ]);
+
+            const collections = createMockCollections({
+                Word: {
+                    findOne: jest.fn().mockResolvedValue(null)
+                },
+                WordProgress: {
+                    findOne: jest.fn(),
+                    updateOne: jest.fn(),
+                    insertOne: jest.fn()
+                }
+            });
+
+            await (QuizService as any).updateWordProgressFromQuiz(wordProgressMap, userId);
+
+            expect(collections.Word.findOne).toHaveBeenCalledWith({
+                _id: new ObjectId(deletedWordId)
+            });
+            expect(collections.WordProgress.findOne).not.toHaveBeenCalled();
+            expect(collections.WordProgress.updateOne).not.toHaveBeenCalled();
+            expect(collections.WordProgress.insertOne).not.toHaveBeenCalled();
         });
 
         it('should handle empty word progress map', async () => {

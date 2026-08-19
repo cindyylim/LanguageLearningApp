@@ -1,8 +1,20 @@
 import request from 'supertest';
 import express from 'express';
 
+const mockGetRedisClient = jest.fn(() => null);
+
 jest.mock('../utils/redis', () => ({
-    getRedisClient: jest.fn(() => null),
+    getRedisClient: mockGetRedisClient,
+}));
+
+jest.mock('../utils/logger', () => ({
+    __esModule: true,
+    default: {
+        warn: jest.fn(),
+        info: jest.fn(),
+        error: jest.fn(),
+        debug: jest.fn(),
+    },
 }));
 
 import { createUserRateLimiter } from './rateLimit';
@@ -64,5 +76,82 @@ describe('createUserRateLimiter', () => {
             status: 'error',
             message: 'Limit exceeded for test-day-429',
         });
+    });
+
+    it('uses IP fallback when user is not required and unauthenticated', async () => {
+        const app = express();
+        app.set('trust proxy', true);
+        app.use(express.json());
+
+        const limiter = createUserRateLimiter(1, 60 * 1000, {
+            requireUser: false,
+            keyPrefix: 'ip-fallback',
+        });
+
+        app.post('/limited', limiter, (_req, res) => {
+            res.status(200).json({ ok: true });
+        });
+
+        await request(app).post('/limited').set('X-Forwarded-For', '1.2.3.4').expect(200);
+        await request(app).post('/limited').set('X-Forwarded-For', '1.2.3.4').expect(429);
+    });
+
+    it('scopes unauthenticated users when requireUser is true', async () => {
+        const app = express();
+        app.use(express.json());
+
+        const limiter = createUserRateLimiter(1, 60 * 1000, {
+            requireUser: true,
+            keyPrefix: 'anon',
+        });
+
+        app.post('/limited', limiter, (_req, res) => {
+            res.status(200).json({ ok: true });
+        });
+
+        await request(app).post('/limited').expect(200);
+        await request(app).post('/limited').expect(429);
+    });
+});
+
+describe('createUserRateLimiter with Redis store', () => {
+    const mockIncr = jest.fn();
+    const mockPexpire = jest.fn();
+    const mockPttl = jest.fn();
+    const mockDecr = jest.fn();
+    const mockDel = jest.fn();
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        mockIncr.mockResolvedValue(1);
+        mockPexpire.mockResolvedValue(1);
+        mockPttl.mockResolvedValue(60_000);
+        mockDecr.mockResolvedValue(0);
+        mockDel.mockResolvedValue(1);
+
+        mockGetRedisClient.mockReturnValue({
+            incr: mockIncr,
+            pexpire: mockPexpire,
+            pttl: mockPttl,
+            decr: mockDecr,
+            del: mockDel,
+        } as any);
+    });
+
+    afterEach(() => {
+        mockGetRedisClient.mockReturnValue(null);
+    });
+
+    it('uses Redis increment and expiry for rate limiting', async () => {
+        mockIncr.mockResolvedValueOnce(1).mockResolvedValueOnce(2).mockResolvedValueOnce(3);
+
+        const app = buildApp(2, 60 * 1000, 'redis-minute');
+
+        await request(app).post('/limited').expect(200);
+        await request(app).post('/limited').expect(200);
+        await request(app).post('/limited').expect(429);
+
+        expect(mockIncr).toHaveBeenCalled();
+        expect(mockPexpire).toHaveBeenCalledWith(expect.stringContaining('rate-limit:'), 60_000);
     });
 });

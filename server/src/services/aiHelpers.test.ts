@@ -3,10 +3,14 @@ import { z } from 'zod';
 import { ModerationError } from '../utils/moderation';
 import {
   categorizeAIError,
+  cleanJsonResponse,
   executeWithRetry,
   isRetryableAIError,
+  logAIMetrics,
+  parseJsonWithSchema,
   toAIAppError,
 } from './aiHelpers';
+import logger from '../utils/logger';
 
 jest.mock('../utils/logger', () => ({
   debug: jest.fn(),
@@ -14,6 +18,22 @@ jest.mock('../utils/logger', () => ({
   warn: jest.fn(),
   error: jest.fn(),
 }));
+
+describe('cleanJsonResponse', () => {
+  it('strips markdown fences and optionally wraps as array', () => {
+    expect(cleanJsonResponse('```json\n{"a":1}\n```')).toBe('{"a":1}');
+    expect(cleanJsonResponse('{"a":1}', true)).toBe('[{"a":1}]');
+    expect(cleanJsonResponse('[{"a":1}]', true)).toBe('[{"a":1}]');
+  });
+});
+
+describe('parseJsonWithSchema', () => {
+  it('parses cleaned JSON and validates with schema', () => {
+    const schema = z.object({ word: z.string() });
+    const result = parseJsonWithSchema('```json\n{"word":"bonjour"}\n```', schema);
+    expect(result).toEqual({ word: 'bonjour' });
+  });
+});
 
 describe('isRetryableAIError', () => {
   it('retries OpenAI 429 rate limit errors', () => {
@@ -63,6 +83,25 @@ describe('isRetryableAIError', () => {
     expect(isRetryableAIError(error)).toBe(false);
     expect(categorizeAIError(error)).toBe('AUTHENTICATION_ERROR');
   });
+
+  it('retries OpenAI connection timeout and network errors', () => {
+    const timeoutError = new OpenAI.APIConnectionTimeoutError();
+    const networkError = new OpenAI.APIConnectionError({ cause: new Error('offline') } as any);
+
+    expect(categorizeAIError(timeoutError)).toBe('TIMEOUT_ERROR');
+    expect(categorizeAIError(networkError)).toBe('NETWORK_ERROR');
+    expect(isRetryableAIError(timeoutError)).toBe(true);
+    expect(isRetryableAIError(networkError)).toBe(true);
+  });
+
+  it('categorizes message-based transient and auth errors', () => {
+    expect(categorizeAIError(new Error('quota exceeded'))).toBe('RATE_LIMIT_ERROR');
+    expect(categorizeAIError(new Error('request timeout'))).toBe('TIMEOUT_ERROR');
+    expect(categorizeAIError(new Error('network failure ECONNREFUSED'))).toBe('NETWORK_ERROR');
+    expect(categorizeAIError(new Error('Invalid API key provided'))).toBe('AUTHENTICATION_ERROR');
+    expect(categorizeAIError(new Error('flagged by moderation'))).toBe('MODERATION_ERROR');
+    expect(categorizeAIError(new Error('something else'))).toBe('UNKNOWN_ERROR');
+  });
 });
 
 describe('toAIAppError', () => {
@@ -85,6 +124,60 @@ describe('toAIAppError', () => {
     const appError = toAIAppError(moderationError);
     expect(appError.statusCode).toBe(400);
     expect(appError).toBe(moderationError);
+  });
+
+  it('maps validation and bad request errors to 500', () => {
+    expect(toAIAppError(new SyntaxError('bad json')).message).toBe('AI response validation failed');
+    expect(toAIAppError(new OpenAI.BadRequestError(400, {}, 'bad', {})).message).toBe(
+      'AI request failed'
+    );
+  });
+
+  it('hides auth error details in production', () => {
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+
+    const appError = toAIAppError(new OpenAI.AuthenticationError(401, {}, 'secret details', {}));
+
+    expect(appError.statusCode).toBe(503);
+    expect(appError.message).toBe('AI service configuration error');
+
+    process.env.NODE_ENV = originalEnv;
+  });
+
+  it('exposes auth error details outside production', () => {
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'development';
+
+    const appError = toAIAppError(new Error('secret details'), 'AUTHENTICATION_ERROR');
+
+    expect(appError.message).toBe('secret details');
+
+    process.env.NODE_ENV = originalEnv;
+  });
+
+  it('wraps moderation error type without ModerationError instance', () => {
+    const appError = toAIAppError(new Error('flagged'), 'MODERATION_ERROR');
+    expect(appError).toBeInstanceOf(ModerationError);
+    expect(appError.statusCode).toBe(400);
+  });
+});
+
+describe('logAIMetrics', () => {
+  it('logs success and failure metrics', () => {
+    const metrics = { operation: 'testOp', startTime: Date.now() - 50, retryCount: 1 };
+
+    logAIMetrics(metrics);
+    expect(logger.info).toHaveBeenCalledWith(
+      'AI Operation Success: testOp',
+      expect.objectContaining({ operation: 'testOp', retryCount: 1 })
+    );
+
+    logAIMetrics(metrics, new Error('failed'));
+    expect(logger.error).toHaveBeenCalledWith(
+      'AI Operation Failed: testOp',
+      expect.objectContaining({ errorMessage: 'failed' })
+    );
   });
 });
 
@@ -121,6 +214,58 @@ describe('executeWithRetry', () => {
     ).rejects.toMatchObject({ statusCode: 503 });
 
     expect(runAttempt).toHaveBeenCalledTimes(3);
+  });
+
+  it('returns successful result on first attempt', async () => {
+    const runAttempt = jest.fn().mockResolvedValue(['ok']);
+    const onSuccess = jest.fn();
+
+    const result = await executeWithRetry({
+      operation: 'testSuccess',
+      maxRetries: 3,
+      initialDelayMs: 1,
+      runAttempt,
+      onSuccess,
+    });
+
+    expect(result).toEqual(['ok']);
+    expect(runAttempt).toHaveBeenCalledTimes(1);
+    expect(onSuccess).toHaveBeenCalledWith(['ok'], 1, expect.any(Number));
+  });
+
+  it('rethrows moderation errors without retrying', async () => {
+    const moderationError = new ModerationError('Input');
+    const runAttempt = jest.fn().mockRejectedValue(moderationError);
+
+    await expect(
+      executeWithRetry({
+        operation: 'testModeration',
+        maxRetries: 3,
+        initialDelayMs: 1,
+        runAttempt,
+      })
+    ).rejects.toBe(moderationError);
+
+    expect(runAttempt).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls onMaxRetries after exhausting transient retries', async () => {
+    const runAttempt = jest
+      .fn()
+      .mockRejectedValue(new OpenAI.InternalServerError(500, {}, 'server error', {}));
+    const onMaxRetries = jest.fn().mockReturnValue('fallback');
+
+    const result = await executeWithRetry({
+      operation: 'testTransientFallback',
+      maxRetries: 2,
+      initialDelayMs: 1,
+      runAttempt,
+      onMaxRetries,
+    });
+
+    expect(result).toBe('fallback');
+    expect(runAttempt).toHaveBeenCalledTimes(2);
+    expect(onMaxRetries).toHaveBeenCalledWith(expect.any(OpenAI.InternalServerError), 'SERVER_ERROR');
   });
 
   it('calls onMaxRetries immediately for permanent errors', async () => {
