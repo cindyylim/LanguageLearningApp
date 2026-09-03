@@ -33,16 +33,37 @@ export class RedisRateLimitStore implements Store {
 
     async increment(key: string): Promise<IncrementResponse> {
         const redisKey = `${this.redisKeyPrefix}${key}`;
-        const count = await this.redis.incr(redisKey);
 
-        if (count === 1) {
-            await this.redis.pexpire(redisKey, this.windowMs);
-        }
+        const script = `
+            local count = redis.call('INCR', KEYS[1])
 
-        const ttlMs = await this.redis.pttl(redisKey);
-        const resetTime = ttlMs > 0 ? new Date(Date.now() + ttlMs) : undefined;
+            if count == 1 then
+                redis.call('PEXPIRE', KEYS[1], ARGV[1])
+            end
 
-        return { totalHits: count, resetTime };
+            local ttl = redis.call('PTTL', KEYS[1])
+
+            return { count, ttl }
+        `;
+
+        const result = await this.redis.eval(
+            script,
+            1,
+            redisKey,
+            this.windowMs
+        ) as [number, number];
+
+        const [count, ttlMs] = result;
+
+        const resetTime =
+            ttlMs > 0
+                ? new Date(Date.now() + ttlMs)
+                : undefined;
+
+        return {
+            totalHits: count,
+            resetTime
+        };
     }
 
     async decrement(key: string): Promise<void> {

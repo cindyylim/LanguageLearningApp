@@ -62,16 +62,9 @@ function sendDevelopmentError(res: Response, req: Request, err: unknown): void {
   const log = req.logger || logger;
   log.error('Error:', { error: err, stack });
 
-  const errorCode =
-    err instanceof Error && 'code' in err && typeof err.code === 'string'
-      ? err.code
-      : undefined;
-
   res.status(statusCode).json({
     status,
-    error: message,
     message,
-    ...(errorCode ? { code: errorCode } : {}),
     stack,
     requestId: req.id,
   });
@@ -86,10 +79,6 @@ function sendProductionError(res: Response, req: Request, err: unknown): void {
     res.status(appError.statusCode).json({
       status: appError.status,
       message: appError.message,
-      error: appError.message,
-      ...('code' in appError && typeof appError.code === 'string'
-        ? { code: appError.code }
-        : {}),
       requestId: req.id,
     });
     return;

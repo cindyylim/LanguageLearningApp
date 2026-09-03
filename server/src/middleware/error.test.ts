@@ -40,6 +40,7 @@ describe('Error Handler Middleware', () => {
             expect.objectContaining({
                 message: 'Test error',
                 status: 'fail',
+                requestId: 'test-request-id',
             })
         );
     });
@@ -53,6 +54,8 @@ describe('Error Handler Middleware', () => {
         expect(mockRes.json).toHaveBeenCalledWith(
             expect.objectContaining({
                 message: 'Something went very wrong!',
+                requestId: 'test-request-id',
+                status: 'error',
             })
         );
     });
@@ -63,9 +66,14 @@ describe('Error Handler Middleware', () => {
 
         errorHandler(error, mockReq as Request, mockRes as Response, mockNext);
 
+        expect(mockRes.status).toHaveBeenCalledWith(500);
+
         expect(mockRes.json).toHaveBeenCalledWith(
             expect.objectContaining({
                 stack: expect.any(String),
+                message: 'Dev error', 
+                requestId: 'test-request-id',
+                status: 'error',
             })
         );
     });
@@ -84,6 +92,14 @@ describe('Error Handler Middleware', () => {
         errorHandler(zodError, mockReq as Request, mockRes as Response, mockNext);
 
         expect(mockRes.status).toHaveBeenCalledWith(400);
+
+        expect(mockRes.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                message: 'Invalid input data. Expected string, received number',
+                requestId: 'test-request-id',
+                status: 'fail',
+            })
+        );
     });
 
     it('should handle JWT error (invalid token)', () => {
@@ -129,6 +145,7 @@ describe('Error Handler Middleware', () => {
             expect.objectContaining({
                 message: 'Invalid _id: invalidId.',
                 status: 'fail',
+                requestId: 'test-request-id',
             })
         );
     });
@@ -146,6 +163,7 @@ describe('Error Handler Middleware', () => {
             expect.objectContaining({
                 message: 'Invalid email: invalid-email.',
                 status: 'fail',
+                requestId: 'test-request-id',
             })
         );
     });
@@ -164,6 +182,8 @@ describe('Error Handler Middleware', () => {
             expect.objectContaining({
                 status: 'custom_status',
                 message: 'Custom dev error',
+                stack: expect.any(String),
+                requestId: 'test-request-id',
             })
         );
     });

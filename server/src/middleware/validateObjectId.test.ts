@@ -52,7 +52,7 @@ describe('ValidateObjectId Middleware', () => {
 
             expect(() => {
                 middleware(mockReq as Request, mockRes as Response, mockNext);
-            }).toThrow('Invalid listId format');
+            }).toThrow(new AppError('Invalid listId format', 400));
         });
     });
 });

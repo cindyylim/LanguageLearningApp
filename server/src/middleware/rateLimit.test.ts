@@ -115,24 +115,18 @@ describe('createUserRateLimiter', () => {
 });
 
 describe('createUserRateLimiter with Redis store', () => {
-    const mockIncr = jest.fn();
-    const mockPexpire = jest.fn();
-    const mockPttl = jest.fn();
+    const mockEval = jest.fn();
     const mockDecr = jest.fn();
     const mockDel = jest.fn();
 
     beforeEach(() => {
         jest.clearAllMocks();
-        mockIncr.mockResolvedValue(1);
-        mockPexpire.mockResolvedValue(1);
-        mockPttl.mockResolvedValue(60_000);
+        mockEval.mockResolvedValue([1, 60_000]);
         mockDecr.mockResolvedValue(0);
         mockDel.mockResolvedValue(1);
 
         mockGetRedisClient.mockReturnValue({
-            incr: mockIncr,
-            pexpire: mockPexpire,
-            pttl: mockPttl,
+            eval: mockEval,
             decr: mockDecr,
             del: mockDel,
         } as any);
@@ -143,7 +137,10 @@ describe('createUserRateLimiter with Redis store', () => {
     });
 
     it('uses Redis increment and expiry for rate limiting', async () => {
-        mockIncr.mockResolvedValueOnce(1).mockResolvedValueOnce(2).mockResolvedValueOnce(3);
+        mockEval
+            .mockResolvedValueOnce([1, 60_000])
+            .mockResolvedValueOnce([2, 60_000])
+            .mockResolvedValueOnce([3, 60_000]);
 
         const app = buildApp(2, 60 * 1000, 'redis-minute');
 
@@ -151,15 +148,17 @@ describe('createUserRateLimiter with Redis store', () => {
         await request(app).post('/limited').expect(200);
         await request(app).post('/limited').expect(429);
 
-        expect(mockIncr).toHaveBeenCalled();
-        expect(mockPexpire).toHaveBeenCalledWith(expect.stringContaining('rate-limit:'), 60_000);
+        expect(mockEval).toHaveBeenCalledTimes(3);
+        expect(mockEval).toHaveBeenCalledWith(
+            expect.stringContaining('INCR'),
+            1,
+            expect.stringContaining('rate-limit:'),
+            60_000
+        );
     });
 
     it('decrements redis counter and deletes key when count reaches zero', async () => {
         const store = new RedisRateLimitStore({
-            incr: mockIncr,
-            pexpire: mockPexpire,
-            pttl: mockPttl,
             decr: mockDecr,
             del: mockDel,
         } as any);
@@ -175,10 +174,6 @@ describe('createUserRateLimiter with Redis store', () => {
 
     it('resets redis key via store resetKey', async () => {
         const store = new RedisRateLimitStore({
-            incr: mockIncr,
-            pexpire: mockPexpire,
-            pttl: mockPttl,
-            decr: mockDecr,
             del: mockDel,
         } as any);
         store.init({ windowMs: 60_000 } as any);

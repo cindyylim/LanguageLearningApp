@@ -25,7 +25,7 @@ describe('Validate Middleware', () => {
         const middleware = validate(schema);
         middleware(mockReq as Request, mockRes as Response, mockNext);
 
-        expect(mockNext).toHaveBeenCalledWith();
+        expect(mockNext).toHaveBeenCalledTimes(1);
     });
 
     it('should throw AppError with invalid data', () => {

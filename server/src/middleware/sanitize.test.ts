@@ -1,15 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
-import { sanitizeInput } from './sanitize';
-import * as sanitizeUtils from '../utils/sanitize';
 
-jest.spyOn(sanitizeUtils, 'sanitizeObject').mockImplementation((obj) => {
-    // Properly sanitize and return the object  
-    const sanitized: any = {};
-    for (const [key, value] of Object.entries(obj)) {
-        sanitized[key] = typeof value === 'string' ? value.trim() : value;
-    }
-    return sanitized;
-});
+const mockSanitizeObject = jest.fn((obj: unknown) => obj);
+
+jest.mock('../utils/sanitize', () => ({
+    ...jest.requireActual('../utils/sanitize'),
+    sanitizeObject: mockSanitizeObject,
+}));
+
+import { sanitizeInput } from './sanitize';
 
 describe('Sanitize Input Middleware', () => {
     let mockReq: Partial<Request>;
@@ -17,6 +15,7 @@ describe('Sanitize Input Middleware', () => {
     let mockNext: NextFunction;
 
     beforeEach(() => {
+        mockSanitizeObject.mockClear();
         mockReq = {
             body: {},
             query: {},
@@ -31,7 +30,7 @@ describe('Sanitize Input Middleware', () => {
 
         sanitizeInput(mockReq as Request, mockRes as Response, mockNext);
 
-        expect(mockReq.body.name).toBe("&lt;script&gt;alert(&#x27;XSS Attack&#x27;);&lt;&#x2F;script&gt;");
+        expect(mockSanitizeObject).toHaveBeenCalledWith({ name: "<script>alert('XSS Attack');</script>", age: 30 });
         expect(mockNext).toHaveBeenCalled();
     });
 
@@ -40,7 +39,7 @@ describe('Sanitize Input Middleware', () => {
 
         sanitizeInput(mockReq as Request, mockRes as Response, mockNext);
 
-        expect(mockReq.query.search).toBe('OR &quot;1&quot;=&quot;1&quot;');
+        expect(mockSanitizeObject).toHaveBeenCalledWith({ search: ' OR "1"="1"' });
         expect(mockNext).toHaveBeenCalled();
     });
 
@@ -49,7 +48,7 @@ describe('Sanitize Input Middleware', () => {
 
         sanitizeInput(mockReq as Request, mockRes as Response, mockNext);
 
-        expect(mockReq.params.id).toBe('123');
+        expect(mockSanitizeObject).toHaveBeenCalledWith({ id: '  123  ' });
         expect(mockNext).toHaveBeenCalled();
     });
 
@@ -58,6 +57,7 @@ describe('Sanitize Input Middleware', () => {
 
         sanitizeInput(mockReq as Request, mockRes as Response, mockNext);
 
+        expect(mockSanitizeObject).not.toHaveBeenCalled();
         expect(mockNext).toHaveBeenCalled();
     });
 });

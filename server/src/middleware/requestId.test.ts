@@ -22,8 +22,7 @@ describe('RequestId Middleware', () => {
     it('should add request ID to request', () => {
         requestIdMiddleware(mockReq as Request, mockRes as Response, mockNext);
 
-        expect(mockReq.id).toBeDefined();
-        expect(typeof mockReq.id).toBe('string');
+        expect(mockReq.id).toEqual('test-uuid-123');
         expect(mockNext).toHaveBeenCalled();
     });
 
@@ -32,7 +31,7 @@ describe('RequestId Middleware', () => {
 
         expect(mockRes.setHeader).toHaveBeenCalledWith(
             'X-Request-ID',
-            expect.any(String)
+            'test-uuid-123'
         );
     });
 });
