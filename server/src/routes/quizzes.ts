@@ -55,7 +55,6 @@ const submitQuizSchema = z.object({
   }))
 });
 
-// Generate AI-powered quiz
 router.post(
   '/generate',
   validate(generateQuizSchema),

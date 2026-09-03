@@ -189,17 +189,6 @@ router.post('/:id/words', validateObjectId(), validate(addWordSchema), asyncHand
   return res.status(201).json({ word: newWord });
 }));
 
-// Generate contextual sentences for vocabulary list
-router.post('/:id/generate-sentences', validateObjectId(), aiGenerationLimiter, asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { id } = req.params;
-  const sentences = await VocabularyService.generateSentences(id as string, req.user!.id);
-
-  if (!sentences) {
-    throw new AppError('Vocabulary list not found', 404);
-  }
-
-  return res.json({ sentences });
-}));
 
 // Edit a word in a vocabulary list
 router.put('/:listId/words/:wordId', validateObjectId('listId'), validateObjectId('wordId'), validate(updateWordSchema), asyncHandler(async (req: AuthRequest, res: Response) => {

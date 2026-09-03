@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { validateObjectId, isValidObjectId } from './validateObjectId';
 import { AppError } from '../utils/AppError';
+import {ObjectId} from 'mongodb';
 
 describe('ValidateObjectId Middleware', () => {
     let mockReq: Partial<Request>;
@@ -15,7 +16,7 @@ describe('ValidateObjectId Middleware', () => {
 
     describe('isValidObjectId', () => {
         it('should return true for valid ObjectId', () => {
-            expect(isValidObjectId('507f1f77bcf86cd799439011')).toBe(true);
+            expect(isValidObjectId(new ObjectId().toString())).toBe(true);
         });
 
         it('should return false for invalid ObjectId', () => {
@@ -27,7 +28,7 @@ describe('ValidateObjectId Middleware', () => {
 
     describe('validateObjectId middleware', () => {
         it('should call next for valid ObjectId', () => {
-            mockReq.params = { id: '507f1f77bcf86cd799439011' };
+            mockReq.params = { id: new ObjectId().toString() };
 
             const middleware = validateObjectId();
             middleware(mockReq as Request, mockRes as Response, mockNext);

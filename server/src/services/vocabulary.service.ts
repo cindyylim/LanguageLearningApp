@@ -381,43 +381,6 @@ export class VocabularyService {
     }
 
     /**
-     * Generate contextual sentences for vocabulary list
-     */
-    static async generateSentences(listId: string, userId: string) {
-        const db = await getDatabase();
-
-        const list = await db.collection('VocabularyList').findOne({
-            _id: new ObjectId(listId),
-            userId
-        });
-
-        if (!list) {
-            return null;
-        }
-
-        const words = await db.collection('Word').find({
-            vocabularyListId: new ObjectId(listId)
-        }).toArray() as unknown as WordDocument[];
-
-        if (words.length === 0) {
-            throw new Error('No words in vocabulary list');
-        }
-
-        const sentences = await AIService.generateContextualSentences(
-            words.map((w: WordDocument): AIWordInput => ({
-                _id: w._id.toString(),
-                word: w.word,
-                translation: w.translation,
-                partOfSpeech: w.partOfSpeech || undefined,
-                difficulty: w.difficulty
-            })),
-            list.targetLanguage
-        );
-
-        return sentences;
-    }
-
-    /**
      * Generate AI vocabulary list
      */
     static async generateAIList(data: {

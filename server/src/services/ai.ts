@@ -154,45 +154,6 @@ export class AIService {
     });
   }
 
-  static async generateContextualSentences(
-    words: AIWordInput[],
-    targetLanguage: string
-  ): Promise<{ wordId: string; sentences: string[] }[]> {
-    const prompt = buildContextualSentencesPrompt(words, targetLanguage);
-
-    return executeWithRetry({
-      operation: 'generateContextualSentences',
-      maxRetries: AIService.MAX_RETRIES,
-      initialDelayMs: AIService.INITIAL_DELAY_MS,
-      runAttempt: async () => {
-        await assertAllContentAllowed(
-          words.map((w) => `${w.word} ${w.translation}`),
-          'Input'
-        );
-
-        const responseText = await AIService.generateText(prompt);
-        const sentences = parseJsonWithSchema(
-          responseText,
-          ContextualSentencesArraySchema
-        );
-
-        await assertAllContentAllowed(
-          sentences.flatMap((entry) => entry.sentences),
-          'Generated content'
-        );
-
-        return sentences;
-      },
-      onSuccess: (sentences, attempt, responseTimeMs) => {
-        logger.info('Contextual sentences generated successfully', {
-          wordCount: sentences.length,
-          attemptNumber: attempt,
-          responseTimeMs,
-        });
-      },
-    });
-  }
-
   static async generateRecommendations(
     userId: string,
     userProgress: UserProgress[],
@@ -211,7 +172,7 @@ export class AIService {
         recentPerformance.length > 0
           ? recentPerformance.reduce((sum, p) => sum + p.score, 0) /
             recentPerformance.length
-          : 0.5;
+          : 0;
 
       const focusAreas: string[] = [];
       if (weakWordIds.length > 0) {
@@ -320,35 +281,5 @@ export class AIService {
         return [];
       },
     });
-  }
-
-  static async healthCheck(): Promise<boolean> {
-    const startTime = Date.now();
-
-    try {
-      logger.debug('Running AI service health check');
-
-      const text = await AIService.generateText("Say 'OK'");
-      const isHealthy = !!text;
-      const duration = Date.now() - startTime;
-
-      logger.info('AI service health check completed', {
-        isHealthy,
-        durationMs: duration,
-      });
-
-      return isHealthy;
-    } catch (error) {
-      const errorType = categorizeAIError(error);
-      const duration = Date.now() - startTime;
-
-      logger.error('AI Service health check failed:', {
-        errorType,
-        errorMessage: error instanceof Error ? error.message : String(error),
-        durationMs: duration,
-      });
-
-      throw error;
-    }
   }
 }

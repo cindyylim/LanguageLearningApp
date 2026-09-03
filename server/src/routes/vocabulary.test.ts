@@ -555,47 +555,6 @@ describe("Vocabulary API Endpoints", () => {
     });
   });
 
-  describe("POST /api/vocabulary/:id/generate-sentences", () => {
-    it("should generate sentences for vocabulary list", async () => {
-      const listId = new ObjectId();
-      const mockSentences = [
-        { word: "bonjour", sentence: "Bonjour, comment allez-vous?" },
-        { word: "merci", sentence: "Merci beaucoup pour votre aide." },
-      ];
-
-      // Mock the vocabulary service
-      const { VocabularyService } = require("../services/vocabulary.service");
-      VocabularyService.generateSentences = jest
-        .fn()
-        .mockResolvedValue(mockSentences);
-
-      const response = await request(testApp)
-        .post(`/api/vocabulary/${listId}/generate-sentences`)
-        .expect(200);
-
-      expect(response.body).toEqual({
-        sentences: mockSentences,
-      });
-      expect(VocabularyService.generateSentences).toHaveBeenCalledWith(
-        listId.toString(),
-        "test-user-id"
-      );
-    });
-
-    it("should return 404 for non-existent list when generating sentences", async () => {
-      const nonExistentId = new ObjectId();
-
-      // Mock the vocabulary service to return null (list not found)
-      const { VocabularyService } = require("../services/vocabulary.service");
-      VocabularyService.generateSentences = jest.fn().mockResolvedValue(null);
-
-      const response = await request(testApp)
-        .post(`/api/vocabulary/${nonExistentId}/generate-sentences`)
-        .expect(404);
-
-      expect(response.body).toHaveProperty("message");
-    });
-  });
 
   describe("GET /api/vocabulary/words/:wordId/progress", () => {
     it("should get word progress", async () => {

@@ -49,7 +49,6 @@ describe('getHealthStatus', () => {
         expect(health.checks.database).toBe('healthy');
         expect(health.checks.redis).toBe('healthy');
         expect(health.checks.ai).toBe('optional');
-        expect(AIService.healthCheck).not.toHaveBeenCalled();
     });
 
     it('returns DEGRADED when the database ping fails without calling AI', async () => {
@@ -60,7 +59,6 @@ describe('getHealthStatus', () => {
         expect(health.status).toBe('DEGRADED');
         expect(health.checks.database).toBe('unhealthy');
         expect(health.checks.ai).toBe('optional');
-        expect(AIService.healthCheck).not.toHaveBeenCalled();
     });
 
     it('returns DEGRADED when redis is unhealthy without calling AI', async () => {
@@ -71,7 +69,6 @@ describe('getHealthStatus', () => {
         expect(health.status).toBe('DEGRADED');
         expect(health.checks.redis).toBe('unhealthy');
         expect(health.checks.ai).toBe('optional');
-        expect(AIService.healthCheck).not.toHaveBeenCalled();
     });
 
     it('returns DEGRADED when redis health check throws', async () => {

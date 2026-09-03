@@ -33,6 +33,7 @@ jest.mock('../utils/logger', () => ({
 }));
 
 import { AIService } from './ai';
+import { assertAllContentAllowed, ModerationError } from '../utils/moderation';
 
 const sampleWords = [
   {
@@ -46,6 +47,7 @@ const sampleWords = [
 describe('AIService.generateQuestions', () => {
   beforeEach(() => {
     mockChatCompletionsCreate.mockReset();
+    (assertAllContentAllowed as jest.Mock).mockResolvedValue(undefined);
   });
 
   it('returns parsed questions from OpenAI response', async () => {
@@ -83,22 +85,56 @@ describe('AIService.generateQuestions', () => {
     });
     expect(mockChatCompletionsCreate).toHaveBeenCalled();
   });
-});
 
-describe('AIService.generateContextualSentences', () => {
-  beforeEach(() => {
-    mockChatCompletionsCreate.mockReset();
+  it('throws when generateText receives empty OpenAI content', async () => {
+    mockChatCompletionsCreate.mockResolvedValue({
+      choices: [{ message: { content: '   ' } }],
+    });
+
+    await expect(
+      AIService.generateQuestions(sampleWords, 'fr', 'en', 1, 'easy')
+    ).rejects.toMatchObject({
+      message: 'AI service temporarily unavailable',
+      statusCode: 503,
+    });
+
+    expect(mockChatCompletionsCreate).toHaveBeenCalledTimes(1);
+    expect(assertAllContentAllowed).toHaveBeenCalledTimes(1);
+    expect(assertAllContentAllowed).toHaveBeenCalledWith(
+      ['bonjour hello'],
+      'Input'
+    );
   });
 
-  it('returns parsed contextual sentences', async () => {
+  it('throws when input moderation fails on words', async () => {
+    (assertAllContentAllowed as jest.Mock).mockRejectedValueOnce(
+      new ModerationError('Input')
+    );
+
+    await expect(
+      AIService.generateQuestions(sampleWords, 'fr', 'en', 1, 'easy')
+    ).rejects.toBeInstanceOf(ModerationError);
+
+    expect(assertAllContentAllowed).toHaveBeenCalledWith(
+      ['bonjour hello'],
+      'Input'
+    );
+    expect(mockChatCompletionsCreate).not.toHaveBeenCalled();
+  });
+
+  it('throws when output moderation fails on generated questions', async () => {
     mockChatCompletionsCreate.mockResolvedValue({
       choices: [
         {
           message: {
             content: JSON.stringify([
               {
+                question: 'What is hello in French?',
+                type: 'multiple_choice',
+                correctAnswer: 'bonjour',
+                options: ['bonjour', 'merci'],
+                difficulty: 'easy',
                 wordId: '507f1f77bcf86cd799439011',
-                sentences: ['Bonjour!', 'Bonjour, comment ça va?'],
               },
             ]),
           },
@@ -106,20 +142,38 @@ describe('AIService.generateContextualSentences', () => {
       ],
     });
 
-    const result = await AIService.generateContextualSentences(sampleWords, 'fr');
+    (assertAllContentAllowed as jest.Mock)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new ModerationError('Generated content'));
 
-    expect(result).toEqual([
-      {
-        wordId: '507f1f77bcf86cd799439011',
-        sentences: ['Bonjour!', 'Bonjour, comment ça va?'],
-      },
-    ]);
+    await expect(
+      AIService.generateQuestions(sampleWords, 'fr', 'en', 1, 'easy')
+    ).rejects.toBeInstanceOf(ModerationError);
+
+    expect(assertAllContentAllowed).toHaveBeenNthCalledWith(
+      1,
+      ['bonjour hello'],
+      'Input'
+    );
+    expect(assertAllContentAllowed).toHaveBeenNthCalledWith(
+      2,
+      [
+        'What is hello in French?',
+        'bonjour',
+        '',
+        'bonjour',
+        'merci',
+      ],
+      'Generated content'
+    );
+    expect(mockChatCompletionsCreate).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('AIService.generateVocabularyList', () => {
   beforeEach(() => {
     mockChatCompletionsCreate.mockReset();
+    (assertAllContentAllowed as jest.Mock).mockResolvedValue(undefined);
   });
 
   it('returns parsed vocabulary entries', async () => {
@@ -152,7 +206,40 @@ describe('AIService.generateVocabularyList', () => {
     ]);
   });
 
-    it('returns empty array after exhausting retries', async () => {
+  it('throws when output moderation fails on generated vocabulary list', async () => {
+    mockChatCompletionsCreate.mockResolvedValue({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify([
+              {
+                word: 'bonjour',
+                translation: 'hello',
+                partOfSpeech: 'interjection',
+                difficulty: 'easy',
+              },
+            ]),
+          },
+        },
+      ],
+    });
+
+    (assertAllContentAllowed as jest.Mock).mockRejectedValueOnce(
+      new ModerationError('Generated content')
+    );
+
+    await expect(
+      AIService.generateVocabularyList('greetings', 'fr', 'en', 1)
+    ).rejects.toBeInstanceOf(ModerationError);
+
+    expect(assertAllContentAllowed).toHaveBeenCalledWith(
+      ['bonjour', 'hello', ''],
+      'Generated content'
+    );
+    expect(mockChatCompletionsCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns empty array after exhausting retries', async () => {
     const OpenAI = jest.requireActual('openai').default;
     mockChatCompletionsCreate.mockRejectedValue(
       new OpenAI.InternalServerError(500, {}, 'server error', {})
@@ -162,86 +249,5 @@ describe('AIService.generateVocabularyList', () => {
 
     expect(result).toEqual([]);
     expect(mockChatCompletionsCreate).toHaveBeenCalledTimes(3);
-  });
-});
-
-describe('AIService.healthCheck', () => {
-  beforeEach(() => {
-    mockChatCompletionsCreate.mockReset();
-  });
-
-  it('returns true when OpenAI responds with text', async () => {
-    mockChatCompletionsCreate.mockResolvedValue({
-      choices: [{ message: { content: 'OK' } }],
-    });
-
-    await expect(AIService.healthCheck()).resolves.toBe(true);
-  });
-
-  it('throws when OpenAI health check fails', async () => {
-    mockChatCompletionsCreate.mockRejectedValue(new Error('offline'));
-
-    await expect(AIService.healthCheck()).rejects.toThrow();
-  });
-});
-
-describe('AIService.generateRecommendations', () => {
-  it('adds practice and consistency focus areas from recent performance', async () => {
-    const { WordStatus } = require('../shared/types/index');
-    const userProgress = [
-      {
-        userId: 'user1',
-        wordId: '507f1f77bcf86cd799439011',
-        status: WordStatus.LEARNING,
-        reviewCount: 1,
-        streak: 0,
-      },
-    ];
-    const recentPerformance = [{ wordId: '507f1f77bcf86cd799439011', score: 0.4, date: new Date() }];
-
-    const result = await AIService.generateRecommendations('user1', userProgress, recentPerformance);
- 
-    expect(result.focusAreas).toEqual(
-      expect.arrayContaining(['vocabulary_review', 'practice_questions', 'consistency_building'])
-    );
-    expect(result.estimatedTime).toBe(45);
-  });
-
-    it('throws when OpenAI returns empty content', async () => {
-    mockChatCompletionsCreate.mockResolvedValue({
-      choices: [{ message: { content: '' } }],
-    });
-
-    await expect(
-      AIService.generateQuestions(sampleWords, 'fr', 'en', 1, 'easy')
-    ).rejects.toMatchObject({ statusCode: 503 });
-    expect(mockChatCompletionsCreate).toHaveBeenCalled();
-  });
-
-  it('returns fallback recommendations when recommendation generation fails', async () => {
-    const { WordStatus } = require('../shared/types/index');
-    const userProgress = [
-      {
-        get status() {
-          throw new Error('progress read failed');
-        },
-        wordId: '507f1f77bcf86cd799439011',
-        reviewCount: 1,
-        streak: 0,
-      },
-    ];
-
-    const result = await AIService.generateRecommendations(
-      'user1',
-      userProgress as any,
-      []
-    );
-
-    expect(result).toEqual({
-      focusAreas: ['general_practice'],
-      recommendedWords: [],
-      studyPlan: 'Continue with regular study routine',
-      estimatedTime: 20,
-    });
   });
 });

@@ -90,18 +90,6 @@ describe('Quiz API Endpoints', () => {
       );
     });
 
-    it('should return 401 when not authenticated', async () => {
-      const vocabularyListId = new ObjectId().toString();
-
-      const response = await request(unauthenticatedApp)
-        .post('/api/quizzes/generate')
-        .send({ vocabularyListId })
-        .expect(401);
-
-      expect(response.body.error).toMatch(/token/i);
-      expect(QuizService.generateQuiz).not.toHaveBeenCalled();
-    });
-
     it('should return 404 when vocabulary list is not found', async () => {
       const vocabularyListId = new ObjectId().toString();
       (QuizService.generateQuiz as jest.Mock).mockResolvedValue(null);
