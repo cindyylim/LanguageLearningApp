@@ -49,33 +49,6 @@ Return the response as a JSON array with the following structure:
 `;
 }
 
-export function buildContextualSentencesPrompt(
-  words: AIWordInput[],
-  targetLanguage: string
-): string {
-  const targetLang = getLanguageName(targetLanguage);
-
-  return `
-Generate 3 contextual sentences for each vocabulary word in ${targetLang}.
-Provide natural, everyday usage examples that help learners understand the word in context.
-
-Words:
-${words.map((w) => `- [ID: ${w._id}] ${w.word} (${w.translation})`).join('\n')}
-
-Return as JSON:
-[
-{
-  "wordId": "word_id",
-  "sentences": [
-    "Sentence 1 in ${targetLang}",
-    "Sentence 2 in ${targetLang}",
-    "Sentence 3 in ${targetLang}"
-  ]
-}
-]
-`;
-}
-
 export function buildVocabularyListPrompt(
   prompt: string,
   targetLanguage: string,

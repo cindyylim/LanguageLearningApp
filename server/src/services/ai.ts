@@ -11,7 +11,6 @@ import {
   parseJsonWithSchema,
 } from './aiHelpers';
 import {
-  buildContextualSentencesPrompt,
   buildQuestionsPrompt,
   buildVocabularyListPrompt,
 } from './aiPrompts';

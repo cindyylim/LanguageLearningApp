@@ -39,8 +39,7 @@ export class AnalyticsService {
         ]).toArray();
 
         // Get all quiz attempts
-        const allAttempts = await db.collection('QuizAttempt').find({ userId }).sort({ createdAt: -1 }).toArray() as unknown as QuizAttempt[];
-        const recentAttempts = allAttempts.slice(0, 10);
+        const recentAttempts = await db.collection('QuizAttempt').find({ userId }).sort({ createdAt: -1 }).limit(10).toArray() as unknown as QuizAttempt[];
 
         // Count total words across user's vocabulary lists
         const userLists = await db.collection('VocabularyList').find({ userId }).project({ _id: 1 }).toArray();
@@ -53,7 +52,7 @@ export class AnalyticsService {
         const currentStreak = await this.calculateStreak(userId);
 
         // Calculate summary statistics
-        const summary = this.getSummaryStats(wordProgress, allAttempts, currentStreak, totalWords);
+        const summary = this.getSummaryStats(wordProgress, recentAttempts, currentStreak, totalWords);
 
         return {
             summary,
@@ -127,14 +126,11 @@ export class AnalyticsService {
             ? recentAttempts.reduce((sum: number, attempt: QuizAttempt) => sum + (attempt.score || 0), 0) / recentAttempts.length
             : 0;
 
-        const maxWordStreak = wordProgress.reduce((max: number, wp: WordProgress) => Math.max(max, wp.streak || 0), 0);
-
         return {
             totalWords,
             masteredWords,
             needsReview,
             currentStreak,
-            maxWordStreak,
             totalQuizzesTaken,
             avgScore
         };

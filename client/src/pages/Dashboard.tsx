@@ -9,7 +9,6 @@ interface Summary {
   avgScore: number;
   currentStreak: number;
   masteredWords: number;
-  maxWordStreak: number;
   needsReview: number;
   totalQuizzesTaken: number;
   totalWords: number;

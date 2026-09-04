@@ -136,6 +136,37 @@ describe('AnalyticsService', () => {
             expect(summary.avgScore).toBeCloseTo(0.85);
         });
 
+        it('should calculate average score for most recent 10 attempts', () => {
+            const wordProgress = [
+                { status: WordStatus.MASTERED, streak: 5 },
+                { status: WordStatus.LEARNING, streak: 2 },
+                { status: WordStatus.LEARNING, streak: 1 },
+            ] as any;
+
+            const allAttempts = [
+                { score: 0.1 },
+                { score: 0.2 },
+                { score: 0.3 },
+                { score: 0.4 },
+                { score: 0.5 },
+                { score: 0.6 },
+                { score: 0.7 },
+                { score: 0.8 },
+                { score: 0.9 },
+                { score: 0.1 },
+                { score: 0.2 },
+            ] as any;
+
+            const summary = AnalyticsService.getSummaryStats(wordProgress, allAttempts, 3, 3);
+
+            expect(summary.totalWords).toBe(3);
+            expect(summary.masteredWords).toBe(1);
+            expect(summary.needsReview).toBe(2);
+            expect(summary.currentStreak).toBe(3);
+            expect(summary.totalQuizzesTaken).toBe(11);
+            expect(summary.avgScore).toBeCloseTo(0.46);
+        });
+
         it('should count words without progress as needing review', () => {
             const wordProgress = [
                 { status: WordStatus.MASTERED, streak: 5 },
@@ -147,6 +178,7 @@ describe('AnalyticsService', () => {
             expect(summary.totalWords).toBe(5);
             expect(summary.masteredWords).toBe(1);
             expect(summary.needsReview).toBe(4);
+            expect(summary.avgScore).toBe(0);
         });
     });
 
@@ -277,7 +309,6 @@ describe('AnalyticsService', () => {
             expect(progress.summary.masteredWords).toBe(1);
             expect(progress.summary.needsReview).toBe(1);
             expect(progress.summary.currentStreak).toBe(2);
-            expect(progress.summary.maxWordStreak).toBe(3);
             expect(progress.summary.totalQuizzesTaken).toBe(3);
             expect(progress.summary.avgScore).toBeCloseTo(0.8);
 
@@ -325,7 +356,6 @@ describe('AnalyticsService', () => {
             expect(progress.summary.masteredWords).toBe(0);
             expect(progress.summary.needsReview).toBe(0);
             expect(progress.summary.currentStreak).toBe(0);
-            expect(progress.summary.maxWordStreak).toBe(0);
             expect(progress.summary.totalQuizzesTaken).toBe(0);
             expect(progress.summary.avgScore).toBe(0);
 

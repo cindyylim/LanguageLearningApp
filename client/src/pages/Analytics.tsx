@@ -30,7 +30,6 @@ interface Progress {
     masteredWords: number;
     needsReview: number;
     currentStreak: number;
-    maxWordStreak: number;
     totalQuizzesTaken: number;
     avgScore: number;
   };

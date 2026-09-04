@@ -1,5 +1,4 @@
 import {
-  buildContextualSentencesPrompt,
   buildQuestionsPrompt,
   buildVocabularyListPrompt,
 } from './aiPrompts';
@@ -29,17 +28,6 @@ describe('buildQuestionsPrompt', () => {
     expect(prompt).toContain('[ID: 507f1f77bcf86cd799439011] bonjour (hello) - interjection');
     expect(prompt).toContain('[ID: 507f1f77bcf86cd799439012] merci (thank you) - unknown');
     expect(prompt).toContain('"type": "multiple_choice|fill_blank|sentence_completion"');
-  });
-});
-
-describe('buildContextualSentencesPrompt', () => {
-  it('requests three contextual sentences per word in the target language', () => {
-    const prompt = buildContextualSentencesPrompt(sampleWords, 'fr');
-
-    expect(prompt).toContain('Generate 3 contextual sentences for each vocabulary word in French');
-    expect(prompt).toContain('[ID: 507f1f77bcf86cd799439011] bonjour (hello)');
-    expect(prompt).toContain('Sentence 1 in French');
-    expect(prompt).toContain('"sentences"');
   });
 });
 

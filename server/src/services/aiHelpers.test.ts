@@ -56,6 +56,19 @@ describe('isRetryableAIError', () => {
     expect(categorizeAIError(error)).toBe('BAD_REQUEST_ERROR');
   });
 
+  it('does not retry OpenAI 401 authentication error', () => {
+    const error = new OpenAI.AuthenticationError(401, {}, 'authentication error', {});
+    expect(isRetryableAIError(error)).toBe(false);
+    expect(categorizeAIError(error)).toBe('AUTHENTICATION_ERROR');
+  });
+
+  it('does not retry OpenAI 403 authorization error', () => {
+    const error = new OpenAI.PermissionDeniedError(403, {}, 'authorization error', {});
+    expect(isRetryableAIError(error)).toBe(false);
+    expect(categorizeAIError(error)).toBe('AUTHORIZATION_ERROR');
+  });
+
+
   it('does not retry Zod validation errors', () => {
     const error = z.string().safeParse(123).error;
     expect(isRetryableAIError(error)).toBe(false);
@@ -80,11 +93,6 @@ describe('isRetryableAIError', () => {
     expect(categorizeAIError(error)).toBe('JSON_PARSE_ERROR');
   });
 
-  it('does not retry authentication errors', () => {
-    const error = new OpenAI.AuthenticationError(401, {}, 'invalid API key', {});
-    expect(isRetryableAIError(error)).toBe(false);
-    expect(categorizeAIError(error)).toBe('AUTHENTICATION_ERROR');
-  });
 
   it('retries OpenAI connection timeout and network errors', () => {
     const timeoutError = new OpenAI.APIConnectionTimeoutError();
@@ -118,13 +126,28 @@ describe('toAIAppError', () => {
   });
 
   it('maps exhausted transient errors to 503', () => {
-    const appError = toAIAppError(
+    let appError = toAIAppError(
       new OpenAI.RateLimitError(429, {}, 'rate limit', {}),
       'RATE_LIMIT_ERROR'
     );
     expect(appError.statusCode).toBe(503);
+    appError = toAIAppError(
+      new OpenAI.APIConnectionTimeoutError(), 
+      'TIMEOUT_ERROR',
+    );
+    expect(appError.statusCode).toBe(503);
+    appError = toAIAppError(
+      new OpenAI.APIConnectionError({ cause: new Error('offline') } as any),
+      'NETWORK_ERROR',
+    );
+    expect(appError.statusCode).toBe(503);
+    appError = toAIAppError(
+      new OpenAI.InternalServerError(500, {}, 'server error', {}),
+      'SERVER_ERROR',
+    );
+    expect(appError.statusCode).toBe(503);
   });
-
+  
   it('preserves moderation errors as 400', () => {
     const moderationError = new ModerationError('Input');
     const appError = toAIAppError(moderationError);
@@ -138,47 +161,30 @@ describe('toAIAppError', () => {
   });
 
   it('maps validation and bad request errors to 500', () => {
-    expect(toAIAppError(new SyntaxError('bad json')).message).toBe('AI response validation failed');
-    expect(toAIAppError(new OpenAI.BadRequestError(400, {}, 'bad', {})).message).toBe(
+    let appError = toAIAppError(new SyntaxError('bad json'), 'JSON_PARSE_ERROR');
+    expect(appError.message).toBe('AI response validation failed');
+    expect(appError.statusCode).toBe(500);
+    appError = toAIAppError(new z.ZodError([]), 'VALIDATION_ERROR');
+    expect(appError.message).toBe('AI response validation failed');
+    expect(appError.statusCode).toBe(500);
+    appError = toAIAppError(new OpenAI.BadRequestError(400, {}, 'bad', {}), 'BAD_REQUEST_ERROR');
+    expect(appError.message).toBe(
       'AI request failed'
     );
-  });
-
-  it('hides auth error details in production', () => {
-    const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'production';
-
-    const appError = toAIAppError(new OpenAI.AuthenticationError(401, {}, 'secret details', {}));
-
-    expect(appError.statusCode).toBe(503);
-    expect(appError.message).toBe('AI service configuration error');
-
-    process.env.NODE_ENV = originalEnv;
-  });
-
-  it('exposes auth error details outside production', () => {
-    const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'development';
-
-    const appError = toAIAppError(new Error('secret details'), 'AUTHENTICATION_ERROR');
-
-    expect(appError.message).toBe('secret details');
-
-    process.env.NODE_ENV = originalEnv;
-  });
-
-  it('wraps moderation error type without ModerationError instance', () => {
-    const appError = toAIAppError(new Error('flagged'), 'MODERATION_ERROR');
-    expect(appError).toBeInstanceOf(ModerationError);
     expect(appError.statusCode).toBe(400);
   });
 
-  it('maps unrecognized error types to generic 503', () => {
-    const appError = toAIAppError(new Error('unexpected'), 'FUTURE_ERROR' as any);
-    expect(appError.statusCode).toBe(503);
-    expect(appError.message).toBe('AI service temporarily unavailable');
+  it('maps authentication errors to 401', () => {
+    let appError = toAIAppError(new OpenAI.AuthenticationError(401, {}, 'authentication error', {}));
+    expect(appError.message).toBe('AI authentication failed');
+    expect(appError.statusCode).toBe(401);
   });
-});
+
+  it('maps unknown errors to 503', () => {
+    let appError = toAIAppError(new Error("unknown error"));
+    expect(appError.message).toBe('AI service temporarily unavailable');
+    expect(appError.statusCode).toBe(503);
+  });
 
 describe('logAIMetrics', () => {
   it('logs success and failure metrics', () => {
@@ -193,7 +199,7 @@ describe('logAIMetrics', () => {
     logAIMetrics(metrics, new Error('failed'));
     expect(logger.error).toHaveBeenCalledWith(
       'AI Operation Failed: testOp',
-      expect.objectContaining({ errorMessage: 'failed' })
+      expect.objectContaining({ errorMessage: 'failed', operation: 'testOp', durationMs: expect.any(Number), retryCount: 1 })
     );
   });
 });
@@ -317,4 +323,5 @@ describe('executeWithRetry', () => {
       })
     ).rejects.toThrow('Failed testZeroRetries due to unexpected flow.');
   });
+});
 });

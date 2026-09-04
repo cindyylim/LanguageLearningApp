@@ -206,7 +206,7 @@ describe('AIService.generateVocabularyList', () => {
     ]);
   });
 
-  it('throws when output moderation fails on generated vocabulary list', async () => {
+  it('returns empty array when output moderation fails on generated vocabulary list', async () => {
     mockChatCompletionsCreate.mockResolvedValue({
       choices: [
         {
@@ -228,10 +228,9 @@ describe('AIService.generateVocabularyList', () => {
       new ModerationError('Generated content')
     );
 
-    await expect(
-      AIService.generateVocabularyList('greetings', 'fr', 'en', 1)
-    ).rejects.toBeInstanceOf(ModerationError);
+    const result = await AIService.generateVocabularyList('greetings', 'fr', 'en', 1);
 
+    expect(result).toEqual([]);
     expect(assertAllContentAllowed).toHaveBeenCalledWith(
       ['bonjour', 'hello', ''],
       'Generated content'

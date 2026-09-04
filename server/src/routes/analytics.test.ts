@@ -23,7 +23,7 @@ describe('Analytics API Endpoints', () => {
     it('returns learning progress for the authenticated user', async () => {
       const mockProgress = {
         summary: {},
-        learningStats: {totalWords: 0, masteredWords: 0, needsReview: 0, currentStreak: 0, maxWordStreak: 0, totalQuizzesTaken: 0, avgScore: 0},
+        learningStats: {totalWords: 0, masteredWords: 0, needsReview: 0, currentStreak: 0, totalQuizzesTaken: 0, avgScore: 0},
         wordProgress: [],
         recentAttempts: []
       };

@@ -15,7 +15,8 @@ export type AIErrorType =
   | 'BAD_REQUEST_ERROR'
   | 'SERVER_ERROR'
   | 'CIRCUIT_BREAKER_OPEN'
-  | 'UNKNOWN_ERROR';
+  | 'UNKNOWN_ERROR'
+  | 'AUTHORIZATION_ERROR';
 
 export interface AIMetrics {
   operation: string;
@@ -76,8 +77,11 @@ export function categorizeAIError(error: unknown): AIErrorType {
     if (status === 429) {
       return 'RATE_LIMIT_ERROR';
     }
-    if (status === 401 || status === 403) {
+    if (status === 401) {
       return 'AUTHENTICATION_ERROR';
+    }
+    if (status === 403) {
+      return 'AUTHORIZATION_ERROR';
     }
     if (status === 400) {
       return 'BAD_REQUEST_ERROR';
@@ -117,6 +121,7 @@ export function isRetryableForErrorType(errorType: string): boolean {
     case 'VALIDATION_ERROR':
     case 'JSON_PARSE_ERROR':
     case 'AUTHENTICATION_ERROR':
+    case 'AUTHORIZATION_ERROR':
     case 'BAD_REQUEST_ERROR':
     case 'CIRCUIT_BREAKER_OPEN':
     case 'UNKNOWN_ERROR':
@@ -158,20 +163,12 @@ export function toAIAppError(error: unknown, errorType?: AIErrorType): AppError 
     case 'SERVER_ERROR':
       return new AppError('AI service temporarily unavailable', 503);
     case 'AUTHENTICATION_ERROR':
-      const authMessage =
-        process.env.NODE_ENV === 'production'
-          ? 'AI service configuration error'
-          : error instanceof Error
-            ? error.message
-            : String(error);
-      return new AppError(authMessage, 503);
+      return new AppError('AI authentication failed', 401);
     case 'VALIDATION_ERROR':
     case 'JSON_PARSE_ERROR':
       return new AppError('AI response validation failed', 500);
     case 'BAD_REQUEST_ERROR':
-      return new AppError('AI request failed', 500);
-    case 'MODERATION_ERROR':
-      return new ModerationError('Generated content');
+      return new AppError('AI request failed', 400);
     default:
       return new AppError('AI service temporarily unavailable', 503);
   }
@@ -245,11 +242,6 @@ export async function executeWithRetry<T>({
         errorMessage: err.message,
         responseTimeMs: metrics.responseTimeMs,
       });
-
-      if (errorType === 'MODERATION_ERROR') {
-        logAIMetrics(metrics, err);
-        throw err;
-      }
 
       if (!isRetryableAIError(error)) {
         logAIMetrics(metrics, err);
