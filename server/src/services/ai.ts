@@ -16,6 +16,13 @@ import {
 } from './aiPrompts';
 import { WordStatus, type AIWordInput, type Difficulty, type Question, type UserProgress, type WordProgress } from '../shared/types/index';
 
+export const RECOMMENDED_WORD_LIMIT = 20;
+
+export interface RecommendationStats {
+  weakWordCount: number;
+  hasLowStreak: boolean;
+}
+
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const QuestionSchema = z.object({
@@ -153,9 +160,28 @@ export class AIService {
     });
   }
 
+  static selectRecommendedWordIds(
+    candidates: UserProgress[],
+    limit = RECOMMENDED_WORD_LIMIT
+  ): string[] {
+    const learning = candidates
+      .filter((p) => p.status === WordStatus.LEARNING)
+      .sort((a, b) => {
+        const aTime = a.lastReviewed?.getTime() ?? 0;
+        const bTime = b.lastReviewed?.getTime() ?? 0;
+        return bTime - aTime;
+      });
+    const newWords = candidates.filter((p) => p.status === WordStatus.NEW);
+
+    return [...learning, ...newWords]
+      .slice(0, limit)
+      .map((p) => p.wordId);
+  }
+
   static async generateRecommendations(
     userId: string,
-    userProgress: UserProgress[],
+    candidates: UserProgress[],
+    stats: RecommendationStats,
     recentPerformance: { wordId: string; score: number; date: Date }[]
   ): Promise<{
     focusAreas: string[];
@@ -164,9 +190,7 @@ export class AIService {
     estimatedTime: number;
   }> {
     try {
-      const weakWordIds = userProgress
-        .filter((p) => p.status === WordStatus.NEW || p.status === WordStatus.LEARNING)
-        .map((p) => p.wordId);
+      const recommendedWords = this.selectRecommendedWordIds(candidates);
       const avgRecentScore =
         recentPerformance.length > 0
           ? recentPerformance.reduce((sum, p) => sum + p.score, 0) /
@@ -174,13 +198,13 @@ export class AIService {
           : 0;
 
       const focusAreas: string[] = [];
-      if (weakWordIds.length > 0) {
+      if (stats.weakWordCount > 0) {
         focusAreas.push('vocabulary_review');
       }
       if (avgRecentScore < 0.7) {
         focusAreas.push('practice_questions');
       }
-      if (userProgress.some((p) => p.streak < 2)) {
+      if (stats.hasLowStreak) {
         focusAreas.push('consistency_building');
       }
 
@@ -190,7 +214,7 @@ export class AIService {
 
       const recommendations = {
         focusAreas,
-        recommendedWords: weakWordIds,
+        recommendedWords,
         studyPlan,
         estimatedTime: focusAreas.length * 15,
       };
@@ -202,7 +226,8 @@ export class AIService {
       logger.error('Error generating recommendations:', {
         operation: 'generateRecommendations',
         userId,
-        progressCount: userProgress.length,
+        candidateCount: candidates.length,
+        weakWordCount: stats.weakWordCount,
         performanceCount: recentPerformance.length,
         errorType,
         errorMessage: error instanceof Error ? error.message : String(error),

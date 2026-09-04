@@ -1,7 +1,7 @@
 import { getDatabase } from '../utils/getDatabase';
 import { ObjectId } from 'mongodb';
-import { AIService } from './ai';
-import { WordStatus, WordProgress, QuizAttempt, UserProgress} from "../shared/types/index";
+import { AIService, RECOMMENDED_WORD_LIMIT } from './ai';
+import { WordStatus, QuizAttempt, UserProgress} from "../shared/types/index";
 import { utcDayNumber } from '../utils/date';
 
 interface LearningStatsDocument {
@@ -174,62 +174,25 @@ export class AnalyticsService {
     static async getRecommendations(userId: string) {
         const db = await getDatabase();
 
-        const userProgress = await db.collection('WordProgress')
-            .find({ userId })
-            .sort({ lastReviewed: -1 })
-            .toArray() as unknown as WordProgress[];
+        const [{ candidates, stats }, recentAttempts] = await Promise.all([
+            this.buildRecommendationInput(userId),
+            db.collection('QuizAttempt')
+                .find({ userId })
+                .sort({ createdAt: -1 })
+                .limit(20)
+                .toArray() as unknown as Promise<QuizAttempt[]>,
+        ]);
 
-        const recentAttempts = await db.collection('QuizAttempt').find({ userId }).sort({ createdAt: -1 }).limit(20).toArray();
-
-        const performanceData: PerformanceData[] = [];
-        for (const attempt of recentAttempts) {
-            const answers = await db.collection('QuizAnswer').find({ attemptId: attempt._id.toString() }).toArray();
-            for (const answer of answers) {
-                const question = await db.collection('QuizQuestion').findOne({ _id: new ObjectId(answer.questionId) });
-                performanceData.push({
-                    wordId: question?.wordId || '',
-                    score: answer.isCorrect ? 1 : 0,
-                    date: answer.createdAt
-                });
-            }
-        }
-
-        const progressData: UserProgress[] = userProgress.map((wp: WordProgress) => ({
-            userId,
-            wordId: wp.wordId.toString(),
-            status: wp.status,
-            reviewCount: wp.reviewCount,
-            streak: wp.streak,
-            lastReviewed: wp.lastReviewed ? new Date(wp.lastReviewed) : undefined
+        const performanceData: PerformanceData[] = recentAttempts.map((attempt) => ({
+            wordId: '',
+            score: attempt.score ?? 0,
+            date: new Date(attempt.createdAt),
         }));
-
-        const progressWordIds = new Set(progressData.map((p) => p.wordId));
-        const userLists = await db.collection('VocabularyList').find({ userId }).project({ _id: 1 }).toArray();
-        const listIds = userLists.map((list) => list._id);
-
-        if (listIds.length > 0) {
-            const words = await db.collection('Word')
-                .find({ vocabularyListId: { $in: listIds } })
-                .project({ _id: 1 })
-                .toArray();
-
-            for (const word of words) {
-                const wordId = word._id.toString();
-                if (!progressWordIds.has(wordId)) {
-                    progressData.push({
-                        userId,
-                        wordId,
-                        status: WordStatus.NEW,
-                        reviewCount: 0,
-                        streak: 0,
-                    });
-                }
-            }
-        }
 
         const recommendations = await AIService.generateRecommendations(
             userId,
-            progressData,
+            candidates,
+            stats,
             performanceData
         );
 
@@ -244,6 +207,167 @@ export class AnalyticsService {
         return {
             ...recommendations,
             recommendedWords
+        };
+    }
+
+    private static async buildRecommendationInput(userId: string): Promise<{
+        candidates: UserProgress[];
+        stats: { weakWordCount: number; hasLowStreak: boolean };
+    }> {
+        const db = await getDatabase();
+
+        const userLists = await db.collection('VocabularyList')
+            .find({ userId })
+            .project({ _id: 1 })
+            .toArray();
+        const listIds = userLists.map((list) => list._id);
+
+        const progressStatsPromise = db.collection('WordProgress').aggregate([
+            { $match: { userId } },
+            {
+                $group: {
+                    _id: null,
+                    learningCount: {
+                        $sum: {
+                            $cond: [{ $eq: ['$status', WordStatus.LEARNING] }, 1, 0],
+                        },
+                    },
+                    newInProgressCount: {
+                        $sum: {
+                            $cond: [{ $eq: ['$status', WordStatus.NEW] }, 1, 0],
+                        },
+                    },
+                    hasLowStreak: {
+                        $max: {
+                            $cond: [{ $lt: ['$streak', 2] }, 1, 0],
+                        },
+                    },
+                },
+            },
+        ]).toArray();
+
+        const learningProgressPromise = db.collection('WordProgress')
+            .find({ userId, status: WordStatus.LEARNING })
+            .project({ wordId: 1, status: 1, streak: 1, lastReviewed: 1, reviewCount: 1 })
+            .sort({ lastReviewed: -1 })
+            .limit(RECOMMENDED_WORD_LIMIT)
+            .toArray();
+
+        const newProgressPromise = db.collection('WordProgress')
+            .find({ userId, status: WordStatus.NEW })
+            .project({ wordId: 1, status: 1, streak: 1, lastReviewed: 1, reviewCount: 1 })
+            .limit(RECOMMENDED_WORD_LIMIT)
+            .toArray();
+
+        const unstudiedPromise = listIds.length > 0
+            ? db.collection('Word').aggregate([
+                { $match: { vocabularyListId: { $in: listIds } } },
+                {
+                    $lookup: {
+                        from: 'WordProgress',
+                        let: { wordId: '$_id' },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $and: [
+                                            { $eq: ['$userId', userId] },
+                                            { $eq: ['$wordId', '$$wordId'] },
+                                        ],
+                                    },
+                                },
+                            },
+                        ],
+                        as: 'progressDocs',
+                    },
+                },
+                { $match: { progressDocs: { $size: 0 } } },
+                {
+                    $facet: {
+                        count: [{ $count: 'total' }],
+                        sample: [
+                            { $limit: RECOMMENDED_WORD_LIMIT },
+                            { $project: { _id: 1 } },
+                        ],
+                    },
+                },
+            ]).toArray()
+            : Promise.resolve([]);
+
+        const [progressStatsRows, learningProgress, newProgress, unstudiedRows] = await Promise.all([
+            progressStatsPromise,
+            learningProgressPromise,
+            newProgressPromise,
+            unstudiedPromise,
+        ]);
+
+        const progressStats = progressStatsRows[0] as {
+            learningCount?: number;
+            newInProgressCount?: number;
+            hasLowStreak?: number;
+        } | undefined;
+
+        const unstudiedFacet = unstudiedRows[0] as {
+            count?: Array<{ total: number }>;
+            sample?: Array<{ _id: ObjectId }>;
+        } | undefined;
+
+        const unstudiedCount = unstudiedFacet?.count?.[0]?.total ?? 0;
+        const learningCount = progressStats?.learningCount ?? 0;
+        const newInProgressCount = progressStats?.newInProgressCount ?? 0;
+
+        const candidates: UserProgress[] = [
+            ...learningProgress.map((wp) => this.toRecommendationProgress(userId, wp as {
+                wordId: ObjectId | string;
+                status: WordStatus;
+                reviewCount?: number;
+                streak?: number;
+                lastReviewed?: Date | string;
+            })),
+            ...newProgress.map((wp) => this.toRecommendationProgress(userId, wp as {
+                wordId: ObjectId | string;
+                status: WordStatus;
+                reviewCount?: number;
+                streak?: number;
+                lastReviewed?: Date | string;
+            })),
+            ...(unstudiedFacet?.sample ?? []).map((word) => ({
+                userId,
+                wordId: word._id.toString(),
+                status: WordStatus.NEW,
+                reviewCount: 0,
+                streak: 0,
+            })),
+        ];
+
+        const hasLowStreak = (progressStats?.hasLowStreak ?? 0) === 1 || unstudiedCount > 0;
+
+        return {
+            candidates,
+            stats: {
+                weakWordCount: learningCount + newInProgressCount + unstudiedCount,
+                hasLowStreak,
+            },
+        };
+    }
+
+    private static toRecommendationProgress(
+        userId: string,
+        wp: {
+            wordId: ObjectId | string;
+            status: WordStatus;
+            reviewCount?: number;
+            streak?: number;
+            lastReviewed?: Date | string;
+        }
+    ): UserProgress {
+        return {
+            userId,
+            wordId: wp.wordId.toString(),
+            status: wp.status,
+            reviewCount: wp.reviewCount ?? 0,
+            streak: wp.streak ?? 0,
+            lastReviewed: wp.lastReviewed ? new Date(wp.lastReviewed) : undefined,
         };
     }
 }

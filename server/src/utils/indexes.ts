@@ -80,6 +80,12 @@ export async function ensureIndexes(db: Db): Promise<void> {
             { name: 'idx_wordprogress_user_lastreviewed' }
         );
 
+        // Used in: analytics.ts (recommendations by status)
+        await db.collection('WordProgress').createIndex(
+            { userId: 1, status: 1 },
+            { name: 'idx_wordprogress_user_status' }
+        );
+
         logger.info('WordProgress indexes created');
 
         // ============================================

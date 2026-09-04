@@ -36,7 +36,7 @@ describe('ensureIndexes', () => {
       expect(db.collection).toHaveBeenCalledWith(name);
     }
 
-    expect(createIndex).toHaveBeenCalledTimes(19);
+    expect(createIndex).toHaveBeenCalledTimes(20);
     expect(logger.info).toHaveBeenCalledWith('All database indexes created successfully!');
   });
 
