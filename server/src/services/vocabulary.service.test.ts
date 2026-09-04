@@ -25,7 +25,7 @@ describe('VocabularyService', () => {
 
         // Setup mock chain
         const mockProjectReturn = {
-            toArray: jest.fn(),
+            toArray: jest.fn().mockResolvedValue([]),
         };
 
         const mockFindReturn = {
@@ -43,6 +43,7 @@ describe('VocabularyService', () => {
             findOneAndUpdate: jest.fn(),
             deleteOne: jest.fn(),
             deleteMany: jest.fn(),
+            countDocuments: jest.fn().mockResolvedValue(0),
             project: jest.fn().mockReturnThis(),
             insertMany: jest.fn(),
         };
@@ -53,7 +54,7 @@ describe('VocabularyService', () => {
 
         (connectToTestDatabase as jest.Mock).mockResolvedValue(mockDb);
     });
-
+    
     describe('getUserLists', () => {
         it('should return user lists with word counts', async () => {
             const userId = 'user123';
@@ -85,6 +86,15 @@ describe('VocabularyService', () => {
             const pipeline = mockCollection.aggregate.mock.calls[0][0];
             expect(pipeline[0]).toEqual({ $match: { userId } });
             expect(pipeline[1]).toEqual({ $sort: { updatedAt: -1 } });
+
+            const wordLookup = pipeline[4].$lookup.pipeline;
+            expect(wordLookup[1]).toEqual({ $sort: { createdAt: -1 } });
+            expect(wordLookup[2]).toEqual({ $limit: 8 });
+            expect(pipeline[5]).toEqual({
+                $addFields: {
+                    _count: { words: { $ifNull: ['$wordCount', 0] } },
+                },
+            });
         });
 
         it('should handle pagination', async () => {

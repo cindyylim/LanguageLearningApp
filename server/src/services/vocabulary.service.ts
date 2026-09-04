@@ -3,7 +3,7 @@ import { LearningStatsService } from './learningStats.service';
 import { ObjectId } from 'mongodb';
 import { AIService } from './ai';
 import { calculateFromManualStatus } from '../utils/sm2';
-import { WordStatus, WordProgress, Word, VocabularyList, type AIWordInput } from "../shared/types/index";
+import { WordStatus, Word } from "../shared/types/index";
 interface WordDocument {
     _id: string;
     word: string;
@@ -38,6 +38,8 @@ interface AIWord {
 }
 
 type ProgressMap = Record<string, WordProgressDocument>;
+
+const LIST_PREVIEW_WORD_LIMIT = 8;
 
 export class VocabularyService {
     private static async adjustWordCount(listId: ObjectId, delta: number): Promise<void> {
@@ -74,6 +76,8 @@ export class VocabularyService {
                     let: { listId: '$_id' },
                     pipeline: [
                         { $match: { $expr: { $eq: ['$vocabularyListId', '$$listId'] } } },
+                        { $sort: { createdAt: -1 } },
+                        { $limit: LIST_PREVIEW_WORD_LIMIT },
                         {
                             $lookup: {
                                 from: 'WordProgress',
@@ -105,7 +109,7 @@ export class VocabularyService {
             },
             {
                 $addFields: {
-                    _count: { words: { $size: '$words' } }
+                    _count: { words: { $ifNull: ['$wordCount', 0] } }
                 }
             }
         ]).toArray();

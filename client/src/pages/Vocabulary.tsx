@@ -217,8 +217,8 @@ const Vocabulary: React.FC = () => {
                     </div>
                   );
                 }) : <span className="text-gray-400">No words</span>}
-                {list.words && list.words.length > 8 && (
-                  <span className="badge badge-warning">+{list.words.length - 8} more</span>
+                {(list._count?.words || 0) > 8 && (
+                  <span className="badge badge-warning">+{(list._count?.words || 0) - 8} more</span>
                 )}
                 <button className="btn-secondary text-xs ml-2" onClick={e => { e.stopPropagation(); dispatch({ type: 'OPEN_WORD_MODAL', payload: list._id.toString() }); }}>+ Add Word</button>
               </div>
