@@ -92,7 +92,10 @@ export async function seedTestDatabase() {
             updatedAt: new Date(),
           };
 
-          const result = await db.collection('VocabularyList').insertOne(vocabDoc);
+          const result = await db.collection('VocabularyList').insertOne({
+            ...vocabDoc,
+            wordCount: vocabData.words.length,
+          });
 
           // Add words to the vocabulary list
           for (const wordData of vocabData.words) {

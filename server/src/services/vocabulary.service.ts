@@ -40,6 +40,21 @@ interface AIWord {
 type ProgressMap = Record<string, WordProgressDocument>;
 
 export class VocabularyService {
+    private static async adjustWordCount(listId: ObjectId, delta: number): Promise<void> {
+        if (delta === 0) {
+            return;
+        }
+
+        const db = await getDatabase();
+        await db.collection('VocabularyList').updateOne(
+            { _id: listId },
+            {
+                $inc: { wordCount: delta },
+                $set: { updatedAt: new Date() },
+            }
+        );
+    }
+
     /**
      * Get paginated vocabulary lists for a user with word counts.
      * Fetches one extra document to determine whether another page exists.
@@ -184,6 +199,7 @@ export class VocabularyService {
             targetLanguage: data.targetLanguage,
             nativeLanguage: data.nativeLanguage,
             userId,
+            wordCount: 0,
             createdAt: now,
             updatedAt: now
         });
@@ -307,6 +323,7 @@ export class VocabularyService {
         };
 
         const result = await db.collection('Word').insertOne(data);
+        await this.adjustWordCount(new ObjectId(listId), 1);
         const newWord = await db.collection('Word').findOne({ _id: result.insertedId });
 
         return newWord;
@@ -371,6 +388,7 @@ export class VocabularyService {
         });
 
         if (result.deletedCount > 0) {
+            await this.adjustWordCount(new ObjectId(listId), -1);
             await db.collection('WordProgress').deleteMany({
                 userId,
                 wordId: new ObjectId(wordId)
@@ -412,6 +430,7 @@ export class VocabularyService {
             targetLanguage: data.targetLanguage,
             nativeLanguage: data.nativeLanguage,
             userId,
+            wordCount: aiWords.length,
             createdAt: now,
             updatedAt: now
         });

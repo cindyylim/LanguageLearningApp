@@ -205,7 +205,8 @@ describe('VocabularyService', () => {
 
             expect(mockCollection.insertOne).toHaveBeenCalledWith(expect.objectContaining({
                 ...listData,
-                userId
+                userId,
+                wordCount: 0,
             }));
             expect(result).toEqual(expectedList);
         });
@@ -465,6 +466,13 @@ describe('VocabularyService', () => {
                     updatedAt: expect.any(Date)
                 })
             );
+            expect(mockCollection.updateOne).toHaveBeenCalledWith(
+                { _id: new ObjectId(listId) },
+                {
+                    $inc: { wordCount: 1 },
+                    $set: { updatedAt: expect.any(Date) },
+                }
+            );
             expect(result).toEqual(mockNewWord);
         });
 
@@ -604,6 +612,13 @@ describe('VocabularyService', () => {
                 userId,
                 wordId: new ObjectId(wordId)
             });
+            expect(mockCollection.updateOne).toHaveBeenCalledWith(
+                { _id: new ObjectId(listId) },
+                {
+                    $inc: { wordCount: -1 },
+                    $set: { updatedAt: expect.any(Date) },
+                }
+            );
             expect(result).toBe(true);
         });
 
@@ -702,6 +717,7 @@ describe('VocabularyService', () => {
                     targetLanguage: listData.targetLanguage,
                     nativeLanguage: listData.nativeLanguage,
                     userId,
+                    wordCount: mockAIWords.length,
                     createdAt: expect.any(Date),
                     updatedAt: expect.any(Date)
                 })

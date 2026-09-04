@@ -62,6 +62,7 @@ export interface VocabularyList {
     createdAt: string;
     updatedAt: string;
     userId: string;
+    wordCount?: number;
     _count?: { words: number };
     words?: Word[];
 }

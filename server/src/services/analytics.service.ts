@@ -41,12 +41,8 @@ export class AnalyticsService {
         // Get all quiz attempts
         const recentAttempts = await db.collection('QuizAttempt').find({ userId }).sort({ createdAt: -1 }).limit(10).toArray() as unknown as QuizAttempt[];
 
-        // Count total words across user's vocabulary lists
-        const userLists = await db.collection('VocabularyList').find({ userId }).project({ _id: 1 }).toArray();
-        const listIds = userLists.map(list => list._id);
-        const totalWords = listIds.length > 0
-            ? await db.collection('Word').countDocuments({ vocabularyListId: { $in: listIds } })
-            : 0;
+        // Count total words across user's vocabulary lists (denormalized wordCount field)
+        const totalWords = await this.getTotalWordCount(userId);
 
         // Calculate streak
         const currentStreak = await this.calculateStreak(userId);
@@ -60,6 +56,24 @@ export class AnalyticsService {
             wordProgress,
             recentAttempts
         };
+    }
+
+    /**
+     * Sum denormalized wordCount across all lists for a user.
+     */
+    private static async getTotalWordCount(userId: string): Promise<number> {
+        const db = await getDatabase();
+        const result = await db.collection('VocabularyList').aggregate([
+            { $match: { userId } },
+            {
+                $group: {
+                    _id: null,
+                    totalWords: { $sum: { $ifNull: ['$wordCount', 0] } },
+                },
+            },
+        ]).toArray();
+
+        return result[0]?.totalWords ?? 0;
     }
 
     /**

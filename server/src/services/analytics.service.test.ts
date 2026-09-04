@@ -266,17 +266,14 @@ describe('AnalyticsService', () => {
             const quizAttemptCollection = {
                 find: jest.fn().mockReturnThis(),
                 sort: jest.fn().mockReturnThis(),
+                limit: jest.fn().mockReturnThis(),
                 toArray: jest.fn().mockResolvedValue(mockAllAttempts)
             };
 
             const vocabularyListCollection = {
-                find: jest.fn().mockReturnThis(),
-                project: jest.fn().mockReturnThis(),
-                toArray: jest.fn().mockResolvedValue([{ _id: new ObjectId() }, { _id: new ObjectId() }])
-            };
-
-            const wordCollection = {
-                countDocuments: jest.fn().mockResolvedValue(2)
+                aggregate: jest.fn().mockReturnValue({
+                    toArray: jest.fn().mockResolvedValue([{ totalWords: 2 }]),
+                }),
             };
 
             mockDb.collection.mockImplementation((collectionName: string) => {
@@ -284,7 +281,6 @@ describe('AnalyticsService', () => {
                 if (collectionName === 'WordProgress') return wordProgressCollection;
                 if (collectionName === 'QuizAttempt') return quizAttemptCollection;
                 if (collectionName === 'VocabularyList') return vocabularyListCollection;
-                if (collectionName === 'Word') return wordCollection;
                 return {
                     find: jest.fn().mockReturnThis(),
                     sort: jest.fn().mockReturnThis(),
@@ -321,6 +317,7 @@ describe('AnalyticsService', () => {
             expect(learningStatsCollection.find).toHaveBeenCalledWith({ userId });
             expect(wordProgressCollection.aggregate).toHaveBeenCalled();
             expect(quizAttemptCollection.find).toHaveBeenCalledWith({ userId });
+            expect(vocabularyListCollection.aggregate).toHaveBeenCalled();
             expect(AnalyticsService.calculateStreak).toHaveBeenCalledWith(userId);
         });
 
