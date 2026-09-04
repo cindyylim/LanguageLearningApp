@@ -115,18 +115,18 @@ describe('AnalyticsService', () => {
 
     describe('getSummaryStats', () => {
         it('should calculate summary statistics', () => {
-            const wordProgress = [
-                { status: WordStatus.MASTERED, streak: 5 },
-                { status: WordStatus.LEARNING, streak: 2 },
-                { status: WordStatus.LEARNING, streak: 1 },
-            ] as any;
+            const wordProgressCounts = {
+                progressCount: 3,
+                masteredWords: 1,
+                needsReviewFromProgress: 2,
+            };
 
             const allAttempts = [
                 { score: 0.8 },
                 { score: 0.9 },
             ] as any;
 
-            const summary = AnalyticsService.getSummaryStats(wordProgress, allAttempts, 3, 3);
+            const summary = AnalyticsService.getSummaryStats(wordProgressCounts, allAttempts, 3, 3);
 
             expect(summary.totalWords).toBe(3);
             expect(summary.masteredWords).toBe(1);
@@ -137,11 +137,11 @@ describe('AnalyticsService', () => {
         });
 
         it('should calculate average score for most recent 10 attempts', () => {
-            const wordProgress = [
-                { status: WordStatus.MASTERED, streak: 5 },
-                { status: WordStatus.LEARNING, streak: 2 },
-                { status: WordStatus.LEARNING, streak: 1 },
-            ] as any;
+            const wordProgressCounts = {
+                progressCount: 3,
+                masteredWords: 1,
+                needsReviewFromProgress: 2,
+            };
 
             const allAttempts = [
                 { score: 0.1 },
@@ -157,7 +157,7 @@ describe('AnalyticsService', () => {
                 { score: 0.2 },
             ] as any;
 
-            const summary = AnalyticsService.getSummaryStats(wordProgress, allAttempts, 3, 3);
+            const summary = AnalyticsService.getSummaryStats(wordProgressCounts, allAttempts, 3, 3);
 
             expect(summary.totalWords).toBe(3);
             expect(summary.masteredWords).toBe(1);
@@ -168,12 +168,13 @@ describe('AnalyticsService', () => {
         });
 
         it('should count words without progress as needing review', () => {
-            const wordProgress = [
-                { status: WordStatus.MASTERED, streak: 5 },
-                { status: WordStatus.LEARNING, streak: 2 },
-            ] as any;
+            const wordProgressCounts = {
+                progressCount: 2,
+                masteredWords: 1,
+                needsReviewFromProgress: 1,
+            };
 
-            const summary = AnalyticsService.getSummaryStats(wordProgress, [], 0, 5);
+            const summary = AnalyticsService.getSummaryStats(wordProgressCounts, [], 0, 5);
 
             expect(summary.totalWords).toBe(5);
             expect(summary.masteredWords).toBe(1);
@@ -192,37 +193,17 @@ describe('AnalyticsService', () => {
                 { date: new Date(Date.now() - 86400000) },
             ];
 
-            // Mock word progress with word details
-            const mockWordProgress = [
-                {
-                    _id: 'wp1',
-                    wordId: 'word1',
-                    userId,
-                    status: 'mastered',
-                    reviewCount: 5,
-                    streak: 3,
-                    lastReviewed: new Date().toISOString(),
-                    nextReview: new Date(Date.now() + 86400000).toISOString(),
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
-                    word: { _id: 'word1', text: 'hello', translation: 'bonjour' }
-                },
-                {
-                    _id: 'wp2',
-                    wordId: 'word2',
-                    userId,
-                    status: 'learning',
-                    reviewCount: 2,
-                    streak: 1,
-                    lastReviewed: new Date(Date.now() - 86400000).toISOString(),
-                    nextReview: new Date(Date.now() + 43200000).toISOString(),
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
-                    word: { _id: 'word2', text: 'world', translation: 'monde' }
-                }
-            ] as any;
+            // Mock word progress counts
+            const wordProgressCollection = {
+                aggregate: jest.fn().mockReturnValue({
+                    toArray: jest.fn().mockResolvedValue([{
+                        progressCount: 2,
+                        masteredWords: 1,
+                        needsReviewFromProgress: 1,
+                    }]),
+                }),
+            };
 
-            // Mock quiz attempts
             const mockAllAttempts = [
                 {
                     _id: 'attempt1',
@@ -256,11 +237,6 @@ describe('AnalyticsService', () => {
                 sort: jest.fn().mockReturnThis(),
                 limit: jest.fn().mockReturnThis(),
                 toArray: jest.fn().mockResolvedValue(mockLearningStats)
-            };
-
-            const wordProgressCollection = {
-                aggregate: jest.fn().mockReturnThis(),
-                toArray: jest.fn().mockResolvedValue(mockWordProgress)
             };
 
             const quizAttemptCollection = {
@@ -297,8 +273,8 @@ describe('AnalyticsService', () => {
             // Verify the structure of the response
             expect(progress).toHaveProperty('summary');
             expect(progress).toHaveProperty('learningStats');
-            expect(progress).toHaveProperty('wordProgress');
             expect(progress).toHaveProperty('recentAttempts');
+            expect(progress).not.toHaveProperty('wordProgress');
 
             // Verify summary statistics
             expect(progress.summary.totalWords).toBe(2);
@@ -310,8 +286,7 @@ describe('AnalyticsService', () => {
 
             // Verify the data arrays
             expect(progress.learningStats).toEqual(mockLearningStats);
-            expect(progress.wordProgress).toEqual(mockWordProgress);
-            expect(progress.recentAttempts).toEqual(mockAllAttempts.slice(0, 10));
+            expect(progress.recentAttempts).toEqual(mockAllAttempts);
 
             // Verify the correct methods were called
             expect(learningStatsCollection.find).toHaveBeenCalledWith({ userId });
@@ -345,8 +320,8 @@ describe('AnalyticsService', () => {
             // Verify the structure of the response
             expect(progress).toHaveProperty('summary');
             expect(progress).toHaveProperty('learningStats');
-            expect(progress).toHaveProperty('wordProgress');
             expect(progress).toHaveProperty('recentAttempts');
+            expect(progress).not.toHaveProperty('wordProgress');
 
             // Verify summary statistics with empty data
             expect(progress.summary.totalWords).toBe(0);
@@ -358,7 +333,6 @@ describe('AnalyticsService', () => {
 
             // Verify the data arrays are empty
             expect(progress.learningStats).toEqual([]);
-            expect(progress.wordProgress).toEqual([]);
             expect(progress.recentAttempts).toEqual([]);
 
         });
@@ -482,7 +456,8 @@ describe('AnalyticsService', () => {
 
             // Mock the database collections
             const wordProgressCollection = {
-                aggregate: jest.fn().mockReturnThis(),
+                find: jest.fn().mockReturnThis(),
+                sort: jest.fn().mockReturnThis(),
                 toArray: jest.fn().mockResolvedValue(mockUserProgress)
             };
 
@@ -542,7 +517,7 @@ describe('AnalyticsService', () => {
             expect(recommendations.estimatedTime).toBe(30);
 
             // Verify the correct methods were called
-            expect(wordProgressCollection.aggregate).toHaveBeenCalled();
+            expect(wordProgressCollection.find).toHaveBeenCalledWith({ userId });
             expect(quizAttemptCollection.find).toHaveBeenCalledWith({ userId });
             expect(quizAnswerCollection.find).toHaveBeenCalled();
             expect(quizQuestionCollection.findOne).toHaveBeenCalled();
@@ -588,7 +563,8 @@ describe('AnalyticsService', () => {
 
             // Mock empty user progress
             const wordProgressCollection = {
-                aggregate: jest.fn().mockReturnThis(),
+                find: jest.fn().mockReturnThis(),
+                sort: jest.fn().mockReturnThis(),
                 toArray: jest.fn().mockResolvedValue([])
             };
 
@@ -740,7 +716,8 @@ describe('AnalyticsService', () => {
             };
 
             const wordProgressCollection = {
-                aggregate: jest.fn().mockReturnThis(),
+                find: jest.fn().mockReturnThis(),
+                sort: jest.fn().mockReturnThis(),
                 toArray: jest.fn().mockResolvedValue(mockUserProgress)
             };
 

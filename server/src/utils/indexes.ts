@@ -74,6 +74,12 @@ export async function ensureIndexes(db: Db): Promise<void> {
             { name: 'idx_wordprogress_user' }
         );
 
+        // Used in: analytics.ts (recent progress sorted by lastReviewed)
+        await db.collection('WordProgress').createIndex(
+            { userId: 1, lastReviewed: -1 },
+            { name: 'idx_wordprogress_user_lastreviewed' }
+        );
+
         logger.info('WordProgress indexes created');
 
         // ============================================

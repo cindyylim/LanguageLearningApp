@@ -23,38 +23,59 @@ export class AnalyticsService {
         // Get user's learning statistics
         const learningStats = await db.collection('LearningStats').find({ userId }).sort({ date: -1 }).limit(30).toArray();
 
-        // Get word progress - sorted by last reviewed
-        const wordProgress = await db.collection('WordProgress').aggregate<WordProgress>([
-            { $match: { userId } },
-            { $sort: { lastReviewed: -1 } },
-            {
-                $lookup: {
-                    from: 'Word',
-                    localField: 'wordId',
-                    foreignField: '_id',
-                    as: 'word'
-                }
-            },
-            { $unwind: { path: '$word', preserveNullAndEmptyArrays: true } }
-        ]).toArray();
+        const wordProgressCounts = await this.getWordProgressCounts(userId);
 
-        // Get all quiz attempts
+        // Get recent quiz attempts
         const recentAttempts = await db.collection('QuizAttempt').find({ userId }).sort({ createdAt: -1 }).limit(10).toArray() as unknown as QuizAttempt[];
 
-        // Count total words across user's vocabulary lists (denormalized wordCount field)
         const totalWords = await this.getTotalWordCount(userId);
-
-        // Calculate streak
         const currentStreak = await this.calculateStreak(userId);
-
-        // Calculate summary statistics
-        const summary = this.getSummaryStats(wordProgress, recentAttempts, currentStreak, totalWords);
+        const summary = this.getSummaryStats(wordProgressCounts, recentAttempts, currentStreak, totalWords);
 
         return {
             summary,
             learningStats,
-            wordProgress,
             recentAttempts
+        };
+    }
+
+    /**
+     * Count progress rows by status without loading full documents or joining Word.
+     */
+    private static async getWordProgressCounts(userId: string): Promise<{
+        progressCount: number;
+        masteredWords: number;
+        needsReviewFromProgress: number;
+    }> {
+        const db = await getDatabase();
+        const [result] = await db.collection('WordProgress').aggregate([
+            { $match: { userId } },
+            {
+                $group: {
+                    _id: null,
+                    progressCount: { $sum: 1 },
+                    masteredWords: {
+                        $sum: {
+                            $cond: [{ $eq: ['$status', WordStatus.MASTERED] }, 1, 0],
+                        },
+                    },
+                    needsReviewFromProgress: {
+                        $sum: {
+                            $cond: [
+                                { $in: ['$status', [WordStatus.NEW, WordStatus.LEARNING]] },
+                                1,
+                                0,
+                            ],
+                        },
+                    },
+                },
+            },
+        ]).toArray();
+
+        return {
+            progressCount: result?.progressCount ?? 0,
+            masteredWords: result?.masteredWords ?? 0,
+            needsReviewFromProgress: result?.needsReviewFromProgress ?? 0,
         };
     }
 
@@ -122,22 +143,22 @@ export class AnalyticsService {
      * Calculate summary statistics
      */
     static getSummaryStats(
-        wordProgress: WordProgress[],
-        allAttempts: QuizAttempt[],
+        wordProgressCounts: {
+            progressCount: number;
+            masteredWords: number;
+            needsReviewFromProgress: number;
+        },
+        recentAttempts: QuizAttempt[],
         currentStreak: number,
         totalWords: number
     ) {
-        const masteredWords = wordProgress.filter((wp: WordProgress) => wp.status === WordStatus.MASTERED).length;
-        const needsReviewFromProgress = wordProgress.filter(
-            (wp: WordProgress) => wp.status === WordStatus.NEW || wp.status === WordStatus.LEARNING
-        ).length;
-        const wordsWithoutProgress = Math.max(0, totalWords - wordProgress.length);
+        const { progressCount, masteredWords, needsReviewFromProgress } = wordProgressCounts;
+        const wordsWithoutProgress = Math.max(0, totalWords - progressCount);
         const needsReview = needsReviewFromProgress + wordsWithoutProgress;
-        const totalQuizzesTaken = allAttempts.length;
+        const totalQuizzesTaken = recentAttempts.length;
 
-        const recentAttempts = allAttempts.slice(0, 10);
         const avgScore = recentAttempts.length > 0
-            ? recentAttempts.reduce((sum: number, attempt: QuizAttempt) => sum + (attempt.score || 0), 0) / recentAttempts.length
+            ? recentAttempts.reduce((sum: number, attempt: QuizAttempt) => sum + (attempt.score || 0), 0) / attemptsForAverage.length
             : 0;
 
         return {
@@ -156,19 +177,10 @@ export class AnalyticsService {
     static async getRecommendations(userId: string) {
         const db = await getDatabase();
 
-        const userProgress = await db.collection('WordProgress').aggregate<WordProgress>([
-            { $match: { userId } },
-            { $sort: { lastReviewed: -1 } },  // Most recent first
-            {
-                $lookup: {
-                    from: 'Word',
-                    localField: 'wordId',
-                    foreignField: '_id',
-                    as: 'word'
-                }
-            },
-            { $unwind: { path: '$word', preserveNullAndEmptyArrays: true } }
-        ]).toArray();
+        const userProgress = await db.collection('WordProgress')
+            .find({ userId })
+            .sort({ lastReviewed: -1 })
+            .toArray() as unknown as WordProgress[];
 
         const recentAttempts = await db.collection('QuizAttempt').find({ userId }).sort({ createdAt: -1 }).limit(20).toArray();
 

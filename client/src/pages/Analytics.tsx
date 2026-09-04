@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../lib/api';
-import { Word, WordStatus, WordProgress } from "../shared/types/index";
+import { Word } from "../shared/types/index";
 import { getErrorMessage } from '../types/errors';
 import { SkeletonCard } from '../components/SkeletonCard';
 
@@ -34,7 +34,6 @@ interface Progress {
     avgScore: number;
   };
   learningStats: LearningStats[];
-  wordProgress: WordProgress[];
   recentAttempts: QuizAttempt[];
 }
 
