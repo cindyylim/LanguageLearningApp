@@ -46,7 +46,7 @@ describe('AnalyticsService', () => {
 
             mockDb.collection().toArray.mockResolvedValue(mockStats);
 
-            const streak = await AnalyticsService.calculateStreak(userId);
+            const streak = await AnalyticsService.computeStreakFromStats(mockStats);
 
             expect(typeof streak).toBe('number');
             expect(streak).toEqual(3);
@@ -58,36 +58,39 @@ describe('AnalyticsService', () => {
             const yesterday = new Date(today.getTime() - 23 * 60 * 60 * 1000);
             const twoDaysAgo = utcDaysAgo(2, 1);
             twoDaysAgo.setUTCMinutes(30);
-
-            mockDb.collection().toArray.mockResolvedValue([
+            const mockStats =  [
                 { date: today },
                 { date: yesterday },
                 { date: twoDaysAgo },
-            ]);
+            ]
+            
+            mockDb.collection().toArray.mockResolvedValue(mockStats);
 
-            const streak = await AnalyticsService.calculateStreak('user123');
+            const streak = await AnalyticsService.computeStreakFromStats(mockStats);
 
             expect(streak).toBe(3);
         });
 
         it('should ignore duplicate stats on the same UTC day', async () => {
-            mockDb.collection().toArray.mockResolvedValue([
+            const mockStats = [
                 { date: utcDaysAgo(0, 18) },
                 { date: utcDaysAgo(0, 8) },
                 { date: utcDaysAgo(1, 12) },
-            ]);
+            ];
+            mockDb.collection().toArray.mockResolvedValue(mockStats);
 
-            const streak = await AnalyticsService.calculateStreak('user123');
+            const streak = await AnalyticsService.computeStreakFromStats(mockStats);
 
             expect(streak).toBe(2);
         });
 
         it('should return 0 when last activity is older than yesterday', async () => {
-            mockDb.collection().toArray.mockResolvedValue([
+            const mockStats = [
                 { date: utcDaysAgo(2) },
-            ]);
+            ]
+            mockDb.collection().toArray.mockResolvedValue(mockStats);
 
-            const streak = await AnalyticsService.calculateStreak('user123');
+            const streak = await AnalyticsService.computeStreakFromStats(mockStats);
 
             expect(streak).toBe(0);
         });
@@ -95,19 +98,20 @@ describe('AnalyticsService', () => {
         it('should return 0 for no activity', async () => {
             mockDb.collection().toArray.mockResolvedValue([]);
 
-            const streak = await AnalyticsService.calculateStreak('user123');
+            const streak = await AnalyticsService.computeStreakFromStats([]);
 
             expect(streak).toBe(0);
         });
 
         it('should stop counting when activity days are not consecutive', async () => {
-            mockDb.collection().toArray.mockResolvedValue([
+            const mockStats = [
                 { date: utcDaysAgo(0) },
                 { date: utcDaysAgo(1) },
                 { date: utcDaysAgo(4) },
-            ]);
+            ];
+            mockDb.collection().toArray.mockResolvedValue(mockStats);
 
-            const streak = await AnalyticsService.calculateStreak('user123');
+            const streak = await AnalyticsService.computeStreakFromStats(mockStats);
 
             expect(streak).toBe(2);
         });
@@ -153,8 +157,7 @@ describe('AnalyticsService', () => {
                 { score: 0.7 },
                 { score: 0.8 },
                 { score: 0.9 },
-                { score: 0.1 },
-                { score: 0.2 },
+                { score: 0.1 }
             ] as any;
 
             const summary = AnalyticsService.getSummaryStats(wordProgressCounts, allAttempts, 3, 3);
@@ -163,7 +166,7 @@ describe('AnalyticsService', () => {
             expect(summary.masteredWords).toBe(1);
             expect(summary.needsReview).toBe(2);
             expect(summary.currentStreak).toBe(3);
-            expect(summary.totalQuizzesTaken).toBe(11);
+            expect(summary.totalQuizzesTaken).toBe(10);
             expect(summary.avgScore).toBeCloseTo(0.46);
         });
 

@@ -20,8 +20,12 @@ export class AnalyticsService {
     static async getProgress(userId: string) {
         const db = await getDatabase();
 
-        // Get user's learning statistics
-        const learningStats = await db.collection('LearningStats').find({ userId }).sort({ date: -1 }).limit(30).toArray();
+        const recentStats = await db.collection('LearningStats')
+            .find({ userId })
+            .sort({ date: -1 })
+            .limit(365)
+            .toArray() as unknown as LearningStatsDocument[];
+        const learningStats = recentStats.slice(0, 30);
 
         const wordProgressCounts = await this.getWordProgressCounts(userId);
 
@@ -29,7 +33,7 @@ export class AnalyticsService {
         const recentAttempts = await db.collection('QuizAttempt').find({ userId }).sort({ createdAt: -1 }).limit(10).toArray() as unknown as QuizAttempt[];
 
         const totalWords = await this.getTotalWordCount(userId);
-        const currentStreak = await this.calculateStreak(userId);
+        const currentStreak = this.computeStreakFromStats(recentStats);
         const summary = this.getSummaryStats(wordProgressCounts, recentAttempts, currentStreak, totalWords);
 
         return {
@@ -98,17 +102,9 @@ export class AnalyticsService {
     }
 
     /**
-     * Calculate current learning streak
+     * Calculate current learning streak from preloaded stats (newest first).
      */
-    static async calculateStreak(userId: string): Promise<number> {
-        const db = await getDatabase();
-
-        const recentStats = await db.collection('LearningStats')
-            .find({ userId })
-            .sort({ date: -1 })
-            .limit(365)
-            .toArray() as unknown as LearningStatsDocument[];
-
+    static computeStreakFromStats(recentStats: LearningStatsDocument[]): number {
         let currentStreak = 0;
         const todayDay = utcDayNumber(new Date());
 
@@ -139,6 +135,7 @@ export class AnalyticsService {
         return currentStreak;
     }
 
+
     /**
      * Calculate summary statistics
      */
@@ -158,7 +155,7 @@ export class AnalyticsService {
         const totalQuizzesTaken = recentAttempts.length;
 
         const avgScore = recentAttempts.length > 0
-            ? recentAttempts.reduce((sum: number, attempt: QuizAttempt) => sum + (attempt.score || 0), 0) / attemptsForAverage.length
+            ? recentAttempts.reduce((sum: number, attempt: QuizAttempt) => sum + (attempt.score || 0), 0) / recentAttempts.length
             : 0;
 
         return {
