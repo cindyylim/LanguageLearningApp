@@ -41,13 +41,13 @@ const updateWordSchema = z.object({
   difficulty: z.enum(['easy', 'medium', 'hard']).optional()
 });
 
-const generateAIListSchema = z.object({
+export const generateAIListSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().optional(),
   targetLanguage: z.string().min(1),
   nativeLanguage: z.string().min(1),
   prompt: z.string().min(1),
-  wordCount: z.number().min(1).max(50).optional().default(10)
+  wordCount: z.number().int().min(5).max(50).optional().default(10)
 });
 
 

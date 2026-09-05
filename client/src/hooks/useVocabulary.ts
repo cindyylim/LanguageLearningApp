@@ -3,7 +3,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
 import { getErrorMessage, getUserFacingErrorMessage } from '../types/errors';
-import { initialState, vocabularyReducer } from '../reducers/vocabularyReducer';
+import { initialState, vocabularyReducer, MIN_AI_WORD_COUNT, MAX_AI_WORD_COUNT } from '../reducers/vocabularyReducer';
 import { WordStatus } from '../shared/types/index';
 import { updateWordProgressApi } from '../utils/wordProgress';
 interface User {
@@ -105,6 +105,14 @@ export const useVocabulary = (user: User | null) => {
 
     const handleAIGenerate = async (e: React.FormEvent) => {
         e.preventDefault();
+        const wordCount = state.aiForm.wordCount;
+        if (!Number.isInteger(wordCount) || wordCount < MIN_AI_WORD_COUNT || wordCount > MAX_AI_WORD_COUNT) {
+            dispatch({
+                type: 'AI_GENERATE_ERROR',
+                payload: `Number of words must be between ${MIN_AI_WORD_COUNT} and ${MAX_AI_WORD_COUNT}`,
+            });
+            return;
+        }
         dispatch({ type: 'AI_GENERATE_START' });
         try {
             await api.post('/vocabulary/generate-ai-list', state.aiForm);

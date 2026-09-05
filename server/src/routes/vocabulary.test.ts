@@ -94,7 +94,7 @@ jest.mock("../middleware/validateObjectId", () => ({
 }));
 
 // Import after mocking
-import vocabularyRouter from "./vocabulary";
+import vocabularyRouter, { generateAIListSchema } from "./vocabulary";
 
 // Create a test app instance
 const testApp = express();
@@ -870,5 +870,27 @@ describe("Vocabulary API Endpoints", () => {
 
       expect(response.body.message).toBe("Vocabulary list cannot be generated");
     });
+  });
+});
+
+describe("generateAIListSchema", () => {
+  const validBody = {
+    name: "AI Generated List",
+    targetLanguage: "fr",
+    nativeLanguage: "en",
+    prompt: "Basic French greetings",
+  };
+
+  it("accepts wordCount at the 5 and 50 bounds", () => {
+    expect(generateAIListSchema.parse({ ...validBody, wordCount: 5 }).wordCount).toBe(5);
+    expect(generateAIListSchema.parse({ ...validBody, wordCount: 50 }).wordCount).toBe(50);
+  });
+
+  it("rejects wordCount below 5", () => {
+    expect(() => generateAIListSchema.parse({ ...validBody, wordCount: 4 })).toThrow();
+  });
+
+  it("rejects wordCount above 50", () => {
+    expect(() => generateAIListSchema.parse({ ...validBody, wordCount: 51 })).toThrow();
   });
 });

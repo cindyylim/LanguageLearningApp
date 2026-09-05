@@ -1,5 +1,8 @@
 import { Word, WordProgress, VocabularyList } from "../shared/types/index";
 
+export const MIN_AI_WORD_COUNT = 5;
+export const MAX_AI_WORD_COUNT = 50;
+
 export interface VocabularyState {
   lists: VocabularyList[];
   loading: boolean;

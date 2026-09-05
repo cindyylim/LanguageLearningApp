@@ -8,6 +8,7 @@ import { SkeletonCard } from '../components/SkeletonCard';
 import WordProgressButtons from '../components/WordProgressButtons';
 import { getProgressBarColor, getProgressBarWidth, getProgressColor, getProgressText } from '../utils/wordProgress';
 import { pinyinFieldForList } from '../utils/chinese';
+import { MIN_AI_WORD_COUNT, MAX_AI_WORD_COUNT } from '../reducers/vocabularyReducer';
 
 const Vocabulary: React.FC = () => {
   const { user } = useAuthStore();
@@ -36,6 +37,11 @@ const Vocabulary: React.FC = () => {
     aiLoading,
     aiError,
   } = state;
+
+  const isAiWordCountValid =
+    Number.isInteger(aiForm.wordCount) &&
+    aiForm.wordCount >= MIN_AI_WORD_COUNT &&
+    aiForm.wordCount <= MAX_AI_WORD_COUNT;
 
 
   const handleTargetLanguageChange = (code: string) => {
@@ -147,14 +153,45 @@ const Vocabulary: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Number of Words</label>
-                <input className="input-field" type="number" min={5} max={50} value={aiForm.wordCount} onChange={e => dispatch({ type: 'UPDATE_AI_FORM', payload: { wordCount: Number(e.target.value) } })} />
+                <input
+                  className="input-field"
+                  type="number"
+                  name="wordCount"
+                  required
+                  min={MIN_AI_WORD_COUNT}
+                  max={MAX_AI_WORD_COUNT}
+                  step={1}
+                  value={aiForm.wordCount || ''}
+                  onChange={e => {
+                    const parsed = parseInt(e.target.value, 10);
+                    dispatch({
+                      type: 'UPDATE_AI_FORM',
+                      payload: { wordCount: Number.isNaN(parsed) ? 0 : parsed },
+                    });
+                  }}
+                  onBlur={() => {
+                    const clamped = Math.min(
+                      MAX_AI_WORD_COUNT,
+                      Math.max(MIN_AI_WORD_COUNT, aiForm.wordCount || MIN_AI_WORD_COUNT)
+                    );
+                    if (clamped !== aiForm.wordCount) {
+                      dispatch({ type: 'UPDATE_AI_FORM', payload: { wordCount: clamped } });
+                    }
+                  }}
+                />
+                <p className="text-xs text-gray-500 mt-1">Enter a number from {MIN_AI_WORD_COUNT} to {MAX_AI_WORD_COUNT}.</p>
+                {!isAiWordCountValid && (
+                  <p className="text-xs text-red-600 mt-1" role="alert">
+                    Number of words must be between {MIN_AI_WORD_COUNT} and {MAX_AI_WORD_COUNT}.
+                  </p>
+                )}
               </div>
               {aiError && (
                 <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2" role="alert">
                   {aiError}
                 </p>
               )}
-              <button type="submit" className="btn-primary w-full disabled:bg-gray-500" disabled={aiLoading || !aiForm.targetLanguage || !aiForm.nativeLanguage || !aiForm.name || !aiForm.wordCount || !aiForm.prompt}>{aiLoading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div> : 'Generate List'}</button>
+              <button type="submit" className="btn-primary w-full disabled:bg-gray-500" disabled={aiLoading || !aiForm.targetLanguage || !aiForm.nativeLanguage || !aiForm.name || !aiForm.prompt || !isAiWordCountValid}>{aiLoading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div> : 'Generate List'}</button>
             </form>
           </div>
         </div>
