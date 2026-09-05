@@ -1,6 +1,7 @@
 import { getDatabase } from '../utils/getDatabase';
 import { ObjectId } from 'mongodb';
 import { AIService, RECOMMENDED_WORD_LIMIT } from './ai';
+import { VocabularyService } from './vocabulary.service';
 import { WordStatus, QuizAttempt, UserProgress} from "../shared/types/index";
 import { utcDayNumber } from '../utils/date';
 
@@ -20,19 +21,22 @@ export class AnalyticsService {
     static async getProgress(userId: string) {
         const db = await getDatabase();
 
-        const recentStats = await db.collection('LearningStats')
-            .find({ userId })
-            .sort({ date: -1 })
-            .limit(365)
-            .toArray() as unknown as LearningStatsDocument[];
+        const [recentStats, wordProgressCounts, recentAttempts, totalWords] = await Promise.all([
+            db.collection('LearningStats')
+                .find({ userId })
+                .sort({ date: -1 })
+                .limit(365)
+                .toArray() as unknown as Promise<LearningStatsDocument[]>,
+            this.getWordProgressCounts(userId),
+            db.collection('QuizAttempt')
+                .find({ userId })
+                .sort({ createdAt: -1 })
+                .limit(10)
+                .toArray() as unknown as Promise<QuizAttempt[]>,
+            this.getTotalWordCount(userId),
+        ]);
+
         const learningStats = recentStats.slice(0, 30);
-
-        const wordProgressCounts = await this.getWordProgressCounts(userId);
-
-        // Get recent quiz attempts
-        const recentAttempts = await db.collection('QuizAttempt').find({ userId }).sort({ createdAt: -1 }).limit(10).toArray() as unknown as QuizAttempt[];
-
-        const totalWords = await this.getTotalWordCount(userId);
         const currentStreak = this.computeStreakFromStats(recentStats);
         const summary = this.getSummaryStats(wordProgressCounts, recentAttempts, currentStreak, totalWords);
 
@@ -83,17 +87,28 @@ export class AnalyticsService {
         };
     }
 
-    /**
-     * Sum denormalized wordCount across all lists for a user.
-     */
+
     private static async getTotalWordCount(userId: string): Promise<number> {
         const db = await getDatabase();
         const result = await db.collection('VocabularyList').aggregate([
             { $match: { userId } },
             {
+                $lookup: {
+                    from: 'Word',
+                    localField: '_id',
+                    foreignField: 'vocabularyListId',
+                    as: 'words',
+                },
+            },
+            {
+                $project: {
+                    effectiveWordCount: { $ifNull: ['$wordCount', { $size: '$words' }] },
+                },
+            },
+            {
                 $group: {
                     _id: null,
-                    totalWords: { $sum: { $ifNull: ['$wordCount', 0] } },
+                    totalWords: { $sum: '$effectiveWordCount' },
                 },
             },
         ]).toArray();
@@ -222,97 +237,62 @@ export class AnalyticsService {
             .toArray();
         const listIds = userLists.map((list) => list._id);
 
-        const progressStatsPromise = db.collection('WordProgress').aggregate([
-            { $match: { userId } },
-            {
-                $group: {
-                    _id: null,
-                    learningCount: {
-                        $sum: {
-                            $cond: [{ $eq: ['$status', WordStatus.LEARNING] }, 1, 0],
-                        },
-                    },
-                    newInProgressCount: {
-                        $sum: {
-                            $cond: [{ $eq: ['$status', WordStatus.NEW] }, 1, 0],
-                        },
-                    },
-                    hasLowStreak: {
-                        $max: {
-                            $cond: [{ $lt: ['$streak', 2] }, 1, 0],
-                        },
-                    },
-                },
-            },
-        ]).toArray();
-
-        const learningProgressPromise = db.collection('WordProgress')
-            .find({ userId, status: WordStatus.LEARNING })
-            .project({ wordId: 1, status: 1, streak: 1, lastReviewed: 1, reviewCount: 1 })
-            .sort({ lastReviewed: -1 })
-            .limit(RECOMMENDED_WORD_LIMIT)
-            .toArray();
-
-        const newProgressPromise = db.collection('WordProgress')
-            .find({ userId, status: WordStatus.NEW })
-            .project({ wordId: 1, status: 1, streak: 1, lastReviewed: 1, reviewCount: 1 })
-            .limit(RECOMMENDED_WORD_LIMIT)
-            .toArray();
-
-        const unstudiedPromise = listIds.length > 0
-            ? db.collection('Word').aggregate([
-                { $match: { vocabularyListId: { $in: listIds } } },
+        const [progressFacetRows, unstudiedData] = await Promise.all([
+            db.collection('WordProgress').aggregate([
+                { $match: { userId } },
                 {
-                    $lookup: {
-                        from: 'WordProgress',
-                        let: { wordId: '$_id' },
-                        pipeline: [
-                            {
-                                $match: {
-                                    $expr: {
-                                        $and: [
-                                            { $eq: ['$userId', userId] },
-                                            { $eq: ['$wordId', '$$wordId'] },
-                                        ],
+                    $facet: {
+                        stats: [{
+                            $group: {
+                                _id: null,
+                                learningCount: {
+                                    $sum: {
+                                        $cond: [{ $eq: ['$status', WordStatus.LEARNING] }, 1, 0],
+                                    },
+                                },
+                                newInProgressCount: {
+                                    $sum: {
+                                        $cond: [{ $eq: ['$status', WordStatus.NEW] }, 1, 0],
+                                    },
+                                },
+                                hasLowStreak: {
+                                    $max: {
+                                        $cond: [{ $lt: ['$streak', 2] }, 1, 0],
                                     },
                                 },
                             },
-                        ],
-                        as: 'progressDocs',
-                    },
-                },
-                { $match: { progressDocs: { $size: 0 } } },
-                {
-                    $facet: {
-                        count: [{ $count: 'total' }],
-                        sample: [
+                        }],
+                        learning: [
+                            { $match: { status: WordStatus.LEARNING } },
+                            { $sort: { lastReviewed: -1 } },
                             { $limit: RECOMMENDED_WORD_LIMIT },
-                            { $project: { _id: 1 } },
+                            { $project: { wordId: 1, status: 1, streak: 1, lastReviewed: 1, reviewCount: 1 } },
+                        ],
+                        newProgress: [
+                            { $match: { status: WordStatus.NEW } },
+                            { $limit: RECOMMENDED_WORD_LIMIT },
+                            { $project: { wordId: 1, status: 1, streak: 1, lastReviewed: 1, reviewCount: 1 } },
                         ],
                     },
                 },
-            ]).toArray()
-            : Promise.resolve([]);
-
-        const [progressStatsRows, learningProgress, newProgress, unstudiedRows] = await Promise.all([
-            progressStatsPromise,
-            learningProgressPromise,
-            newProgressPromise,
-            unstudiedPromise,
+            ]).toArray(),
+            this.fetchUnstudiedWords(userId, listIds),
         ]);
 
-        const progressStats = progressStatsRows[0] as {
-            learningCount?: number;
-            newInProgressCount?: number;
-            hasLowStreak?: number;
+        const progressFacet = progressFacetRows[0] as {
+            stats?: Array<{
+                learningCount?: number;
+                newInProgressCount?: number;
+                hasLowStreak?: number;
+            }>;
+            learning?: Array<Record<string, unknown>>;
+            newProgress?: Array<Record<string, unknown>>;
         } | undefined;
 
-        const unstudiedFacet = unstudiedRows[0] as {
-            count?: Array<{ total: number }>;
-            sample?: Array<{ _id: ObjectId }>;
-        } | undefined;
-
-        const unstudiedCount = unstudiedFacet?.count?.[0]?.total ?? 0;
+        const progressStats = progressFacet?.stats?.[0];
+        const learningProgress = progressFacet?.learning ?? [];
+        const newProgress = progressFacet?.newProgress ?? [];
+        const { unstudiedCount, unstudiedSample } = unstudiedData;
         const learningCount = progressStats?.learningCount ?? 0;
         const newInProgressCount = progressStats?.newInProgressCount ?? 0;
 
@@ -331,7 +311,7 @@ export class AnalyticsService {
                 streak?: number;
                 lastReviewed?: Date | string;
             })),
-            ...(unstudiedFacet?.sample ?? []).map((word) => ({
+            ...(unstudiedSample).map((word) => ({
                 userId,
                 wordId: word._id.toString(),
                 status: WordStatus.NEW,
@@ -349,6 +329,40 @@ export class AnalyticsService {
                 hasLowStreak,
             },
         };
+    }
+
+    private static async fetchUnstudiedWords(
+        userId: string,
+        listIds: ObjectId[]
+    ): Promise<{ unstudiedCount: number; unstudiedSample: Array<{ _id: ObjectId }> }> {
+        if (listIds.length === 0) {
+            return { unstudiedCount: 0, unstudiedSample: [] };
+        }
+
+        const db = await getDatabase();
+        const studiedWordIds = (await db.collection('WordProgress')
+            .find({ userId })
+            .project({ wordId: 1 })
+            .toArray())
+            .map((progress) => progress.wordId as ObjectId);
+
+        const unstudiedFilter: Record<string, unknown> = {
+            vocabularyListId: { $in: listIds },
+        };
+        if (studiedWordIds.length > 0) {
+            unstudiedFilter._id = { $nin: studiedWordIds };
+        }
+
+        const [unstudiedCount, unstudiedSample] = await Promise.all([
+            db.collection('Word').countDocuments(unstudiedFilter),
+            db.collection('Word')
+                .find(unstudiedFilter)
+                .limit(RECOMMENDED_WORD_LIMIT)
+                .project({ _id: 1 })
+                .toArray() as Promise<Array<{ _id: ObjectId }>>,
+        ]);
+
+        return { unstudiedCount, unstudiedSample };
     }
 
     private static toRecommendationProgress(

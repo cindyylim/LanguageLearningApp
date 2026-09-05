@@ -13,50 +13,57 @@ function mockRecommendationDb(options: {
     newProgress?: Array<Record<string, unknown>>;
     unstudied?: { count: number; sample: Array<{ _id: ObjectId }> };
     listIds?: ObjectId[];
+    studiedWordIds?: Array<{ wordId: ObjectId }>;
+    recommendedWords?: Array<Record<string, unknown>>;
 } = {}) {
+    const progressStats = options.progressStats ?? {
+        learningCount: 0,
+        newInProgressCount: 0,
+        hasLowStreak: 0,
+    };
+
     const wordProgressCollection = {
         aggregate: jest.fn().mockReturnValue({
-            toArray: jest.fn().mockResolvedValue([options.progressStats ?? {
-                learningCount: 0,
-                newInProgressCount: 0,
-                hasLowStreak: 0,
+            toArray: jest.fn().mockResolvedValue([{
+                stats: [progressStats],
+                learning: options.learningProgress ?? [],
+                newProgress: options.newProgress ?? [],
             }]),
         }),
-        find: jest.fn().mockImplementation((query: { status?: WordStatus }) => ({
-            project: jest.fn().mockReturnThis(),
-            sort: jest.fn().mockReturnThis(),
-            limit: jest.fn().mockReturnThis(),
-            toArray: jest.fn().mockResolvedValue(
-                query.status === WordStatus.LEARNING
-                    ? (options.learningProgress ?? [])
-                    : query.status === WordStatus.NEW
-                        ? (options.newProgress ?? [])
-                        : []
-            ),
-        })),
+        find: jest.fn().mockReturnValue({
+            project: jest.fn().mockReturnValue({
+                toArray: jest.fn().mockResolvedValue(options.studiedWordIds ?? []),
+            }),
+        }),
     };
 
     const vocabularyListCollection = {
-        find: jest.fn().mockReturnThis(),
-        project: jest.fn().mockReturnThis(),
-        toArray: jest.fn().mockResolvedValue(
-            (options.listIds ?? []).map((id) => ({ _id: id }))
-        ),
+        find: jest.fn().mockReturnValue({
+            project: jest.fn().mockReturnValue({
+                toArray: jest.fn().mockResolvedValue(
+                    (options.listIds ?? []).map((id) => ({ _id: id }))
+                ),
+            }),
+        }),
     };
 
     const wordCollection = {
-        aggregate: jest.fn().mockReturnValue({
-            toArray: jest.fn().mockResolvedValue(
-                options.unstudied
-                    ? [{
-                        count: [{ total: options.unstudied.count }],
-                        sample: options.unstudied.sample,
-                    }]
-                    : []
-            ),
+        countDocuments: jest.fn().mockResolvedValue(options.unstudied?.count ?? 0),
+        find: jest.fn().mockImplementation((query: Record<string, unknown>) => {
+            if (query._id && typeof query._id === 'object' && '$in' in (query._id as object)) {
+                return {
+                    toArray: jest.fn().mockResolvedValue(options.recommendedWords ?? []),
+                };
+            }
+
+            return {
+                limit: jest.fn().mockReturnValue({
+                    project: jest.fn().mockReturnValue({
+                        toArray: jest.fn().mockResolvedValue(options.unstudied?.sample ?? []),
+                    }),
+                }),
+            };
         }),
-        find: jest.fn().mockReturnThis(),
-        toArray: jest.fn().mockResolvedValue([]),
     };
 
     return { wordProgressCollection, vocabularyListCollection, wordCollection };
@@ -92,7 +99,6 @@ describe('AnalyticsService', () => {
         };
 
         it('should calculate correct streak', async () => {
-            const userId = 'user123';
             const mockStats = [
                 { date: utcDaysAgo(0) },
                 { date: utcDaysAgo(1) },
@@ -195,36 +201,6 @@ describe('AnalyticsService', () => {
             expect(summary.avgScore).toBeCloseTo(0.85);
         });
 
-        it('should calculate average score for most recent 10 attempts', () => {
-            const wordProgressCounts = {
-                progressCount: 3,
-                masteredWords: 1,
-                needsReviewFromProgress: 2,
-            };
-
-            const allAttempts = [
-                { score: 0.1 },
-                { score: 0.2 },
-                { score: 0.3 },
-                { score: 0.4 },
-                { score: 0.5 },
-                { score: 0.6 },
-                { score: 0.7 },
-                { score: 0.8 },
-                { score: 0.9 },
-                { score: 0.1 }
-            ] as any;
-
-            const summary = AnalyticsService.getSummaryStats(wordProgressCounts, allAttempts, 3, 3);
-
-            expect(summary.totalWords).toBe(3);
-            expect(summary.masteredWords).toBe(1);
-            expect(summary.needsReview).toBe(2);
-            expect(summary.currentStreak).toBe(3);
-            expect(summary.totalQuizzesTaken).toBe(10);
-            expect(summary.avgScore).toBeCloseTo(0.46);
-        });
-
         it('should count words without progress as needing review', () => {
             const wordProgressCounts = {
                 progressCount: 2,
@@ -238,6 +214,8 @@ describe('AnalyticsService', () => {
             expect(summary.masteredWords).toBe(1);
             expect(summary.needsReview).toBe(4);
             expect(summary.avgScore).toBe(0);
+            expect(summary.currentStreak).toBe(0);
+            expect(summary.totalQuizzesTaken).toBe(0);
         });
     });
 
@@ -305,6 +283,11 @@ describe('AnalyticsService', () => {
             };
 
             const vocabularyListCollection = {
+                find: jest.fn().mockReturnValue({
+                    project: jest.fn().mockReturnValue({
+                        toArray: jest.fn().mockResolvedValue([]),
+                    }),
+                }),
                 aggregate: jest.fn().mockReturnValue({
                     toArray: jest.fn().mockResolvedValue([{ totalWords: 2 }]),
                 }),
@@ -329,7 +312,6 @@ describe('AnalyticsService', () => {
             expect(progress).toHaveProperty('summary');
             expect(progress).toHaveProperty('learningStats');
             expect(progress).toHaveProperty('recentAttempts');
-            expect(progress).not.toHaveProperty('wordProgress');
 
             // Verify summary statistics
             expect(progress.summary.totalWords).toBe(2);
@@ -373,7 +355,6 @@ describe('AnalyticsService', () => {
             expect(progress).toHaveProperty('summary');
             expect(progress).toHaveProperty('learningStats');
             expect(progress).toHaveProperty('recentAttempts');
-            expect(progress).not.toHaveProperty('wordProgress');
 
             // Verify summary statistics with empty data
             expect(progress.summary.totalWords).toBe(0);
@@ -462,6 +443,8 @@ describe('AnalyticsService', () => {
             const { wordProgressCollection, vocabularyListCollection, wordCollection: recommendationWordCollection } = mockRecommendationDb({
                 progressStats: { learningCount: 2, newInProgressCount: 0, hasLowStreak: 1 },
                 learningProgress: mockUserProgress,
+                recommendedWords: mockRecommendedWords,
+                listIds: [new ObjectId()],
             });
 
             const quizAttemptCollection = {
@@ -471,11 +454,7 @@ describe('AnalyticsService', () => {
                 toArray: jest.fn().mockResolvedValue(mockAttempts)
             };
 
-            const wordCollection = {
-                ...recommendationWordCollection,
-                find: jest.fn().mockReturnThis(),
-                toArray: jest.fn().mockResolvedValue(mockRecommendedWords)
-            };
+            const wordCollection = recommendationWordCollection;
 
             mockDb.collection.mockImplementation((collectionName: string) => {
                 if (collectionName === 'WordProgress') return wordProgressCollection;
@@ -510,10 +489,8 @@ describe('AnalyticsService', () => {
 
             // Verify the correct methods were called
             expect(wordProgressCollection.aggregate).toHaveBeenCalled();
-            expect(wordProgressCollection.find).toHaveBeenCalledWith({
-                userId,
-                status: WordStatus.LEARNING,
-            });
+            expect(wordProgressCollection.find).toHaveBeenCalledWith({ userId });
+            expect(vocabularyListCollection.find).toHaveBeenCalledWith({ userId });
             expect(quizAttemptCollection.find).toHaveBeenCalledWith({ userId });
             expect(AIService.generateRecommendations).toHaveBeenCalledWith(
                 userId,

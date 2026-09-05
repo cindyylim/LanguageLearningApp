@@ -1,6 +1,6 @@
 import { getDatabase } from '../utils/getDatabase';
 import { LearningStatsService } from './learningStats.service';
-import { ObjectId } from 'mongodb';
+import { ObjectId, type AnyBulkWriteOperation } from 'mongodb';
 import { AIService } from './ai';
 import type { AIWordInput, Question } from '../shared/types/index';
 import { Quiz, QuizQuestion } from '../interface/Quiz';
@@ -9,6 +9,9 @@ import { AppError } from '../utils/AppError';
 import logger from '../utils/logger';
 import { calculateSM2, mapAccuracyToQuality } from '../utils/sm2';
 import type { IdempotencyKey } from '../interface/IdempotencyKey';
+
+const DEFAULT_QUIZ_PAGE_LIMIT = 20;
+const QUIZ_RESULTS_ATTEMPT_LIMIT = 20;
 
 function isMongoDuplicateKeyError(error: unknown): boolean {
     return typeof error === 'object'
@@ -90,7 +93,6 @@ export class QuizService {
             }
         }
 
-        // Get vocabulary list with words
         const vocabularyList = await db.collection('VocabularyList').findOne({
             _id: new ObjectId(vocabularyListId),
             userId
@@ -100,13 +102,21 @@ export class QuizService {
             return null;
         }
 
-        const words = await db.collection('Word').find({
-            vocabularyListId: new ObjectId(vocabularyListId)
-        }).toArray();
-
-        if (words.length === 0) {
+        const questionCount = options.questionCount || 10;
+        const difficulty = options.difficulty || 'medium';
+        const listObjectId = new ObjectId(vocabularyListId);
+        const totalWordsInList = vocabularyList.wordCount;
+        if (totalWordsInList === 0) {
             throw new Error('No words in vocabulary list');
         }
+
+        const sampleSize = Math.min(totalWordsInList, questionCount * 2);
+        const words = sampleSize === totalWordsInList
+            ? await db.collection('Word').find({ vocabularyListId: listObjectId }).toArray()
+            : await db.collection('Word').aggregate([
+                { $match: { vocabularyListId: listObjectId } },
+                { $sample: { size: sampleSize } },
+            ]).toArray();
 
         if (idempotencyKey) {
             const claimResult = await this.claimIdempotencyKey(db, userId, idempotencyKey);
@@ -120,11 +130,7 @@ export class QuizService {
             }
         }
 
-        const questionCount = options.questionCount || 10;
-        const difficulty = options.difficulty || 'medium';
-
         try {
-            // Generate questions using AI
             const aiQuestions: Question[] = await AIService.generateQuestions(
                 words.map((w): AIWordInput => ({
                     _id: w._id.toString(),
@@ -139,7 +145,6 @@ export class QuizService {
                 difficulty
             );
 
-            // Create quiz in database
             const now = new Date();
             const quizResult = await db.collection('Quiz').insertOne({
                 title: `Quiz: ${vocabularyList.name}`,
@@ -152,27 +157,35 @@ export class QuizService {
             });
 
             const quizId = quizResult.insertedId.toString();
+            const questionDocs = aiQuestions.map((aiQuestion: Question) => ({
+                question: aiQuestion.question,
+                type: aiQuestion.type,
+                correctAnswer: aiQuestion.correctAnswer,
+                options: aiQuestion.options ? JSON.stringify(aiQuestion.options) : null,
+                context: aiQuestion.context,
+                difficulty: aiQuestion.difficulty,
+                quizId,
+                wordId: aiQuestion.wordId,
+                createdAt: now
+            }));
 
-            // Create quiz questions
-            const quizQuestions = await Promise.all(
-                aiQuestions.map(async (aiQuestion: Question) => {
-                    const result = await db.collection('QuizQuestion').insertOne({
-                        question: aiQuestion.question,
-                        type: aiQuestion.type,
-                        correctAnswer: aiQuestion.correctAnswer,
-                        options: aiQuestion.options ? JSON.stringify(aiQuestion.options) : null,
-                        context: aiQuestion.context,
-                        difficulty: aiQuestion.difficulty,
-                        quizId: quizId,
-                        wordId: aiQuestion.wordId,
-                        createdAt: now
-                    });
-                    return await db.collection('QuizQuestion').findOne({ _id: result.insertedId });
-                })
-            );
+            const insertResult = await db.collection('QuizQuestion').insertMany(questionDocs);
+            const quizQuestions = questionDocs.map((doc, index) => ({
+                ...doc,
+                _id: insertResult.insertedIds[index]!,
+            }));
 
-            const quiz = await db.collection('Quiz').findOne({ _id: quizResult.insertedId });
-            const quizWithQuestions = { ...quiz, questions: quizQuestions };
+            const quiz = {
+                _id: quizResult.insertedId,
+                title: `Quiz: ${vocabularyList.name}`,
+                description: `AI-generated quiz from ${vocabularyList.name}`,
+                difficulty,
+                questionCount,
+                userId,
+                createdAt: now,
+                updatedAt: now,
+                questions: quizQuestions,
+            };
 
             if (idempotencyKey) {
                 await db.collection<IdempotencyKey>('IdempotencyKey').updateOne(
@@ -187,7 +200,7 @@ export class QuizService {
                 );
             }
 
-            return { quiz: quizWithQuestions, created: true };
+            return { quiz, created: true };
         } catch (error) {
             if (idempotencyKey) {
                 await this.releaseIdempotencyKey(db, userId, idempotencyKey);
@@ -197,28 +210,68 @@ export class QuizService {
     }
 
     /**
-     * Get user's quizzes with attempts
+     * Get user's quizzes with questions and latest attempt (batched queries).
      */
-    static async getUserQuizzes(userId: string) {
+    static async getUserQuizzes(userId: string, page: number = 1, limit: number = DEFAULT_QUIZ_PAGE_LIMIT) {
         const db = await getDatabase();
+        const skip = (page - 1) * limit;
 
-        const quizzes = await db.collection('Quiz').find({ userId }).sort({ createdAt: -1 }).toArray() as unknown as Quiz[];
+        const quizzes = await db.collection('Quiz')
+            .find({ userId })
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit + 1)
+            .toArray() as unknown as Quiz[];
 
-        // For each quiz, get questions and last attempt
-        const quizzesWithDetails = await Promise.all(
-            quizzes.map(async (quiz: Quiz) => {
-                const questions = await db.collection('QuizQuestion').find({ quizId: quiz._id.toString() }).toArray();
-                const attempts = await db.collection('QuizAttempt').find({ quizId: quiz._id.toString(), userId }).sort({ createdAt: -1 }).limit(1).toArray();
-                return {
-                    ...quiz,
-                    questions,
-                    attempts,
-                    _count: { questions: questions.length, attempts: attempts.length }
-                };
-            })
+        const hasMore = quizzes.length > limit;
+        const pageQuizzes = hasMore ? quizzes.slice(0, limit) : quizzes;
+        const quizIds = pageQuizzes.map((quiz) => quiz._id.toString());
+
+        if (quizIds.length === 0) {
+            return { quizzes: [], hasMore: false };
+        }
+
+        const [allQuestions, latestAttempts] = await Promise.all([
+            db.collection('QuizQuestion').find({ quizId: { $in: quizIds } }).toArray(),
+            db.collection('QuizAttempt').aggregate([
+                { $match: { userId, quizId: { $in: quizIds } } },
+                { $sort: { createdAt: -1 } },
+                {
+                    $group: {
+                        _id: '$quizId',
+                        attempt: { $first: '$$ROOT' },
+                    },
+                },
+            ]).toArray(),
+        ]);
+
+        const questionsByQuizId = new Map<string, typeof allQuestions>();
+        for (const question of allQuestions) {
+            const quizId = question.quizId as string;
+            const existing = questionsByQuizId.get(quizId) ?? [];
+            existing.push(question);
+            questionsByQuizId.set(quizId, existing);
+        }
+
+        const latestAttemptByQuizId = new Map<string, unknown>(
+            latestAttempts.map((row) => [row._id as string, row.attempt])
         );
 
-        return quizzesWithDetails;
+        const quizzesWithDetails = pageQuizzes.map((quiz) => {
+            const quizId = quiz._id.toString();
+            const questions = questionsByQuizId.get(quizId) ?? [];
+            const latestAttempt = latestAttemptByQuizId.get(quizId);
+            const attempts = latestAttempt ? [latestAttempt] : [];
+
+            return {
+                ...quiz,
+                questions,
+                attempts,
+                _count: { questions: questions.length, attempts: attempts.length },
+            };
+        });
+
+        return { quizzes: quizzesWithDetails, hasMore };
     }
 
     /**
@@ -273,21 +326,18 @@ export class QuizService {
             };
         });
 
-        // Update word progress for each unique word
         const wordProgressMap = new Map<string, { correct: number; total: number }>();
 
-        // Group answers by wordId
         processedAnswers.forEach((processedAnswer: Answer) => {
             if (processedAnswer.wordId) {
-                const wordId = processedAnswer.wordId;
-                const wordIdStr = wordId.toString();
+                const wordIdStr = processedAnswer.wordId.toString();
                 if (!wordIdStr || wordIdStr.length !== 24) {
                     return;
                 }
-                if (!wordProgressMap.has(wordId)) {
-                    wordProgressMap.set(wordId, { correct: 0, total: 0 });
+                if (!wordProgressMap.has(wordIdStr)) {
+                    wordProgressMap.set(wordIdStr, { correct: 0, total: 0 });
                 }
-                const stats = wordProgressMap.get(wordId)!;
+                const stats = wordProgressMap.get(wordIdStr)!;
                 stats.total++;
                 if (processedAnswer.isCorrect) {
                     stats.correct++;
@@ -295,19 +345,17 @@ export class QuizService {
             }
         });
         const wordsReviewed = wordProgressMap.size;
-        // Update progress for each word
         await this.updateWordProgressFromQuiz(wordProgressMap, userId);
 
-        // Create quiz attempt
+        const attemptCreatedAt = new Date();
         const attemptResult = await db.collection('QuizAttempt').insertOne({
             score: totalQuestions > 0 ? correctAnswers / totalQuestions : 0,
             completed: true,
             userId,
             quizId,
-            createdAt: new Date()
+            createdAt: attemptCreatedAt
         });
 
-        // Update daily learning stats
         await LearningStatsService.updateDailyStats(userId, {
             quizzesTaken: 1,
             totalQuestions,
@@ -315,19 +363,18 @@ export class QuizService {
             wordsReviewed
         });
 
-        // Store answers
-        await Promise.all(
-            processedAnswers.map(async (processedAnswer: Answer) => {
-                await db.collection('QuizAnswer').insertOne({
+        if (processedAnswers.length > 0) {
+            await db.collection('QuizAnswer').insertMany(
+                processedAnswers.map((processedAnswer: Answer) => ({
                     answer: processedAnswer.answer,
                     isCorrect: processedAnswer.isCorrect,
                     attemptId: attemptResult.insertedId.toString(),
                     questionId: processedAnswer.questionId,
                     userId,
-                    createdAt: new Date()
-                });
-            })
-        );
+                    createdAt: attemptCreatedAt,
+                }))
+            );
+        }
 
         return {
             id: attemptResult.insertedId.toString(),
@@ -351,16 +398,49 @@ export class QuizService {
             return null;
         }
 
-        const attempts = await db.collection('QuizAttempt').find({ quizId, userId }).sort({ createdAt: -1 }).toArray();
+        const attempts = await db.collection('QuizAttempt')
+            .find({ quizId, userId })
+            .sort({ createdAt: -1 })
+            .limit(QUIZ_RESULTS_ATTEMPT_LIMIT)
+            .toArray();
 
-        for (const attempt of attempts) {
-            attempt.answers = await db.collection('QuizAnswer').find({ attemptId: attempt._id.toString() }).toArray();
-            for (const answer of attempt.answers) {
-                answer.question = await db.collection('QuizQuestion').findOne({ _id: new ObjectId(answer.questionId) });
-            }
+        if (attempts.length === 0) {
+            return { ...quiz, attempts: [] };
         }
 
-        return { ...quiz, attempts };
+        const attemptIds = attempts.map((attempt) => attempt._id.toString());
+        const answers = await db.collection('QuizAnswer')
+            .find({ attemptId: { $in: attemptIds } })
+            .toArray();
+
+        const questionIds = [...new Set(answers.map((answer) => answer.questionId))]
+            .filter((id): id is string => typeof id === 'string' && ObjectId.isValid(id))
+            .map((id) => new ObjectId(id));
+
+        const questions = questionIds.length > 0
+            ? await db.collection('QuizQuestion').find({ _id: { $in: questionIds } }).toArray()
+            : [];
+
+        const questionById = new Map(questions.map((question) => [question._id.toString(), question]));
+        const answersByAttemptId = new Map<string, typeof answers>();
+        for (const answer of answers) {
+            const attemptAnswers = answersByAttemptId.get(answer.attemptId as string) ?? [];
+            attemptAnswers.push(answer);
+            answersByAttemptId.set(answer.attemptId as string, attemptAnswers);
+        }
+
+        const attemptsWithDetails = attempts.map((attempt) => {
+            const attemptAnswers = answersByAttemptId.get(attempt._id.toString()) ?? [];
+            return {
+                ...attempt,
+                answers: attemptAnswers.map((answer) => ({
+                    ...answer,
+                    question: questionById.get(answer.questionId as string),
+                })),
+            };
+        });
+
+        return { ...quiz, attempts: attemptsWithDetails };
     }
 
     /**
@@ -372,73 +452,83 @@ export class QuizService {
     ) {
         const db = await getDatabase();
         const now = new Date();
+        const wordIds = [...wordProgressMap.keys()];
 
-        await Promise.all(
-            Array.from(wordProgressMap.entries()).map(async ([wordId, stats]) => {
+        if (wordIds.length === 0) {
+            return;
+        }
 
-                // Check if the word exists in the Word database
-                const wordExists = await db.collection('Word').findOne({ _id: new ObjectId(wordId) });
+        const objectIds = wordIds.map((wordId) => new ObjectId(wordId));
+        const [existingWords, existingProgressList] = await Promise.all([
+            db.collection('Word').find({ _id: { $in: objectIds } }).project({ _id: 1 }).toArray(),
+            db.collection('WordProgress').find({ userId, wordId: { $in: objectIds } }).toArray(),
+        ]);
 
-                // Skip if word doesn't exist (may have been deleted)
-                if (!wordExists) {
-                    logger.warn(`Skipping progress update for non-existent word: ${wordId}`);
-                    return;
-                }
+        const existingWordIds = new Set(existingWords.map((word) => word._id.toString()));
+        const progressByWordId = new Map(
+            existingProgressList.map((progress) => [progress.wordId.toString(), progress])
+        );
 
-                const existingProgress = await db.collection('WordProgress').findOne({
-                    userId,
-                    wordId: new ObjectId(wordId)
-                });
+        const bulkOps: AnyBulkWriteOperation[] = [];
 
-                // Calculate average correctness and map to SM-2 quality grade
-                const avgCorrectness = stats.total > 0 ? stats.correct / stats.total : 0;
-                const quality = mapAccuracyToQuality(avgCorrectness);
+        for (const [wordId, stats] of wordProgressMap.entries()) {
+            if (!existingWordIds.has(wordId)) {
+                logger.warn(`Skipping progress update for non-existent word: ${wordId}`);
+                continue;
+            }
 
-                // Run SM-2 algorithm
-                const sm2Result = calculateSM2({
-                    quality,
-                    repetition: existingProgress?.streak ?? 0,
-                    easeFactor: existingProgress?.easeFactor ?? 2.5,
-                    interval: existingProgress?.interval ?? 1,
-                    now
-                });
+            const existingProgress = progressByWordId.get(wordId);
+            const avgCorrectness = stats.total > 0 ? stats.correct / stats.total : 0;
+            const quality = mapAccuracyToQuality(avgCorrectness);
+            const sm2Result = calculateSM2({
+                quality,
+                repetition: existingProgress?.streak ?? 0,
+                easeFactor: existingProgress?.easeFactor ?? 2.5,
+                interval: existingProgress?.interval ?? 1,
+                now
+            });
 
-                if (existingProgress) {
-                    // Update existing progress
-                    const newReviewCount = existingProgress.reviewCount + stats.total;
-
-                    await db.collection('WordProgress').updateOne(
-                        { _id: existingProgress._id },
-                        {
+            if (existingProgress) {
+                bulkOps.push({
+                    updateOne: {
+                        filter: { _id: existingProgress._id as ObjectId },
+                        update: {
                             $set: {
                                 status: sm2Result.status,
-                                reviewCount: newReviewCount,
+                                reviewCount: existingProgress.reviewCount + stats.total,
                                 streak: sm2Result.repetition,
                                 easeFactor: sm2Result.easeFactor,
                                 interval: sm2Result.interval,
                                 lastReviewed: now,
                                 nextReview: sm2Result.nextReview,
-                                updatedAt: now
-                            }
-                        }
-                    );
-                } else {
-                    // Create new progress record
-                    await db.collection('WordProgress').insertOne({
-                        userId,
-                        wordId: new ObjectId(wordId),
-                        status: sm2Result.status,
-                        reviewCount: stats.total,
-                        streak: sm2Result.repetition,
-                        easeFactor: sm2Result.easeFactor,
-                        interval: sm2Result.interval,
-                        lastReviewed: now,
-                        nextReview: sm2Result.nextReview,
-                        createdAt: now,
-                        updatedAt: now
-                    });
-                }
-            })
-        );
+                                updatedAt: now,
+                            },
+                        },
+                    },
+                });
+            } else {
+                bulkOps.push({
+                    insertOne: {
+                        document: {
+                            userId,
+                            wordId: new ObjectId(wordId),
+                            status: sm2Result.status,
+                            reviewCount: stats.total,
+                            streak: sm2Result.repetition,
+                            easeFactor: sm2Result.easeFactor,
+                            interval: sm2Result.interval,
+                            lastReviewed: now,
+                            nextReview: sm2Result.nextReview,
+                            createdAt: now,
+                            updatedAt: now,
+                        },
+                    },
+                });
+            }
+        }
+
+        if (bulkOps.length > 0) {
+            await db.collection('WordProgress').bulkWrite(bulkOps);
+        }
     }
 }

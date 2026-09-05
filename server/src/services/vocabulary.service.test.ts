@@ -54,7 +54,7 @@ describe('VocabularyService', () => {
 
         (connectToTestDatabase as jest.Mock).mockResolvedValue(mockDb);
     });
-    
+
     describe('getUserLists', () => {
         it('should return user lists with word counts', async () => {
             const userId = 'user123';
@@ -205,11 +205,10 @@ describe('VocabularyService', () => {
                 _id: insertedId,
                 ...listData,
                 userId,
+                wordCount: 0,
                 createdAt: expect.any(Date),
                 updatedAt: expect.any(Date)
             };
-
-            mockCollection.findOne.mockResolvedValue(expectedList);
 
             const result = await VocabularyService.createList(listData, userId);
 
@@ -264,35 +263,49 @@ describe('VocabularyService', () => {
                 }
             ];
 
-            // Set up mocks for different collections
-            mockDb.collection
-                .mockReturnValueOnce(mockCollection) // For VocabularyList
-                .mockReturnValueOnce(mockCollection) // For Word
-                .mockReturnValueOnce(mockCollection); // For WordProgress
-
-            mockCollection.findOne.mockResolvedValueOnce(mockList);
-
-            // Create separate mocks for the find() calls on different collections
-            const mockWordFind = {
-                toArray: jest.fn().mockResolvedValue(mockWords)
+            const listCollection = {
+                findOne: jest.fn().mockResolvedValue(mockList),
             };
-            const mockProgressFind = {
-                toArray: jest.fn().mockResolvedValue(mockProgress)
+            const wordCollection = {
+                countDocuments: jest.fn().mockResolvedValue(1),
+                find: jest.fn().mockReturnValue({
+                    sort: jest.fn().mockReturnValue({
+                        toArray: jest.fn().mockResolvedValue(mockWords),
+                    }),
+                }),
+            };
+            const progressCollection = {
+                find: jest.fn().mockReturnValue({
+                    toArray: jest.fn().mockResolvedValue(mockProgress),
+                }),
             };
 
-            mockCollection.find
-                .mockReturnValueOnce(mockWordFind) // For Word collection
-                .mockReturnValueOnce(mockProgressFind); // For WordProgress collection
+            mockDb.collection.mockImplementation((name: string) => {
+                if (name === 'VocabularyList') {
+                    return {
+                        ...listCollection,
+                        find: jest.fn().mockReturnValue({
+                            project: jest.fn().mockReturnValue({
+                                toArray: jest.fn().mockResolvedValue([]),
+                            }),
+                        }),
+                    };
+                }
+                if (name === 'Word') return wordCollection;
+                if (name === 'WordProgress') return progressCollection;
+                return mockCollection;
+            });
 
             const result = await VocabularyService.getListById(listId, userId);
 
-            expect(mockDb.collection).toHaveBeenCalledWith('VocabularyList');
-            expect(mockCollection.findOne).toHaveBeenCalledWith({
+            expect(listCollection.findOne).toHaveBeenCalledWith({
                 _id: new ObjectId(listId),
                 userId
             });
             expect(result).toEqual({
                 ...mockList,
+                totalWords: 1,
+                hasMore: false,
                 words: [
                     {
                         _id: '507f1f77bcf86cd799439012',
@@ -456,7 +469,7 @@ describe('VocabularyService', () => {
 
             mockCollection.findOne.mockResolvedValueOnce(mockList);
             mockCollection.insertOne.mockResolvedValue({ insertedId });
-            mockCollection.findOne.mockResolvedValueOnce(mockNewWord);
+            mockCollection.updateOne.mockResolvedValue({ modifiedCount: 1 });
 
             const result = await VocabularyService.addWord(listId, wordData, userId);
 
@@ -483,7 +496,14 @@ describe('VocabularyService', () => {
                     $set: { updatedAt: expect.any(Date) },
                 }
             );
-            expect(result).toEqual(mockNewWord);
+            expect(result).toEqual(expect.objectContaining({
+                _id: insertedId,
+                word: wordData.word,
+                translation: wordData.translation,
+                partOfSpeech: wordData.partOfSpeech,
+                difficulty: wordData.difficulty,
+                vocabularyListId: new ObjectId(listId),
+            }));
         });
 
         it('should return null if list does not exist', async () => {
@@ -530,7 +550,6 @@ describe('VocabularyService', () => {
 
             mockCollection.findOne.mockResolvedValueOnce(mockList);
             mockCollection.updateOne.mockResolvedValue({ matchedCount: 1 });
-            mockCollection.findOne.mockResolvedValueOnce(mockUpdatedWord);
 
             const result = await VocabularyService.updateWord(listId, wordId, wordData, userId);
 
@@ -548,7 +567,12 @@ describe('VocabularyService', () => {
                     }
                 }
             );
-            expect(result).toEqual(mockUpdatedWord);
+            expect(result).toEqual(expect.objectContaining({
+                _id: new ObjectId(wordId),
+                ...wordData,
+                vocabularyListId: new ObjectId(listId),
+                updatedAt: expect.any(Date),
+            }));
         });
 
         it('should return null if list does not exist', async () => {
@@ -825,8 +849,9 @@ describe('VocabularyService', () => {
                 updatedAt: expect.any(Date)
             };
 
-            mockCollection.findOne.mockResolvedValueOnce({ _id: new ObjectId(wordId), vocabularyListId: new ObjectId('507f1f77bcf86cd799439011') });
-            mockCollection.findOne.mockResolvedValueOnce({ _id: new ObjectId('507f1f77bcf86cd799439011'), userId });
+            mockCollection.aggregate.mockReturnValueOnce({
+                toArray: jest.fn().mockResolvedValue([{ _id: new ObjectId(wordId) }]),
+            });
             mockCollection.findOne.mockResolvedValueOnce(mockExistingProgress);
             mockCollection.updateOne.mockResolvedValue({});
             mockCollection.findOne.mockResolvedValueOnce(mockUpdatedProgress);
@@ -876,8 +901,9 @@ describe('VocabularyService', () => {
                 updatedAt: expect.any(Date)
             };
 
-            mockCollection.findOne.mockResolvedValueOnce({ _id: new ObjectId(wordId), vocabularyListId: new ObjectId('507f1f77bcf86cd799439011') });
-            mockCollection.findOne.mockResolvedValueOnce({ _id: new ObjectId('507f1f77bcf86cd799439011'), userId });
+            mockCollection.aggregate.mockReturnValueOnce({
+                toArray: jest.fn().mockResolvedValue([{ _id: new ObjectId(wordId) }]),
+            });
             mockCollection.findOne.mockResolvedValueOnce(null);
             mockCollection.insertOne.mockResolvedValue({ insertedId: mockNewProgress._id });
             mockCollection.findOne.mockResolvedValueOnce(mockNewProgress);
@@ -905,7 +931,9 @@ describe('VocabularyService', () => {
             const wordId = '507f1f77bcf86cd799439012';
             const userId = 'user123';
 
-            mockCollection.findOne.mockResolvedValueOnce(null);
+            mockCollection.aggregate.mockReturnValueOnce({
+                toArray: jest.fn().mockResolvedValue([]),
+            });
 
             const result = await VocabularyService.updateWordProgress(wordId, WordStatus.LEARNING, userId);
 
@@ -918,11 +946,9 @@ describe('VocabularyService', () => {
             const wordId = '507f1f77bcf86cd799439012';
             const userId = 'user123';
 
-            mockCollection.findOne.mockResolvedValueOnce({
-                _id: new ObjectId(wordId),
-                vocabularyListId: new ObjectId('507f1f77bcf86cd799439011')
+            mockCollection.aggregate.mockReturnValueOnce({
+                toArray: jest.fn().mockResolvedValue([]),
             });
-            mockCollection.findOne.mockResolvedValueOnce(null);
 
             const result = await VocabularyService.updateWordProgress(wordId, WordStatus.LEARNING, userId);
 
@@ -950,8 +976,9 @@ describe('VocabularyService', () => {
                 updatedAt: expect.any(Date),
             };
 
-            mockCollection.findOne.mockResolvedValueOnce({ _id: new ObjectId(wordId), vocabularyListId: new ObjectId('507f1f77bcf86cd799439011') });
-            mockCollection.findOne.mockResolvedValueOnce({ _id: new ObjectId('507f1f77bcf86cd799439011'), userId });
+            mockCollection.aggregate.mockReturnValueOnce({
+                toArray: jest.fn().mockResolvedValue([{ _id: new ObjectId(wordId) }]),
+            });
             mockCollection.findOne.mockResolvedValueOnce(null);
             mockCollection.insertOne.mockResolvedValue({ insertedId: mockNewProgress._id });
             mockCollection.findOne.mockResolvedValueOnce(mockNewProgress);
@@ -984,13 +1011,8 @@ describe('VocabularyService', () => {
                 interval: 1
             };
 
-            mockCollection.findOne.mockResolvedValueOnce({
-                _id: new ObjectId(wordId),
-                vocabularyListId: new ObjectId('507f1f77bcf86cd799439011')
-            });
-            mockCollection.findOne.mockResolvedValueOnce({
-                _id: new ObjectId('507f1f77bcf86cd799439011'),
-                userId
+            mockCollection.aggregate.mockReturnValueOnce({
+                toArray: jest.fn().mockResolvedValue([{ _id: new ObjectId(wordId) }]),
             });
             mockCollection.findOne.mockResolvedValueOnce(mockExistingProgress);
 
@@ -1021,13 +1043,8 @@ describe('VocabularyService', () => {
                 streak: 2
             };
 
-            mockCollection.findOne.mockResolvedValueOnce({
-                _id: new ObjectId(wordId),
-                vocabularyListId: new ObjectId('507f1f77bcf86cd799439011')
-            });
-            mockCollection.findOne.mockResolvedValueOnce({
-                _id: new ObjectId('507f1f77bcf86cd799439011'),
-                userId
+            mockCollection.aggregate.mockReturnValueOnce({
+                toArray: jest.fn().mockResolvedValue([{ _id: new ObjectId(wordId) }]),
             });
             mockCollection.findOne.mockResolvedValueOnce(mockProgress);
 
@@ -1045,13 +1062,8 @@ describe('VocabularyService', () => {
             const wordId = '507f1f77bcf86cd799439012';
             const userId = 'user123';
 
-            mockCollection.findOne.mockResolvedValueOnce({
-                _id: new ObjectId(wordId),
-                vocabularyListId: new ObjectId('507f1f77bcf86cd799439011')
-            });
-            mockCollection.findOne.mockResolvedValueOnce({
-                _id: new ObjectId('507f1f77bcf86cd799439011'),
-                userId
+            mockCollection.aggregate.mockReturnValueOnce({
+                toArray: jest.fn().mockResolvedValue([{ _id: new ObjectId(wordId) }]),
             });
             mockCollection.findOne.mockResolvedValueOnce(null);
 
@@ -1068,11 +1080,9 @@ describe('VocabularyService', () => {
             const wordId = '507f1f77bcf86cd799439012';
             const userId = 'user123';
 
-            mockCollection.findOne.mockResolvedValueOnce({
-                _id: new ObjectId(wordId),
-                vocabularyListId: new ObjectId('507f1f77bcf86cd799439011')
+            mockCollection.aggregate.mockReturnValueOnce({
+                toArray: jest.fn().mockResolvedValue([]),
             });
-            mockCollection.findOne.mockResolvedValueOnce(null);
 
             const result = await VocabularyService.getWordProgress(wordId, userId);
 

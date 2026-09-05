@@ -18,10 +18,15 @@ describe('QuizService', () => {
                 findOne: jest.fn(),
                 find: jest.fn().mockReturnThis(),
                 insertOne: jest.fn(),
+                insertMany: jest.fn(),
                 updateOne: jest.fn(),
+                bulkWrite: jest.fn(),
+                aggregate: jest.fn().mockReturnThis(),
                 toArray: jest.fn(),
                 sort: jest.fn().mockReturnThis(),
                 limit: jest.fn().mockReturnThis(),
+                skip: jest.fn().mockReturnThis(),
+                project: jest.fn().mockReturnThis(),
             }),
         };
         (connectToTestDatabase as jest.Mock).mockResolvedValue(mockDb);
@@ -37,11 +42,13 @@ describe('QuizService', () => {
                 toArray: jest.fn(),
                 sort: jest.fn().mockReturnThis(),
                 limit: jest.fn().mockReturnThis(),
+                skip: jest.fn().mockReturnThis(),
             },
             QuizQuestion: {
                 findOne: jest.fn(),
                 find: jest.fn().mockReturnThis(),
                 insertOne: jest.fn(),
+                insertMany: jest.fn(),
                 toArray: jest.fn(),
                 sort: jest.fn().mockReturnThis(),
                 limit: jest.fn().mockReturnThis(),
@@ -50,6 +57,7 @@ describe('QuizService', () => {
                 findOne: jest.fn(),
                 find: jest.fn().mockReturnThis(),
                 insertOne: jest.fn(),
+                aggregate: jest.fn().mockReturnThis(),
                 toArray: jest.fn(),
                 sort: jest.fn().mockReturnThis(),
                 limit: jest.fn().mockReturnThis(),
@@ -58,6 +66,7 @@ describe('QuizService', () => {
                 findOne: jest.fn(),
                 find: jest.fn().mockReturnThis(),
                 insertOne: jest.fn(),
+                insertMany: jest.fn(),
                 toArray: jest.fn(),
                 sort: jest.fn().mockReturnThis(),
                 limit: jest.fn().mockReturnThis(),
@@ -67,17 +76,21 @@ describe('QuizService', () => {
                 find: jest.fn().mockReturnThis(),
                 insertOne: jest.fn(),
                 updateOne: jest.fn(),
+                bulkWrite: jest.fn(),
                 toArray: jest.fn(),
                 sort: jest.fn().mockReturnThis(),
                 limit: jest.fn().mockReturnThis(),
+                project: jest.fn().mockReturnThis(),
             },
             Word: {
                 findOne: jest.fn(),
                 find: jest.fn().mockReturnThis(),
                 insertOne: jest.fn(),
+                aggregate: jest.fn().mockReturnThis(),
                 toArray: jest.fn(),
                 sort: jest.fn().mockReturnThis(),
                 limit: jest.fn().mockReturnThis(),
+                project: jest.fn().mockReturnThis(),
             },
             VocabularyList: {
                 findOne: jest.fn(),
@@ -106,15 +119,40 @@ describe('QuizService', () => {
                 findOne: jest.fn(),
                 find: jest.fn().mockReturnThis(),
                 insertOne: jest.fn(),
+                insertMany: jest.fn(),
                 updateOne: jest.fn(),
+                bulkWrite: jest.fn(),
+                aggregate: jest.fn().mockReturnThis(),
                 toArray: jest.fn(),
                 sort: jest.fn().mockReturnThis(),
                 limit: jest.fn().mockReturnThis(),
+                skip: jest.fn().mockReturnThis(),
+                project: jest.fn().mockReturnThis(),
             };
         });
 
         return collections;
     };
+
+    const mockWordExistsBatch = (collections: ReturnType<typeof createMockCollections>, wordIds: string[]) => {
+        collections.Word.find.mockReturnValue({
+            project: jest.fn().mockReturnValue({
+                toArray: jest.fn().mockResolvedValue(wordIds.map((id) => ({ _id: new ObjectId(id) }))),
+            }),
+        });
+    };
+
+    const mockProgressBatch = (
+        collections: ReturnType<typeof createMockCollections>,
+        progressRows: Array<Record<string, unknown>>
+    ) => {
+        collections.WordProgress.find.mockReturnValue({
+            toArray: jest.fn().mockResolvedValue(progressRows),
+        });
+    };
+
+    const getLastBulkWriteOps = (collections: ReturnType<typeof createMockCollections>) =>
+        collections.WordProgress.bulkWrite.mock.calls.at(-1)?.[0] ?? [];
 
     // Mock data factories
     const createMockVocabularyList = (id: string, overrides: any = {}) => ({
@@ -122,6 +160,7 @@ describe('QuizService', () => {
         name: 'French Basics',
         targetLanguage: 'fr',
         nativeLanguage: 'en',
+        wordCount: 2,
         ...overrides
     });
 
@@ -207,7 +246,7 @@ describe('QuizService', () => {
             _id: new ObjectId('507f1f77bcf86cd799439013'),
             answer: 'bonjour',
             isCorrect: true,
-            attemptId: '507f1f77bcf86cd799439012',
+            attemptId: '507f1f77bcf86cd799439014',
             questionId: '507f1f77bcf86cd799439012',
             createdAt: new Date(),
             ...overrides[0]
@@ -250,7 +289,7 @@ describe('QuizService', () => {
                     question: 'What is "hello" in French?',
                     type: 'multiple_choice',
                     correctAnswer: 'bonjour',
-                    options: '["bonjour", "salut", "merci", "au revoir"]',
+                    options: '["bonjour","salut","merci","au revoir"]',
                     context: 'Common greeting',
                     difficulty: 'easy',
                     quizId: mockQuizResult.insertedId.toString(),
@@ -262,7 +301,7 @@ describe('QuizService', () => {
                     question: 'What is "thank you" in French?',
                     type: 'multiple_choice',
                     correctAnswer: 'merci',
-                    options: '["merci", "s\'il vous plaît", "excusez-moi", "bonjour"]',
+                    options: '["merci","s\'il vous plaît","excusez-moi","bonjour"]',
                     context: 'Common expression',
                     difficulty: 'easy',
                     quizId: mockQuizResult.insertedId.toString(),
@@ -292,15 +331,14 @@ describe('QuizService', () => {
                 },
                 Quiz: {
                     insertOne: jest.fn().mockResolvedValue(mockQuizResult),
-                    findOne: jest.fn().mockResolvedValue(mockQuiz)
                 },
                 QuizQuestion: {
-                    insertOne: jest.fn()
-                        .mockResolvedValueOnce(mockQuestionResult1)
-                        .mockResolvedValueOnce(mockQuestionResult2),
-                    findOne: jest.fn()
-                        .mockResolvedValueOnce(mockInsertedQuestions[0])
-                        .mockResolvedValueOnce(mockInsertedQuestions[1])
+                    insertMany: jest.fn().mockResolvedValue({
+                        insertedIds: {
+                            0: mockQuestionResult1.insertedId,
+                            1: mockQuestionResult2.insertedId,
+                        },
+                    }),
                 }
             });
 
@@ -358,7 +396,19 @@ describe('QuizService', () => {
                 updatedAt: expect.any(Date)
             });
 
-            expect(collections.QuizQuestion.insertOne).toHaveBeenCalledTimes(2);
+            expect(collections.QuizQuestion.insertMany).toHaveBeenCalledTimes(1);
+            expect(collections.QuizQuestion.insertMany).toHaveBeenCalledWith(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        question: 'What is "hello" in French?',
+                        quizId: mockQuizResult.insertedId.toString(),
+                    }),
+                    expect.objectContaining({
+                        question: 'What is "thank you" in French?',
+                        quizId: mockQuizResult.insertedId.toString(),
+                    }),
+                ])
+            );
         });
 
         it('should return null if vocabulary list does not exist', async () => {
@@ -382,16 +432,12 @@ describe('QuizService', () => {
             const userId = 'user123';
             const options = { questionCount: 5, difficulty: 'easy' as const };
 
-            const mockVocabularyList = createMockVocabularyList(vocabularyListId);
+            const mockVocabularyList = createMockVocabularyList(vocabularyListId, { wordCount: 0 });
 
-            const collections = createMockCollections({
+            createMockCollections({
                 VocabularyList: {
-                    findOne: jest.fn().mockResolvedValue(mockVocabularyList)
+                    findOne: jest.fn().mockResolvedValue(mockVocabularyList),
                 },
-                Word: {
-                    find: jest.fn().mockReturnThis(),
-                    toArray: jest.fn().mockResolvedValue([])
-                }
             });
 
             await expect(QuizService.generateQuiz(vocabularyListId, options, userId))
@@ -561,17 +607,6 @@ describe('QuizService', () => {
             const mockQuestionResult1 = { insertedId: new ObjectId('507f1f77bcf86cd799439015') };
             const mockQuestionResult2 = { insertedId: new ObjectId('507f1f77bcf86cd799439016') };
 
-            const mockQuiz = {
-                _id: mockQuizResult.insertedId,
-                title: 'Quiz: French Basics',
-                description: 'AI-generated quiz from French Basics',
-                difficulty: 'easy',
-                questionCount: 5,
-                userId,
-                createdAt: expect.any(Date),
-                updatedAt: expect.any(Date)
-            };
-
             const collections = createMockCollections({
                 VocabularyList: {
                     findOne: jest.fn().mockResolvedValue(mockVocabularyList)
@@ -588,19 +623,14 @@ describe('QuizService', () => {
                 },
                 Quiz: {
                     insertOne: jest.fn().mockResolvedValue(mockQuizResult),
-                    findOne: jest.fn().mockResolvedValue(mockQuiz)
                 },
                 QuizQuestion: {
-                    insertOne: jest.fn()
-                        .mockResolvedValueOnce(mockQuestionResult1)
-                        .mockResolvedValueOnce(mockQuestionResult2)
-                        .mockResolvedValueOnce(mockQuestionResult1)
-                        .mockResolvedValueOnce(mockQuestionResult2),
-                    findOne: jest.fn()
-                        .mockResolvedValueOnce({ _id: mockQuestionResult1.insertedId })
-                        .mockResolvedValueOnce({ _id: mockQuestionResult2.insertedId })
-                        .mockResolvedValueOnce({ _id: mockQuestionResult1.insertedId })
-                        .mockResolvedValueOnce({ _id: mockQuestionResult2.insertedId })
+                    insertMany: jest.fn().mockResolvedValue({
+                        insertedIds: {
+                            0: mockQuestionResult1.insertedId,
+                            1: mockQuestionResult2.insertedId,
+                        },
+                    }),
                 }
             });
 
@@ -613,6 +643,7 @@ describe('QuizService', () => {
             expect(second?.created).toBe(true);
             expect(collections.Quiz.insertOne).toHaveBeenCalledTimes(2);
             expect(collections.IdempotencyKey.insertOne).toHaveBeenCalledTimes(2);
+            expect(collections.QuizQuestion.insertMany).toHaveBeenCalledTimes(2);
         });
 
         it('should release idempotency key when quiz generation fails', async () => {
@@ -630,7 +661,7 @@ describe('QuizService', () => {
                 },
                 Word: {
                     find: jest.fn().mockReturnThis(),
-                    toArray: jest.fn().mockResolvedValue(mockWords)
+                    toArray: jest.fn().mockResolvedValue(mockWords),
                 },
                 IdempotencyKey: {
                     findOne: jest.fn().mockResolvedValue(null),
@@ -671,7 +702,7 @@ describe('QuizService', () => {
                 },
                 Word: {
                     find: jest.fn().mockReturnThis(),
-                    toArray: jest.fn().mockResolvedValue(mockWords)
+                    toArray: jest.fn().mockResolvedValue(mockWords),
                 },
                 IdempotencyKey: {
                     findOne: jest.fn()
@@ -708,7 +739,7 @@ describe('QuizService', () => {
                 },
                 Word: {
                     find: jest.fn().mockReturnThis(),
-                    toArray: jest.fn().mockResolvedValue(mockWords)
+                    toArray: jest.fn().mockResolvedValue(mockWords),
                 },
                 IdempotencyKey: {
                     findOne: jest.fn()
@@ -748,17 +779,6 @@ describe('QuizService', () => {
             const mockQuestionResult1 = { insertedId: new ObjectId('507f1f77bcf86cd799439015') };
             const mockQuestionResult2 = { insertedId: new ObjectId('507f1f77bcf86cd799439016') };
 
-            const mockQuiz = {
-                _id: mockQuizResult.insertedId,
-                title: 'Quiz: French Basics',
-                description: 'AI-generated quiz from French Basics',
-                difficulty: 'easy',
-                questionCount: 5,
-                userId: 'user-a',
-                createdAt: expect.any(Date),
-                updatedAt: expect.any(Date)
-            };
-
             const collections = createMockCollections({
                 VocabularyList: {
                     findOne: jest.fn().mockResolvedValue(mockVocabularyList)
@@ -775,19 +795,14 @@ describe('QuizService', () => {
                 },
                 Quiz: {
                     insertOne: jest.fn().mockResolvedValue(mockQuizResult),
-                    findOne: jest.fn().mockResolvedValue(mockQuiz)
                 },
                 QuizQuestion: {
-                    insertOne: jest.fn()
-                        .mockResolvedValueOnce(mockQuestionResult1)
-                        .mockResolvedValueOnce(mockQuestionResult2)
-                        .mockResolvedValueOnce(mockQuestionResult1)
-                        .mockResolvedValueOnce(mockQuestionResult2),
-                    findOne: jest.fn()
-                        .mockResolvedValueOnce({ _id: mockQuestionResult1.insertedId })
-                        .mockResolvedValueOnce({ _id: mockQuestionResult2.insertedId })
-                        .mockResolvedValueOnce({ _id: mockQuestionResult1.insertedId })
-                        .mockResolvedValueOnce({ _id: mockQuestionResult2.insertedId })
+                    insertMany: jest.fn().mockResolvedValue({
+                        insertedIds: {
+                            0: mockQuestionResult1.insertedId,
+                            1: mockQuestionResult2.insertedId,
+                        },
+                    }),
                 }
             });
 
@@ -820,48 +835,65 @@ describe('QuizService', () => {
                 })
             ];
 
-            const mockQuestions = createMockQuestions();
+            const mockQuestions = [
+                ...createMockQuestions(),
+                {
+                    _id: new ObjectId('507f1f77bcf86cd799439020'),
+                    question: 'What is "goodbye" in French?',
+                    type: 'multiple_choice',
+                    correctAnswer: 'au revoir',
+                    quizId: '507f1f77bcf86cd799439012',
+                },
+            ];
             const mockAttempts = createMockAttempts();
 
             const collections = createMockCollections({
                 Quiz: {
                     find: jest.fn().mockReturnThis(),
                     sort: jest.fn().mockReturnThis(),
+                    skip: jest.fn().mockReturnThis(),
+                    limit: jest.fn().mockReturnThis(),
                     toArray: jest.fn().mockResolvedValue(mockQuizzes)
                 },
                 QuizQuestion: {
-                    find: jest.fn().mockReturnThis(),
-                    toArray: jest.fn().mockResolvedValue(mockQuestions)
+                    find: jest.fn().mockReturnValue({
+                        toArray: jest.fn().mockResolvedValue(mockQuestions)
+                    })
                 },
                 QuizAttempt: {
-                    find: jest.fn().mockReturnThis(),
-                    sort: jest.fn().mockReturnThis(),
-                    limit: jest.fn().mockReturnThis(),
-                    toArray: jest.fn().mockResolvedValue(mockAttempts)
+                    aggregate: jest.fn().mockReturnValue({
+                        toArray: jest.fn().mockResolvedValue([
+                            { _id: '507f1f77bcf86cd799439011', attempt: mockAttempts[0] },
+                            { _id: '507f1f77bcf86cd799439012', attempt: mockAttempts[0] },
+                        ])
+                    })
                 }
             });
 
             const result = await QuizService.getUserQuizzes(userId);
 
-            expect(result).toEqual([
-                {
-                    ...mockQuizzes[0],
-                    questions: mockQuestions,
-                    attempts: mockAttempts,
-                    _count: { questions: 1, attempts: 1 }
-                },
-                {
-                    ...mockQuizzes[1],
-                    questions: mockQuestions,
-                    attempts: mockAttempts,
-                    _count: { questions: 1, attempts: 1 }
-                }
-            ]);
+            expect(result).toEqual({
+                hasMore: false,
+                quizzes: [
+                    {
+                        ...mockQuizzes[0],
+                        questions: [mockQuestions[0]],
+                        attempts: [mockAttempts[0]],
+                        _count: { questions: 1, attempts: 1 }
+                    },
+                    {
+                        ...mockQuizzes[1],
+                        questions: [mockQuestions[1]],
+                        attempts: [mockAttempts[0]],
+                        _count: { questions: 1, attempts: 1 }
+                    }
+                ]
+            });
 
-            expect(collections.QuizQuestion.find).toHaveBeenCalledWith({ quizId: '507f1f77bcf86cd799439011' });
-            expect(collections.QuizQuestion.find).toHaveBeenCalledWith({ quizId: '507f1f77bcf86cd799439012' });
-            expect(collections.QuizAttempt.find).toHaveBeenCalledWith({ quizId: '507f1f77bcf86cd799439011', userId });
-            expect(collections.QuizAttempt.find).toHaveBeenCalledWith({ quizId: '507f1f77bcf86cd799439012', userId });
+            expect(collections.QuizQuestion.find).toHaveBeenCalledWith({
+                quizId: { $in: ['507f1f77bcf86cd799439011', '507f1f77bcf86cd799439012'] }
+            });
+            expect(collections.QuizAttempt.aggregate).toHaveBeenCalled();
         });
     });
 
@@ -969,14 +1001,30 @@ describe('QuizService', () => {
                     insertOne: jest.fn().mockResolvedValue(mockAttemptResult)
                 },
                 QuizAnswer: {
-                    insertOne: jest.fn()
+                    insertMany: jest.fn()
                 },
                 WordProgress: {
-                    findOne: jest.fn().mockResolvedValue(mockExistingProgress),
-                    updateOne: jest.fn()
+                    find: jest.fn().mockReturnValue({
+                        toArray: jest.fn().mockResolvedValue([
+                            { ...mockExistingProgress, wordId: new ObjectId('507f1f77bcf86cd799439014') },
+                            {
+                                ...mockExistingProgress,
+                                _id: new ObjectId('507f1f77bcf86cd799439099'),
+                                wordId: new ObjectId('507f1f77bcf86cd799439015'),
+                            },
+                        ]),
+                    }),
+                    bulkWrite: jest.fn(),
                 },
                 Word: {
-                    findOne: jest.fn().mockResolvedValue(mockWord)
+                    find: jest.fn().mockReturnValue({
+                        project: jest.fn().mockReturnValue({
+                            toArray: jest.fn().mockResolvedValue([
+                                { _id: new ObjectId('507f1f77bcf86cd799439014') },
+                                { _id: new ObjectId('507f1f77bcf86cd799439015') },
+                            ]),
+                        }),
+                    }),
                 },
                 LearningStats: {
                     findOneAndUpdate: jest.fn()
@@ -1020,16 +1068,8 @@ describe('QuizService', () => {
                 createdAt: expect.any(Date)
             });
 
-            expect(collections.QuizAnswer.insertOne).toHaveBeenCalledTimes(2);
-            expect(collections.WordProgress.findOne).toHaveBeenCalledWith({
-                userId,
-                wordId: new ObjectId('507f1f77bcf86cd799439014')
-            });
-            expect(collections.WordProgress.findOne).toHaveBeenCalledWith({
-                userId,
-                wordId: new ObjectId('507f1f77bcf86cd799439015')
-            });
-            expect(collections.WordProgress.updateOne).toHaveBeenCalledTimes(2);
+            expect(collections.QuizAnswer.insertMany).toHaveBeenCalledTimes(1);
+            expect(collections.WordProgress.bulkWrite).toHaveBeenCalledTimes(1);
             expect(collections.LearningStats.findOneAndUpdate).toHaveBeenCalledWith(
                 { userId, date: expect.any(Date) },
                 expect.objectContaining({
@@ -1080,14 +1120,18 @@ describe('QuizService', () => {
                 QuizAttempt: {
                     find: jest.fn().mockReturnThis(),
                     sort: jest.fn().mockReturnThis(),
+                    limit: jest.fn().mockReturnThis(),
                     toArray: jest.fn().mockResolvedValue(mockAttempts)
                 },
                 QuizAnswer: {
-                    find: jest.fn().mockReturnThis(),
-                    toArray: jest.fn().mockResolvedValue(mockAnswers)
+                    find: jest.fn().mockReturnValue({
+                        toArray: jest.fn().mockResolvedValue(mockAnswers)
+                    })
                 },
                 QuizQuestion: {
-                    findOne: jest.fn().mockResolvedValue(mockQuestions[0])
+                    find: jest.fn().mockReturnValue({
+                        toArray: jest.fn().mockResolvedValue(mockQuestions)
+                    })
                 }
             });
 
@@ -1113,8 +1157,12 @@ describe('QuizService', () => {
                 userId
             });
             expect(collections.QuizAttempt.find).toHaveBeenCalledWith({ quizId, userId });
-            expect(collections.QuizAnswer.find).toHaveBeenCalledWith({ attemptId: '507f1f77bcf86cd799439014' });
-            expect(collections.QuizQuestion.findOne).toHaveBeenCalledWith({ _id: new ObjectId('507f1f77bcf86cd799439012') });
+            expect(collections.QuizAnswer.find).toHaveBeenCalledWith({
+                attemptId: { $in: ['507f1f77bcf86cd799439014'] }
+            });
+            expect(collections.QuizQuestion.find).toHaveBeenCalledWith({
+                _id: { $in: [new ObjectId('507f1f77bcf86cd799439012')] }
+            });
         });
 
         it('should return null if quiz does not exist', async () => {
@@ -1142,38 +1190,34 @@ describe('QuizService', () => {
             existingProgress: ReturnType<typeof createMockWordProgress> | null,
             accuracy: { correct: number; total: number }
         ) => {
-            const mockWord = createMockWord();
-
-            collections.WordProgress.findOne.mockResolvedValueOnce(existingProgress);
-            collections.Word.findOne.mockResolvedValue(mockWord);
+            mockWordExistsBatch(collections, [wordId]);
+            mockProgressBatch(
+                collections,
+                existingProgress
+                    ? [{ ...existingProgress, wordId: new ObjectId(wordId) }]
+                    : []
+            );
 
             const wordProgressMap = new Map<string, { correct: number; total: number }>();
             wordProgressMap.set(wordId, accuracy);
 
             await (QuizService as any).updateWordProgressFromQuiz(wordProgressMap, userId);
 
+            const bulkOps = getLastBulkWriteOps(collections);
             if (!existingProgress) {
-                const inserted = collections.WordProgress.insertOne.mock.calls[
-                    collections.WordProgress.insertOne.mock.calls.length - 1
-                ][0];
+                const insertOp = bulkOps.find((op: { insertOne?: { document: Record<string, unknown> } }) => op.insertOne);
                 return {
                     _id: new ObjectId(),
                     userId,
                     wordId: new ObjectId(wordId),
-                    ...inserted,
+                    ...insertOp.insertOne.document,
                 };
             }
 
-            const updateCall = collections.WordProgress.updateOne.mock.calls[
-                collections.WordProgress.updateOne.mock.calls.length - 1
-            ];
+            const updateOp = bulkOps.find((op: { updateOne?: { update: { $set: Record<string, unknown> } } }) => op.updateOne);
             return {
                 ...existingProgress,
-                status: updateCall[1].$set.status,
-                streak: updateCall[1].$set.streak,
-                reviewCount: updateCall[1].$set.reviewCount,
-                easeFactor: updateCall[1].$set.easeFactor,
-                interval: updateCall[1].$set.interval,
+                ...updateOp.updateOne.update.$set,
             };
         };
 
@@ -1194,12 +1238,11 @@ describe('QuizService', () => {
         it('should set status learning and streak 1 on first perfect quiz for a new word', async () => {
             const collections = createMockCollections({
                 WordProgress: {
-                    findOne: jest.fn(),
-                    updateOne: jest.fn(),
-                    insertOne: jest.fn(),
+                    find: jest.fn().mockReturnValue({ toArray: jest.fn() }),
+                    bulkWrite: jest.fn(),
                 },
                 Word: {
-                    findOne: jest.fn(),
+                    find: jest.fn().mockReturnValue({ project: jest.fn().mockReturnValue({ toArray: jest.fn() }) }),
                 },
             });
 
@@ -1207,19 +1250,18 @@ describe('QuizService', () => {
 
             expect(progress.status).toBe(WordStatus.LEARNING);
             expect(progress.streak).toBe(1);
-            expect(collections.WordProgress.insertOne).toHaveBeenCalled();
-            expect(collections.WordProgress.updateOne).not.toHaveBeenCalled();
+            expect(collections.WordProgress.bulkWrite).toHaveBeenCalled();
+            expect(getLastBulkWriteOps(collections).some((op) => op.insertOne)).toBe(true);
         });
 
         it('should reach mastered status after five consecutive perfect quiz reviews', async () => {
             const collections = createMockCollections({
                 WordProgress: {
-                    findOne: jest.fn(),
-                    updateOne: jest.fn(),
-                    insertOne: jest.fn(),
+                    find: jest.fn().mockReturnValue({ toArray: jest.fn() }),
+                    bulkWrite: jest.fn(),
                 },
                 Word: {
-                    findOne: jest.fn(),
+                    find: jest.fn().mockReturnValue({ project: jest.fn().mockReturnValue({ toArray: jest.fn() }) }),
                 },
             });
 
@@ -1227,19 +1269,20 @@ describe('QuizService', () => {
 
             expect(progress?.status).toBe(WordStatus.MASTERED);
             expect(progress?.streak).toBe(5);
-            expect(collections.WordProgress.insertOne).toHaveBeenCalledTimes(1);
-            expect(collections.WordProgress.updateOne).toHaveBeenCalledTimes(4);
+            expect(collections.WordProgress.bulkWrite).toHaveBeenCalledTimes(5);
+            const bulkOps = collections.WordProgress.bulkWrite.mock.calls.flatMap((call) => call[0]);
+            expect(bulkOps.filter((op) => op.insertOne).length).toBe(1);
+            expect(bulkOps.filter((op) => op.updateOne).length).toBe(4);
         });
 
         it('should reset streak to 0 on quiz fail and recover to streak 1 on next success', async () => {
             const collections = createMockCollections({
                 WordProgress: {
-                    findOne: jest.fn(),
-                    updateOne: jest.fn(),
-                    insertOne: jest.fn(),
+                    find: jest.fn().mockReturnValue({ toArray: jest.fn() }),
+                    bulkWrite: jest.fn(),
                 },
                 Word: {
-                    findOne: jest.fn(),
+                    find: jest.fn().mockReturnValue({ project: jest.fn().mockReturnValue({ toArray: jest.fn() }) }),
                 },
             });
 
@@ -1263,12 +1306,11 @@ describe('QuizService', () => {
         it('should reset manually mastered word to learning when quiz fails (quiz path uses calculateSM2)', async () => {
             const collections = createMockCollections({
                 WordProgress: {
-                    findOne: jest.fn(),
-                    updateOne: jest.fn(),
-                    insertOne: jest.fn(),
+                    find: jest.fn().mockReturnValue({ toArray: jest.fn() }),
+                    bulkWrite: jest.fn(),
                 },
                 Word: {
-                    findOne: jest.fn(),
+                    find: jest.fn().mockReturnValue({ project: jest.fn().mockReturnValue({ toArray: jest.fn() }) }),
                 },
             });
 
@@ -1289,12 +1331,11 @@ describe('QuizService', () => {
         it('should keep new word on learning after perfect quiz (contrast with manual mastered shortcut)', async () => {
             const collections = createMockCollections({
                 WordProgress: {
-                    findOne: jest.fn(),
-                    updateOne: jest.fn(),
-                    insertOne: jest.fn(),
+                    find: jest.fn().mockReturnValue({ toArray: jest.fn() }),
+                    bulkWrite: jest.fn(),
                 },
                 Word: {
-                    findOne: jest.fn(),
+                    find: jest.fn().mockReturnValue({ project: jest.fn().mockReturnValue({ toArray: jest.fn() }) }),
                 },
             });
 
@@ -1307,88 +1348,90 @@ describe('QuizService', () => {
     });
 
     describe('updateWordProgressFromQuiz', () => {
+        const wordId = '507f1f77bcf86cd799439014';
+
         it('should update existing word progress using SM-2 for good accuracy (q=4)', async () => {
             const userId = 'user123';
             const wordProgressMap = new Map<string, { correct: number; total: number }>();
-            wordProgressMap.set('507f1f77bcf86cd799439014', { correct: 3, total: 4 }); // 75% -> q=4
+            wordProgressMap.set(wordId, { correct: 3, total: 4 });
 
-            // streak=1 means SM-2 repetition=1, so next will be repetition=2 -> interval=6
             const mockExistingProgress = createMockWordProgress({
                 streak: 1,
                 easeFactor: 2.5,
                 interval: 1
             });
 
-            const mockWord = createMockWord();
-
             const collections = createMockCollections({
                 WordProgress: {
-                    findOne: jest.fn().mockResolvedValue(mockExistingProgress),
-                    updateOne: jest.fn()
+                    find: jest.fn().mockReturnValue({ toArray: jest.fn() }),
+                    bulkWrite: jest.fn(),
                 },
                 Word: {
-                    findOne: jest.fn().mockResolvedValue(mockWord)
-                }
+                    find: jest.fn().mockReturnValue({ project: jest.fn().mockReturnValue({ toArray: jest.fn() }) }),
+                },
             });
+            mockWordExistsBatch(collections, [wordId]);
+            mockProgressBatch(collections, [{ ...mockExistingProgress, wordId: new ObjectId(wordId) }]);
 
             await (QuizService as any).updateWordProgressFromQuiz(wordProgressMap, userId);
 
-            expect(collections.WordProgress.findOne).toHaveBeenCalledWith({
-                userId,
-                wordId: new ObjectId('507f1f77bcf86cd799439014')
-            });
-            expect(collections.WordProgress.updateOne).toHaveBeenCalledWith(
-                { _id: mockExistingProgress._id },
+            expect(collections.WordProgress.bulkWrite).toHaveBeenCalledWith([
                 {
-                    $set: {
-                        status: 'learning',
-                        reviewCount: 6, // 2 + 4
-                        streak: 2, // SM-2 repetition incremented
-                        easeFactor: expect.any(Number),
-                        interval: 6, // SM-2: n=2 -> interval=6
-                        lastReviewed: expect.any(Date),
-                        nextReview: expect.any(Date),
-                        updatedAt: expect.any(Date)
+                    updateOne: {
+                        filter: { _id: mockExistingProgress._id },
+                        update: {
+                            $set: {
+                                status: 'learning',
+                                reviewCount: 6,
+                                streak: 2,
+                                easeFactor: expect.any(Number),
+                                interval: 6,
+                                lastReviewed: expect.any(Date),
+                                nextReview: expect.any(Date),
+                                updatedAt: expect.any(Date)
+                            }
+                        }
                     }
                 }
-            );
+            ]);
         });
 
         it('should schedule nextReview using SM-2 interval for n=2', async () => {
             const userId = 'user123';
             const wordProgressMap = new Map<string, { correct: number; total: number }>();
-            wordProgressMap.set('507f1f77bcf86cd799439014', { correct: 1, total: 1 }); // 100% -> q=5
+            wordProgressMap.set(wordId, { correct: 1, total: 1 });
 
             const mockExistingProgress = createMockWordProgress({
                 streak: 1,
                 easeFactor: 2.5,
                 interval: 1
             });
-            const mockWord = createMockWord();
 
             const collections = createMockCollections({
                 WordProgress: {
-                    findOne: jest.fn().mockResolvedValue(mockExistingProgress),
-                    updateOne: jest.fn()
+                    find: jest.fn().mockReturnValue({ toArray: jest.fn() }),
+                    bulkWrite: jest.fn(),
                 },
                 Word: {
-                    findOne: jest.fn().mockResolvedValue(mockWord)
-                }
+                    find: jest.fn().mockReturnValue({ project: jest.fn().mockReturnValue({ toArray: jest.fn() }) }),
+                },
             });
+            mockWordExistsBatch(collections, [wordId]);
+            mockProgressBatch(collections, [{ ...mockExistingProgress, wordId: new ObjectId(wordId) }]);
 
             const now = Date.now();
             await (QuizService as any).updateWordProgressFromQuiz(wordProgressMap, userId);
 
-            const updateCall = collections.WordProgress.updateOne.mock.calls[0][1];
-            const nextReviewDate: Date = updateCall.$set.nextReview;
+            const updateOp = getLastBulkWriteOps(collections).find((op) => op.updateOne);
+            const nextReviewDate: Date = updateOp.updateOne.update.$set.nextReview;
             const diffDays = Math.round((nextReviewDate.getTime() - now) / (24 * 60 * 60 * 1000));
-            expect(diffDays).toBe(6); // SM-2: n=2 -> interval=6
+            expect(diffDays).toBe(6);
         });
 
         it('should reset repetition and interval on poor accuracy (q<3)', async () => {
             const userId = 'user123';
             const wordProgressMap = new Map<string, { correct: number; total: number }>();
-            wordProgressMap.set('507f1f77bcf86cd799439014', { correct: 1, total: 4 }); // 25% -> q=2
+            wordProgressMap.set(wordId, { correct: 1, total: 4 });
 
             const mockExistingProgress = createMockWordProgress({
                 status: 'learning',
@@ -1398,74 +1441,81 @@ describe('QuizService', () => {
                 interval: 15
             });
 
-            const mockWord = createMockWord();
-
             const collections = createMockCollections({
                 WordProgress: {
-                    findOne: jest.fn().mockResolvedValue(mockExistingProgress),
-                    updateOne: jest.fn()
+                    find: jest.fn().mockReturnValue({ toArray: jest.fn() }),
+                    bulkWrite: jest.fn(),
                 },
                 Word: {
-                    findOne: jest.fn().mockResolvedValue(mockWord)
-                }
+                    find: jest.fn().mockReturnValue({ project: jest.fn().mockReturnValue({ toArray: jest.fn() }) }),
+                },
             });
+            mockWordExistsBatch(collections, [wordId]);
+            mockProgressBatch(collections, [{ ...mockExistingProgress, wordId: new ObjectId(wordId) }]);
 
             await (QuizService as any).updateWordProgressFromQuiz(wordProgressMap, userId);
 
-            expect(collections.WordProgress.updateOne).toHaveBeenCalledWith(
-                { _id: mockExistingProgress._id },
+            expect(collections.WordProgress.bulkWrite).toHaveBeenCalledWith([
                 {
-                    $set: {
-                        status: 'learning',
-                        reviewCount: 9, // 5 + 4
-                        streak: 0, // SM-2: repetition reset to 0
-                        easeFactor: expect.any(Number),
-                        interval: 1, // SM-2: reset to 1
-                        lastReviewed: expect.any(Date),
-                        nextReview: expect.any(Date),
-                        updatedAt: expect.any(Date)
+                    updateOne: {
+                        filter: { _id: mockExistingProgress._id },
+                        update: {
+                            $set: {
+                                status: 'learning',
+                                reviewCount: 9,
+                                streak: 0,
+                                easeFactor: expect.any(Number),
+                                interval: 1,
+                                lastReviewed: expect.any(Date),
+                                nextReview: expect.any(Date),
+                                updatedAt: expect.any(Date)
+                            }
+                        }
                     }
                 }
-            );
+            ]);
         });
 
         it('should create new word progress record with SM-2 defaults', async () => {
             const userId = 'user123';
             const wordProgressMap = new Map<string, { correct: number; total: number }>();
-            wordProgressMap.set('507f1f77bcf86cd799439014', { correct: 3, total: 4 }); // 75% -> q=4
-
-            const mockWord = createMockWord();
+            wordProgressMap.set(wordId, { correct: 3, total: 4 });
 
             const collections = createMockCollections({
                 WordProgress: {
-                    findOne: jest.fn().mockResolvedValue(null), // No existing progress
-                    updateOne: jest.fn(),
-                    insertOne: jest.fn()
+                    find: jest.fn().mockReturnValue({ toArray: jest.fn().mockResolvedValue([]) }),
+                    bulkWrite: jest.fn(),
                 },
                 Word: {
-                    findOne: jest.fn().mockResolvedValue(mockWord)
-                }
+                    find: jest.fn().mockReturnValue({
+                        project: jest.fn().mockReturnValue({
+                            toArray: jest.fn().mockResolvedValue([{ _id: new ObjectId(wordId) }]),
+                        }),
+                    }),
+                },
             });
 
             await (QuizService as any).updateWordProgressFromQuiz(wordProgressMap, userId);
 
-            expect(collections.WordProgress.findOne).toHaveBeenCalledWith({
-                userId,
-                wordId: new ObjectId('507f1f77bcf86cd799439014')
-            });
-            expect(collections.WordProgress.insertOne).toHaveBeenCalledWith({
-                userId,
-                wordId: new ObjectId('507f1f77bcf86cd799439014'),
-                status: 'learning',
-                reviewCount: 4,
-                streak: 1,
-                easeFactor: expect.any(Number),
-                interval: 1,
-                lastReviewed: expect.any(Date),
-                nextReview: expect.any(Date),
-                createdAt: expect.any(Date),
-                updatedAt: expect.any(Date)
-            });
+            expect(collections.WordProgress.bulkWrite).toHaveBeenCalledWith([
+                {
+                    insertOne: {
+                        document: {
+                            userId,
+                            wordId: new ObjectId(wordId),
+                            status: 'learning',
+                            reviewCount: 4,
+                            streak: 1,
+                            easeFactor: expect.any(Number),
+                            interval: 1,
+                            lastReviewed: expect.any(Date),
+                            nextReview: expect.any(Date),
+                            createdAt: expect.any(Date),
+                            updatedAt: expect.any(Date)
+                        }
+                    }
+                }
+            ]);
         });
 
         it('should skip progress update for invalid wordId', async () => {
@@ -1499,15 +1549,14 @@ describe('QuizService', () => {
                     insertOne: jest.fn().mockResolvedValue(mockAttemptResult)
                 },
                 QuizAnswer: {
-                    insertOne: jest.fn()
+                    insertMany: jest.fn()
                 },
                 WordProgress: {
-                    findOne: jest.fn(),
-                    updateOne: jest.fn(),
-                    insertOne: jest.fn()
+                    find: jest.fn(),
+                    bulkWrite: jest.fn(),
                 },
                 Word: {
-                    findOne: jest.fn()
+                    find: jest.fn(),
                 },
                 LearningStats: {
                     findOneAndUpdate: jest.fn()
@@ -1533,10 +1582,7 @@ describe('QuizService', () => {
                 ]
             });
 
-            // Verify that WordProgress operations were not called due to invalid wordId
-            expect(collections.WordProgress.findOne).not.toHaveBeenCalled();
-            expect(collections.WordProgress.updateOne).not.toHaveBeenCalled();
-            expect(collections.WordProgress.insertOne).not.toHaveBeenCalled();
+            expect(collections.WordProgress.bulkWrite).not.toHaveBeenCalled();
 
             // Verify LearningStats was still called with 0 wordsReviewed
             expect(collections.LearningStats.findOneAndUpdate).toHaveBeenCalledWith(
@@ -1559,23 +1605,26 @@ describe('QuizService', () => {
 
             const collections = createMockCollections({
                 Word: {
-                    findOne: jest.fn().mockResolvedValue(null)
+                    find: jest.fn().mockReturnValue({
+                        project: jest.fn().mockReturnValue({
+                            toArray: jest.fn().mockResolvedValue([]),
+                        }),
+                    }),
                 },
                 WordProgress: {
-                    findOne: jest.fn(),
-                    updateOne: jest.fn(),
-                    insertOne: jest.fn()
+                    find: jest.fn().mockReturnValue({
+                        toArray: jest.fn().mockResolvedValue([]),
+                    }),
+                    bulkWrite: jest.fn(),
                 }
             });
 
             await (QuizService as any).updateWordProgressFromQuiz(wordProgressMap, userId);
 
-            expect(collections.Word.findOne).toHaveBeenCalledWith({
-                _id: new ObjectId(deletedWordId)
+            expect(collections.Word.find).toHaveBeenCalledWith({
+                _id: { $in: [new ObjectId(deletedWordId)] }
             });
-            expect(collections.WordProgress.findOne).not.toHaveBeenCalled();
-            expect(collections.WordProgress.updateOne).not.toHaveBeenCalled();
-            expect(collections.WordProgress.insertOne).not.toHaveBeenCalled();
+            expect(collections.WordProgress.bulkWrite).not.toHaveBeenCalled();
         });
 
         it('should handle empty word progress map', async () => {
@@ -1584,19 +1633,13 @@ describe('QuizService', () => {
 
             const collections = createMockCollections({
                 WordProgress: {
-                    findOne: jest.fn(),
-                    updateOne: jest.fn(),
-                    insertOne: jest.fn()
+                    bulkWrite: jest.fn(),
                 }
             });
 
-            // Call the private method through the class
             await (QuizService as any).updateWordProgressFromQuiz(wordProgressMap, userId);
 
-            // Verify no operations were called for empty map
-            expect(collections.WordProgress.findOne).not.toHaveBeenCalled();
-            expect(collections.WordProgress.updateOne).not.toHaveBeenCalled();
-            expect(collections.WordProgress.insertOne).not.toHaveBeenCalled();
+            expect(collections.WordProgress.bulkWrite).not.toHaveBeenCalled();
         });
     });
 

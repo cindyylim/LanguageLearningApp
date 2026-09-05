@@ -21,8 +21,12 @@ interface Quiz {
   userId: string;
   _count: { questions: number, attempts: number }
 }
+const PAGE_SIZE = 20;
+
 const Quizzes: React.FC = () => {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -40,8 +44,9 @@ const Quizzes: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await api.get('/quizzes');
+        const res = await api.get(`/quizzes?page=${page}&limit=${PAGE_SIZE}`);
         setQuizzes(res.data.quizzes || []);
+        setHasMore(res.data.hasMore ?? false);
       } catch (err: unknown) {
         setError(getErrorMessage(err) || 'Failed to load quizzes');
       } finally {
@@ -49,7 +54,7 @@ const Quizzes: React.FC = () => {
       }
     };
     fetchQuizzes();
-  }, []);
+  }, [page]);
 
   const openModal = async () => {
     idempotencyKeyRef.current = null;
@@ -74,9 +79,13 @@ const Quizzes: React.FC = () => {
       const res = await api.post('/quizzes/generate', form, {
         headers: { 'Idempotency-Key': idempotencyKeyRef.current },
       });
-      setQuizzes([res.data.quiz, ...quizzes]);
       setShowModal(false);
       idempotencyKeyRef.current = null;
+      if (page === 1) {
+        setQuizzes([res.data.quiz, ...quizzes]);
+      } else {
+        setPage(1);
+      }
     } catch (err: unknown) {
       const message = getUserFacingErrorMessage(err, 'Failed to generate quiz');
       toast.error(message, { duration: 6000 });
@@ -170,6 +179,25 @@ const Quizzes: React.FC = () => {
               </div>
             </Link>
           ))}
+        </div>
+      )}
+      {!loading && !error && (quizzes.length > 0 || page > 1) && (
+        <div className="flex justify-center gap-4 mt-8">
+          <button
+            className="btn-secondary disabled:opacity-50"
+            disabled={page === 1}
+            onClick={() => setPage(page - 1)}
+          >
+            Previous
+          </button>
+          <span className="flex items-center text-gray-600">Page {page}</span>
+          <button
+            className="btn-secondary disabled:opacity-50"
+            disabled={!hasMore}
+            onClick={() => setPage(page + 1)}
+          >
+            Next
+          </button>
         </div>
       )}
     </div>

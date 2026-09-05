@@ -120,7 +120,13 @@ router.post('/words/:wordId/progress', validateObjectId('wordId'), validate(upda
 // Get specific vocabulary list with words
 router.get('/:id', validateObjectId(), asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
-  const list = await VocabularyService.getListById(id as string, req.user!.id);
+  const page = req.query.page ? parseInt(req.query.page as string) : undefined;
+  const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+  const list = await VocabularyService.getListById(
+    id as string,
+    req.user!.id,
+    page && limit ? { page, limit } : undefined
+  );
 
   if (!list) {
     throw new AppError('Vocabulary list not found', 404);

@@ -105,13 +105,38 @@ describe('Quiz API Endpoints', () => {
 
   describe('GET /api/quizzes', () => {
     it('should return user quizzes', async () => {
-      const mockQuizzes = [{ _id: new ObjectId().toString(), title: 'Quiz 1' }];
-      (QuizService.getUserQuizzes as jest.Mock).mockResolvedValue(mockQuizzes);
+            const mockQuizzes = [{ _id: new ObjectId().toString(), title: 'Quiz 1' }];
+            (QuizService.getUserQuizzes as jest.Mock).mockResolvedValue({
+                quizzes: mockQuizzes,
+                hasMore: false,
+            });
 
-      const response = await request(testApp).get('/api/quizzes').expect(200);
+            const response = await request(testApp).get('/api/quizzes').expect(200);
 
-      expect(response.body).toEqual({ quizzes: mockQuizzes });
-      expect(QuizService.getUserQuizzes).toHaveBeenCalledWith('test-user-id');
+            expect(response.body).toEqual({
+                quizzes: mockQuizzes,
+                hasMore: false,
+                page: 1,
+                limit: 20,
+            });
+            expect(QuizService.getUserQuizzes).toHaveBeenCalledWith('test-user-id', 1, 20);
+    });
+
+    it('should support pagination', async () => {
+            (QuizService.getUserQuizzes as jest.Mock).mockResolvedValue({
+                quizzes: [],
+                hasMore: true,
+            });
+
+            const response = await request(testApp).get('/api/quizzes?page=2&limit=5').expect(200);
+
+            expect(response.body).toEqual({
+                quizzes: [],
+                hasMore: true,
+                page: 2,
+                limit: 5,
+            });
+            expect(QuizService.getUserQuizzes).toHaveBeenCalledWith('test-user-id', 2, 5);
     });
   });
 

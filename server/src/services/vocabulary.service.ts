@@ -78,31 +78,6 @@ export class VocabularyService {
                         { $match: { $expr: { $eq: ['$vocabularyListId', '$$listId'] } } },
                         { $sort: { createdAt: -1 } },
                         { $limit: LIST_PREVIEW_WORD_LIMIT },
-                        {
-                            $lookup: {
-                                from: 'WordProgress',
-                                let: { wordId: '$_id' },
-                                pipeline: [
-                                    {
-                                        $match: {
-                                            $expr: {
-                                                $and: [
-                                                    { $eq: ['$wordId', '$$wordId'] },
-                                                    { $eq: ['$userId', userId] }
-                                                ]
-                                            }
-                                        }
-                                    }
-                                ],
-                                as: 'progressDocs'
-                            }
-                        },
-                        {
-                            $addFields: {
-                                progress: { $arrayElemAt: ['$progressDocs', 0] }
-                            }
-                        },
-                        { $project: { progressDocs: 0 } }
                     ],
                     as: 'words'
                 }
@@ -114,6 +89,28 @@ export class VocabularyService {
             }
         ]).toArray();
 
+        const previewWordIds = lists.flatMap((list) =>
+            ((list.words as Array<{ _id: ObjectId }>) ?? []).map((word) => word._id)
+        );
+
+        const progressRows = previewWordIds.length > 0
+            ? await db.collection('WordProgress').find({
+                userId,
+                wordId: { $in: previewWordIds },
+            }).toArray()
+            : [];
+
+        const progressByWordId = new Map(
+            progressRows.map((progress) => [progress.wordId.toString(), progress])
+        );
+
+        for (const list of lists) {
+            list.words = ((list.words as Array<{ _id: ObjectId }>) ?? []).map((word) => ({
+                ...word,
+                progress: progressByWordId.get(word._id.toString()),
+            }));
+        }
+
         const hasMore = lists.length > limit;
         return {
             lists: hasMore ? lists.slice(0, limit) : lists,
@@ -124,11 +121,16 @@ export class VocabularyService {
     /**
      * Get specific vocabulary list with words and progress
      */
-    static async getListById(listId: string, userId: string) {
+    static async getListById(
+        listId: string,
+        userId: string,
+        options?: { page?: number; limit?: number }
+    ) {
         const db = await getDatabase();
+        const listObjectId = new ObjectId(listId);
 
         const list = await db.collection('VocabularyList').findOne({
-            _id: new ObjectId(listId),
+            _id: listObjectId,
             userId
         });
 
@@ -136,9 +138,17 @@ export class VocabularyService {
             return null;
         }
 
-        const words = await db.collection('Word').find({
-            vocabularyListId: new ObjectId(listId)
-        }).toArray() as unknown as WordDocument[];
+        const totalWords = list.wordCount;
+        let wordsQuery = db.collection('Word')
+            .find({ vocabularyListId: listObjectId })
+            .sort({ createdAt: 1 });
+
+        if (options?.limit) {
+            const page = options.page ?? 1;
+            wordsQuery = wordsQuery.skip((page - 1) * options.limit).limit(options.limit);
+        }
+
+        const words = await wordsQuery.toArray() as unknown as WordDocument[];
 
         // Fetch progress for all words for this user
         const wordIds = words.map((w: WordDocument) => w._id.toString());
@@ -182,7 +192,12 @@ export class VocabularyService {
             } as Word;
         });
 
-        return { ...list, words: wordsWithProgress };
+        return {
+            ...list,
+            words: wordsWithProgress,
+            totalWords,
+            hasMore: options?.limit ? ((options.page ?? 1) * options.limit) < totalWords : false,
+        };
     }
 
     /**
@@ -208,10 +223,17 @@ export class VocabularyService {
             updatedAt: now
         });
 
-        const list = await db.collection('VocabularyList').findOne({
+        const list = {
             _id: result.insertedId,
-            userId
-        });
+            name: data.name,
+            description: data.description,
+            targetLanguage: data.targetLanguage,
+            nativeLanguage: data.nativeLanguage,
+            userId,
+            wordCount: 0,
+            createdAt: now,
+            updatedAt: now,
+        };
 
         return list;
     }
@@ -279,17 +301,33 @@ export class VocabularyService {
     private static async verifyWordOwnership(wordId: string, userId: string): Promise<boolean> {
         const db = await getDatabase();
 
-        const word = await db.collection('Word').findOne({ _id: new ObjectId(wordId) });
-        if (!word) {
-            return false;
-        }
+        const [ownedWord] = await db.collection('Word').aggregate([
+            { $match: { _id: new ObjectId(wordId) } },
+            {
+                $lookup: {
+                    from: 'VocabularyList',
+                    let: { listId: '$vocabularyListId' },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        { $eq: ['$_id', '$$listId'] },
+                                        { $eq: ['$userId', userId] },
+                                    ],
+                                },
+                            },
+                        },
+                        { $limit: 1 },
+                    ],
+                    as: 'list',
+                },
+            },
+            { $match: { 'list.0': { $exists: true } } },
+            { $limit: 1 },
+        ]).toArray();
 
-        const list = await db.collection('VocabularyList').findOne({
-            _id: new ObjectId(word.vocabularyListId.toString()),
-            userId
-        });
-
-        return !!list;
+        return !!ownedWord;
     }
 
     /**
@@ -328,9 +366,11 @@ export class VocabularyService {
 
         const result = await db.collection('Word').insertOne(data);
         await this.adjustWordCount(new ObjectId(listId), 1);
-        const newWord = await db.collection('Word').findOne({ _id: result.insertedId });
 
-        return newWord;
+        return {
+            _id: result.insertedId,
+            ...data,
+        };
     }
 
     /**
@@ -365,8 +405,12 @@ export class VocabularyService {
             return null;
         }
 
-        const updatedWord = await db.collection('Word').findOne({ _id: new ObjectId(wordId) });
-        return updatedWord;
+        return {
+            _id: new ObjectId(wordId),
+            vocabularyListId: new ObjectId(listId),
+            ...wordData,
+            updatedAt: new Date(),
+        };
     }
 
     /**

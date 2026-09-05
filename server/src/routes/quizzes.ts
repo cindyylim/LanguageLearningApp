@@ -80,8 +80,10 @@ router.post(
 
 // Get user's quizzes
 router.get('/', asyncHandler(async (req: AuthRequest, res: Response) => {
-  const quizzes = await QuizService.getUserQuizzes(req.user!.id);
-  res.json({ quizzes });
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 20;
+  const { quizzes, hasMore } = await QuizService.getUserQuizzes(req.user!.id, page, limit);
+  res.json({ quizzes, hasMore, page, limit });
 }));
 
 // Get specific quiz
