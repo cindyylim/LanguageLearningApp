@@ -1,7 +1,6 @@
 import { getDatabase } from '../utils/getDatabase';
 import { ObjectId } from 'mongodb';
 import { AIService, RECOMMENDED_WORD_LIMIT } from './ai';
-import { VocabularyService } from './vocabulary.service';
 import { WordStatus, QuizAttempt, UserProgress} from "../shared/types/index";
 import { utcDayNumber } from '../utils/date';
 
@@ -93,22 +92,9 @@ export class AnalyticsService {
         const result = await db.collection('VocabularyList').aggregate([
             { $match: { userId } },
             {
-                $lookup: {
-                    from: 'Word',
-                    localField: '_id',
-                    foreignField: 'vocabularyListId',
-                    as: 'words',
-                },
-            },
-            {
-                $project: {
-                    effectiveWordCount: { $ifNull: ['$wordCount', { $size: '$words' }] },
-                },
-            },
-            {
                 $group: {
                     _id: null,
-                    totalWords: { $sum: '$effectiveWordCount' },
+                    totalWords: { $sum: { $ifNull: ['$wordCount', 0] } },
                 },
             },
         ]).toArray();

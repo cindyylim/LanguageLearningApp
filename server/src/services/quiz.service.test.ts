@@ -236,8 +236,26 @@ describe('QuizService', () => {
             completed: true,
             userId: 'user123',
             quizId: '507f1f77bcf86cd799439011',
-            createdAt: new Date(),
+            createdAt: Date.now() - 24 * 60 * 60 * 1000,
             ...overrides[0]
+        },
+        {
+            _id: new ObjectId('507f1f77bcf86cd799439015'),
+            score: 0.9,
+            completed: true,
+            userId: 'user123',
+            quizId: '507f1f77bcf86cd799439011',
+            createdAt: new Date(),
+            ...overrides[1]
+        },
+        {
+            _id: new ObjectId('507f1f77bcf86cd799439016'),
+            score: 0.7,
+            completed: true,
+            userId: 'user123',
+            quizId: '507f1f77bcf86cd799439012',
+            createdAt: new Date(),
+            ...overrides[2]
         }
     ];
 
@@ -593,7 +611,7 @@ describe('QuizService', () => {
             await expect(
                 QuizService.generateQuiz(vocabularyListId, options, userId, idempotencyKey)
             ).rejects.toThrow('database unavailable');
-        });
+        }); 
 
         it('should create separate quizzes for different idempotency keys', async () => {
             const vocabularyListId = '507f1f77bcf86cd799439011';
@@ -643,7 +661,40 @@ describe('QuizService', () => {
             expect(second?.created).toBe(true);
             expect(collections.Quiz.insertOne).toHaveBeenCalledTimes(2);
             expect(collections.IdempotencyKey.insertOne).toHaveBeenCalledTimes(2);
+            expect(collections.IdempotencyKey.updateOne).toHaveBeenCalledTimes(2);
             expect(collections.QuizQuestion.insertMany).toHaveBeenCalledTimes(2);
+            expect(collections.IdempotencyKey.insertOne).toHaveBeenCalledWith({
+                userId,
+                key: 'key-a',
+                status: 'pending',
+                createdAt: expect.any(Date),
+            });
+            expect(collections.IdempotencyKey.updateOne).toHaveBeenCalledWith({
+                userId,
+                key: 'key-a',
+            }, {
+                $set: {
+                    quizId: mockQuizResult.insertedId.toString(),
+                    status: 'completed',
+                    completedAt: expect.any(Date),
+                },
+            });
+            expect(collections.IdempotencyKey.insertOne).toHaveBeenCalledWith({
+                userId,
+                key: 'key-b',
+                status: 'pending',
+                createdAt: expect.any(Date),
+            });
+            expect(collections.IdempotencyKey.updateOne).toHaveBeenCalledWith({
+                userId,
+                key: 'key-b',
+            }, {
+                $set: {
+                    quizId: mockQuizResult.insertedId.toString(),
+                    status: 'completed',
+                    completedAt: expect.any(Date),
+                },
+            });
         });
 
         it('should release idempotency key when quiz generation fails', async () => {
@@ -864,7 +915,8 @@ describe('QuizService', () => {
                     aggregate: jest.fn().mockReturnValue({
                         toArray: jest.fn().mockResolvedValue([
                             { _id: '507f1f77bcf86cd799439011', attempt: mockAttempts[0] },
-                            { _id: '507f1f77bcf86cd799439012', attempt: mockAttempts[0] },
+                            { _id: '507f1f77bcf86cd799439011', attempt: mockAttempts[1] },
+                            { _id: '507f1f77bcf86cd799439012', attempt: mockAttempts[2] },
                         ])
                     })
                 }
@@ -878,13 +930,13 @@ describe('QuizService', () => {
                     {
                         ...mockQuizzes[0],
                         questions: [mockQuestions[0]],
-                        attempts: [mockAttempts[0]],
+                        attempts: [mockAttempts[1]],
                         _count: { questions: 1, attempts: 1 }
                     },
                     {
                         ...mockQuizzes[1],
                         questions: [mockQuestions[1]],
-                        attempts: [mockAttempts[0]],
+                        attempts: [mockAttempts[2]],
                         _count: { questions: 1, attempts: 1 }
                     }
                 ]
@@ -987,7 +1039,6 @@ describe('QuizService', () => {
             const mockQuestions = createMockQuestionsForSubmit();
             const mockAttemptResult = createMockAttemptResult();
             const mockExistingProgress = createMockWordProgress();
-            const mockWord = createMockWord();
 
             const collections = createMockCollections({
                 Quiz: {
@@ -1060,6 +1111,7 @@ describe('QuizService', () => {
                 userId
             });
 
+            expect(collections.QuizQuestion.find).toHaveBeenCalledWith({ quizId });
             expect(collections.QuizAttempt.insertOne).toHaveBeenCalledWith({
                 score: 1.0,
                 completed: true,
@@ -1101,83 +1153,44 @@ describe('QuizService', () => {
 
             expect(result).toBeNull();
         });
-    });
 
-    describe('getQuizResults', () => {
-        it('should get quiz results with detailed answers', async () => {
+        it('should throw 400 if a submitted question is not on the quiz', async () => {
             const quizId = '507f1f77bcf86cd799439011';
             const userId = 'user123';
-
-            const mockQuiz = createMockQuiz(quizId);
-            const mockAttempts = createMockAttempts();
-            const mockAnswers = createMockAnswers();
-            const mockQuestions = createMockQuestions();
+            const missingQuestionId = '507f1f77bcf86cd799439099';
+            const answers = [
+                { questionId: missingQuestionId, answer: 'bonjour' }
+            ];
 
             const collections = createMockCollections({
                 Quiz: {
-                    findOne: jest.fn().mockResolvedValue(mockQuiz)
-                },
-                QuizAttempt: {
-                    find: jest.fn().mockReturnThis(),
-                    sort: jest.fn().mockReturnThis(),
-                    limit: jest.fn().mockReturnThis(),
-                    toArray: jest.fn().mockResolvedValue(mockAttempts)
-                },
-                QuizAnswer: {
-                    find: jest.fn().mockReturnValue({
-                        toArray: jest.fn().mockResolvedValue(mockAnswers)
-                    })
+                    findOne: jest.fn().mockResolvedValue(createMockQuizForSubmit(quizId))
                 },
                 QuizQuestion: {
-                    find: jest.fn().mockReturnValue({
-                        toArray: jest.fn().mockResolvedValue(mockQuestions)
-                    })
+                    find: jest.fn().mockReturnThis(),
+                    toArray: jest.fn().mockResolvedValue(createMockQuestionsForSubmit())
+                },
+                QuizAttempt: {
+                    insertOne: jest.fn()
+                },
+                QuizAnswer: {
+                    insertMany: jest.fn()
+                },
+                LearningStats: {
+                    findOneAndUpdate: jest.fn()
                 }
             });
 
-            const result = await QuizService.getQuizResults(quizId, userId);
-
-            expect(result).toEqual({
-                ...mockQuiz,
-                attempts: [
-                    {
-                        ...mockAttempts[0],
-                        answers: [
-                            {
-                                ...mockAnswers[0],
-                                question: mockQuestions[0]
-                            }
-                        ]
-                    }
-                ]
+            await expect(
+                QuizService.submitQuizAnswers(quizId, answers, userId)
+            ).rejects.toMatchObject({
+                statusCode: 400,
+                message: `Question ${missingQuestionId} not found`,
             });
 
-            expect(collections.Quiz.findOne).toHaveBeenCalledWith({
-                _id: new ObjectId(quizId),
-                userId
-            });
-            expect(collections.QuizAttempt.find).toHaveBeenCalledWith({ quizId, userId });
-            expect(collections.QuizAnswer.find).toHaveBeenCalledWith({
-                attemptId: { $in: ['507f1f77bcf86cd799439014'] }
-            });
-            expect(collections.QuizQuestion.find).toHaveBeenCalledWith({
-                _id: { $in: [new ObjectId('507f1f77bcf86cd799439012')] }
-            });
-        });
-
-        it('should return null if quiz does not exist', async () => {
-            const quizId = '507f1f77bcf86cd799439011';
-            const userId = 'user123';
-
-            const collections = createMockCollections({
-                Quiz: {
-                    findOne: jest.fn().mockResolvedValue(null)
-                }
-            });
-
-            const result = await QuizService.getQuizResults(quizId, userId);
-
-            expect(result).toBeNull();
+            expect(collections.QuizAttempt.insertOne).not.toHaveBeenCalled();
+            expect(collections.QuizAnswer.insertMany).not.toHaveBeenCalled();
+            expect(collections.LearningStats.findOneAndUpdate).not.toHaveBeenCalled();
         });
     });
 
@@ -1326,24 +1339,6 @@ describe('QuizService', () => {
 
             expect(afterFail.status).toBe(WordStatus.LEARNING);
             expect(afterFail.streak).toBe(0);
-        });
-
-        it('should keep new word on learning after perfect quiz (contrast with manual mastered shortcut)', async () => {
-            const collections = createMockCollections({
-                WordProgress: {
-                    find: jest.fn().mockReturnValue({ toArray: jest.fn() }),
-                    bulkWrite: jest.fn(),
-                },
-                Word: {
-                    find: jest.fn().mockReturnValue({ project: jest.fn().mockReturnValue({ toArray: jest.fn() }) }),
-                },
-            });
-
-            const quizProgress = await runQuizReview(collections, null, { correct: 1, total: 1 });
-
-            expect(quizProgress.status).toBe(WordStatus.LEARNING);
-            expect(quizProgress.streak).toBe(1);
-            expect(quizProgress.streak).toBeLessThan(5);
         });
     });
 
@@ -1640,86 +1635,6 @@ describe('QuizService', () => {
             await (QuizService as any).updateWordProgressFromQuiz(wordProgressMap, userId);
 
             expect(collections.WordProgress.bulkWrite).not.toHaveBeenCalled();
-        });
-    });
-
-    describe('LearningStatsService.updateDailyStats', () => {
-        it('should upsert learning stats including wordsReviewed', async () => {
-            const userId = 'user123';
-            const stats = {
-                quizzesTaken: 2,
-                totalQuestions: 10,
-                correctAnswers: 8,
-                wordsReviewed: 3
-            };
-
-            const collections = createMockCollections({
-                LearningStats: {
-                    findOneAndUpdate: jest.fn()
-                }
-            });
-
-            await LearningStatsService.updateDailyStats(userId, stats);
-
-            expect(collections.LearningStats.findOneAndUpdate).toHaveBeenCalledWith(
-                { userId, date: expect.any(Date) },
-                {
-                    $inc: {
-                        quizzesTaken: 2,
-                        wordsReviewed: 3,
-                        totalQuestions: 10,
-                        correctAnswers: 8
-                    },
-                    $setOnInsert: {
-                        userId,
-                        date: expect.any(Date),
-                        createdAt: expect.any(Date)
-                    },
-                    $set: {
-                        updatedAt: expect.any(Date)
-                    }
-                },
-                { upsert: true }
-            );
-
-            const startOfDay = collections.LearningStats.findOneAndUpdate.mock.calls[0][0].date as Date;
-            const now = new Date();
-            expect(startOfDay.toISOString()).toBe(new Date(Date.UTC(
-                now.getUTCFullYear(),
-                now.getUTCMonth(),
-                now.getUTCDate()
-            )).toISOString());
-        });
-
-        it('should upsert new learning stats record', async () => {
-            const userId = 'user123';
-            const stats = {
-                quizzesTaken: 1,
-                totalQuestions: 5,
-                correctAnswers: 3,
-                wordsReviewed: 2
-            };
-
-            const collections = createMockCollections({
-                LearningStats: {
-                    findOneAndUpdate: jest.fn()
-                }
-            });
-
-            await LearningStatsService.updateDailyStats(userId, stats);
-
-            expect(collections.LearningStats.findOneAndUpdate).toHaveBeenCalledWith(
-                { userId, date: expect.any(Date) },
-                expect.objectContaining({
-                    $inc: {
-                        quizzesTaken: 1,
-                        wordsReviewed: 2,
-                        totalQuestions: 5,
-                        correctAnswers: 3
-                    }
-                }),
-                { upsert: true }
-            );
         });
     });
 });

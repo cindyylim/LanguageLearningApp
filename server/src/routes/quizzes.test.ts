@@ -189,26 +189,4 @@ describe('Quiz API Endpoints', () => {
       expect(mockInvalidateListCache).not.toHaveBeenCalled();
     });
   });
-
-  describe('GET /api/quizzes/:id/results', () => {
-    it('should return quiz results', async () => {
-      const quizId = new ObjectId().toString();
-      const mockResults = { _id: quizId, attempts: [{ score: 1 }] };
-      (QuizService.getQuizResults as jest.Mock).mockResolvedValue(mockResults);
-
-      const response = await request(testApp).get(`/api/quizzes/${quizId}/results`).expect(200);
-
-      expect(response.body).toEqual({ quiz: mockResults });
-      expect(QuizService.getQuizResults).toHaveBeenCalledWith(quizId, 'test-user-id');
-    });
-
-    it('should return 404 when quiz results are not found', async () => {
-      const quizId = new ObjectId().toString();
-      (QuizService.getQuizResults as jest.Mock).mockResolvedValue(null);
-
-      const response = await request(testApp).get(`/api/quizzes/${quizId}/results`).expect(404);
-
-      expect(response.body.message).toMatch(/quiz not found/i);
-    });
-  });
 });

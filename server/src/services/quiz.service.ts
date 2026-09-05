@@ -386,62 +386,6 @@ export class QuizService {
         };
     }
 
-    /**
-     * Get quiz results with detailed answers
-     */
-    static async getQuizResults(quizId: string, userId: string) {
-        const db = await getDatabase();
-
-        const quiz = await db.collection('Quiz').findOne({ _id: new ObjectId(quizId), userId });
-
-        if (!quiz) {
-            return null;
-        }
-
-        const attempts = await db.collection('QuizAttempt')
-            .find({ quizId, userId })
-            .sort({ createdAt: -1 })
-            .limit(QUIZ_RESULTS_ATTEMPT_LIMIT)
-            .toArray();
-
-        if (attempts.length === 0) {
-            return { ...quiz, attempts: [] };
-        }
-
-        const attemptIds = attempts.map((attempt) => attempt._id.toString());
-        const answers = await db.collection('QuizAnswer')
-            .find({ attemptId: { $in: attemptIds } })
-            .toArray();
-
-        const questionIds = [...new Set(answers.map((answer) => answer.questionId))]
-            .filter((id): id is string => typeof id === 'string' && ObjectId.isValid(id))
-            .map((id) => new ObjectId(id));
-
-        const questions = questionIds.length > 0
-            ? await db.collection('QuizQuestion').find({ _id: { $in: questionIds } }).toArray()
-            : [];
-
-        const questionById = new Map(questions.map((question) => [question._id.toString(), question]));
-        const answersByAttemptId = new Map<string, typeof answers>();
-        for (const answer of answers) {
-            const attemptAnswers = answersByAttemptId.get(answer.attemptId as string) ?? [];
-            attemptAnswers.push(answer);
-            answersByAttemptId.set(answer.attemptId as string, attemptAnswers);
-        }
-
-        const attemptsWithDetails = attempts.map((attempt) => {
-            const attemptAnswers = answersByAttemptId.get(attempt._id.toString()) ?? [];
-            return {
-                ...attempt,
-                answers: attemptAnswers.map((answer) => ({
-                    ...answer,
-                    question: questionById.get(answer.questionId as string),
-                })),
-            };
-        });
-
-        return { ...quiz, attempts: attemptsWithDetails };
-    }
 
     /**
      * Update word progress based on quiz performance

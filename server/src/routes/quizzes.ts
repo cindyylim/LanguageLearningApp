@@ -114,16 +114,4 @@ router.post('/:id/submit', validateObjectId(), validate(submitQuizSchema), async
   res.json({ attempt });
 }));
 
-// Get quiz results
-router.get('/:id/results', validateObjectId(), asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { id } = req.params;
-  const quiz = await QuizService.getQuizResults(id as string, req.user!.id);
-
-  if (!quiz) {
-    throw new AppError('Quiz not found', 404);
-  }
-
-  res.json({ quiz });
-}));
-
 export default router;

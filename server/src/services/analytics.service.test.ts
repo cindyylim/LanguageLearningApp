@@ -372,10 +372,9 @@ describe('AnalyticsService', () => {
     });
 
     describe('getRecommendations', () => {
-        it('should get AI-powered recommendations with word details', async () => {
+        it('should get recommendations with word details', async () => {
             const userId = 'user123';
             const lastReviewedDate = new Date();
-            // Mock user progress with word details
             const mockUserProgress = [
                 {
                     _id: 'wp1',

@@ -3,31 +3,7 @@ import { LearningStatsService } from './learningStats.service';
 import { ObjectId } from 'mongodb';
 import { AIService } from './ai';
 import { calculateFromManualStatus } from '../utils/sm2';
-import { WordStatus, Word } from "../shared/types/index";
-interface WordDocument {
-    _id: string;
-    word: string;
-    translation: string;
-    pinyin?: string | null;
-    partOfSpeech?: string | null;
-    difficulty: string;
-    vocabularyListId: string;
-    createdAt: Date;
-    updatedAt: Date;
-}
-
-interface WordProgressDocument {
-    _id: ObjectId;
-    wordId: string;
-    userId: string;
-    status: string;
-    reviewCount: number;
-    streak: number;
-    lastReviewed: string;
-    nextReview: string;
-    createdAt: string;
-    updatedAt: string;
-}
+import { WordStatus } from "../shared/types/index";
 
 interface AIWord {
     word: string;
@@ -36,8 +12,6 @@ interface AIWord {
     partOfSpeech?: string;
     difficulty?: string;
 }
-
-type ProgressMap = Record<string, WordProgressDocument>;
 
 const LIST_PREVIEW_WORD_LIMIT = 8;
 
@@ -148,49 +122,23 @@ export class VocabularyService {
             wordsQuery = wordsQuery.skip((page - 1) * options.limit).limit(options.limit);
         }
 
-        const words = await wordsQuery.toArray() as unknown as WordDocument[];
+        const words = await wordsQuery.toArray();
+        const wordIds = words.map((word) => word._id);
+        const progressData = wordIds.length > 0
+            ? await db.collection('WordProgress').find({
+                userId,
+                wordId: { $in: wordIds },
+            }).toArray()
+            : [];
 
-        // Fetch progress for all words for this user
-        const wordIds = words.map((w: WordDocument) => w._id.toString());
-        const progressData = await db.collection('WordProgress').find({
-            userId,
-            wordId: { $in: wordIds.map(id => new ObjectId(id)) }
-        }).toArray() as unknown as WordProgressDocument[];
+        const progressByWordId = new Map(
+            progressData.map((progress) => [progress.wordId.toString(), progress])
+        );
 
-        const progressMap = progressData.reduce((acc: ProgressMap, p: WordProgressDocument) => {
-            acc[p.wordId] = p;
-            return acc;
-        }, {} as ProgressMap);
-
-        const wordsWithProgress = words.map((word: WordDocument) => {
-            const progress = progressMap[word._id.toString()];
-            return {
-                _id: word._id.toString(),
-                word: word.word,
-                translation: word.translation,
-                ...(word.pinyin ? { pinyin: word.pinyin } : {}),
-                partOfSpeech: word.partOfSpeech || '',
-                difficulty: word.difficulty,
-                vocabularyListId: word.vocabularyListId.toString(),
-                createdAt: word.createdAt instanceof Date ? word.createdAt.toISOString() : String(word.createdAt),
-                updatedAt: word.updatedAt instanceof Date ? word.updatedAt.toISOString() : String(word.updatedAt),
-                progress: progress ? {
-                    wordId: progress.wordId,
-                    userId: progress.userId,
-                    status: progress.status,
-                    reviewCount: progress.reviewCount,
-                    streak: progress.streak,
-                    lastReviewed: progress.lastReviewed,
-                    nextReview: progress.nextReview,
-                    createdAt: progress.createdAt,
-                    updatedAt: progress.updatedAt
-                } : {
-                    status: 'new',
-                    reviewCount: 0,
-                    streak: 0
-                }
-            } as Word;
-        });
+        const wordsWithProgress = words.map((word) => ({
+            ...word,
+            progress: progressByWordId.get(word._id.toString()),
+        }));
 
         return {
             ...list,
@@ -212,7 +160,7 @@ export class VocabularyService {
         const db = await getDatabase();
 
         const now = new Date();
-        const result = await db.collection('VocabularyList').insertOne({
+        const listDoc = {            
             name: data.name,
             description: data.description,
             targetLanguage: data.targetLanguage,
@@ -221,21 +169,10 @@ export class VocabularyService {
             wordCount: 0,
             createdAt: now,
             updatedAt: now
-        });
+        }
+        const result = await db.collection('VocabularyList').insertOne(listDoc);
 
-        const list = {
-            _id: result.insertedId,
-            name: data.name,
-            description: data.description,
-            targetLanguage: data.targetLanguage,
-            nativeLanguage: data.nativeLanguage,
-            userId,
-            wordCount: 0,
-            createdAt: now,
-            updatedAt: now,
-        };
-
-        return list;
+        return { _id: result.insertedId, ...listDoc };
     }
 
     /**
@@ -472,7 +409,7 @@ export class VocabularyService {
 
         // Create the vocabulary list
         const now = new Date();
-        const result = await db.collection('VocabularyList').insertOne({
+        const listDoc = {
             name: data.name,
             description: data.description,
             targetLanguage: data.targetLanguage,
@@ -481,7 +418,8 @@ export class VocabularyService {
             wordCount: aiWords.length,
             createdAt: now,
             updatedAt: now
-        });
+        };
+        const result = await db.collection('VocabularyList').insertOne(listDoc);
 
         const listId = result.insertedId;
 
@@ -497,17 +435,13 @@ export class VocabularyService {
             updatedAt: now
         }));
 
-        await db.collection('Word').insertMany(wordDocs);
+        const insertedWords = await db.collection('Word').insertMany(wordDocs);
+        const words = wordDocs.map((doc, index) => ({
+            _id: insertedWords.insertedIds[index],
+            ...doc,
+        }));
 
-        // Fetch the new list with words
-        const list = await db.collection('VocabularyList').findOne({
-            _id: listId,
-            userId
-        });
-
-        const words = await db.collection('Word').find({ vocabularyListId: listId }).toArray();
-
-        return { ...list, words };
+        return { ...listDoc, _id: listId, words };
     }
 
     /**

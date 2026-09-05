@@ -60,7 +60,6 @@ export function calculateFromManualStatus(
         return {
             ...result,
             status: WordStatus.MASTERED,
-            repetition: Math.max(result.repetition, 5),
         };
     }
 
