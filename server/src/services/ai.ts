@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
-import { CircuitBreaker } from '../utils/CircuitBreaker';
-import { RequestQueue } from '../utils/RequestQueue';
+import { CircuitBreaker } from '../utils/circuitBreaker';
+import { RequestQueue } from '../utils/requestQueue';
 import { z } from 'zod';
 import logger from '../utils/logger';
 import { assertAllContentAllowed, assertContentAllowed } from '../utils/moderation';

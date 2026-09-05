@@ -114,7 +114,7 @@ export function sanitizeWordInput(input: string): string {
 /**
  * Sanitize user description/notes (allows more length)
  */
-export function sanitizeDescription(description?: string): string | undefined {
+export function sanitizeDescription(description: string): string | undefined {
     if (!description) return undefined;
     if (typeof description !== 'string') return undefined;
 

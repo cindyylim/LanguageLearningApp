@@ -1,4 +1,4 @@
-import { CircuitBreaker, CircuitState } from './CircuitBreaker';
+import { CircuitBreaker, CircuitState } from './circuitBreaker';
 
 describe('CircuitBreaker', () => {
 
@@ -15,6 +15,7 @@ describe('CircuitBreaker', () => {
     it('should open circuit after failure threshold', async () => {
         const breaker = new CircuitBreaker({ failureThreshold: 3, resetTimeout: 5000 });
         const action = jest.fn().mockRejectedValue(new Error('fail'));
+        const successAction = jest.fn().mockResolvedValue('success');
 
         // Fail 3 times to reach threshold
         for (let i = 0; i < 3; i++) {
@@ -26,7 +27,7 @@ describe('CircuitBreaker', () => {
         }
 
         // Circuit should now be OPEN
-        await expect(breaker.execute(action)).rejects.toThrow('Circuit is OPEN');
+        await expect(breaker.execute(successAction)).rejects.toThrow('Circuit is OPEN');
     });
 
     it('should transition to HALF_OPEN after timeout', async () => {
@@ -75,22 +76,15 @@ describe('CircuitBreaker', () => {
 
     it('should not count failures when countFailure returns false', async () => {
         const breaker = new CircuitBreaker({
-            failureThreshold: 2,
+            failureThreshold: 1,
             resetTimeout: 5000,
             countFailure: (error) => (error as Error).message !== 'permanent',
         });
         const permanentAction = jest.fn().mockRejectedValue(new Error('permanent'));
         const transientAction = jest.fn().mockRejectedValue(new Error('transient'));
 
-        for (let i = 0; i < 3; i++) {
-            try {
-                await expect(breaker.execute(permanentAction)).rejects.toThrow('permanent');
-            } catch (e) {
-                // expected
-            }
-        }
-
-        await expect(breaker.execute(transientAction)).rejects.toThrow('transient');
+        await expect(breaker.execute(permanentAction)).rejects.toThrow('permanent');
+        await expect(breaker.execute(permanentAction)).rejects.toThrow('permanent');
         await expect(breaker.execute(transientAction)).rejects.toThrow('transient');
         await expect(breaker.execute(transientAction)).rejects.toThrow('Circuit is OPEN');
     });

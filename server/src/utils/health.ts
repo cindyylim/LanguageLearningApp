@@ -12,7 +12,6 @@ export interface HealthPayload {
   checks: {
     database: string;
     redis: string;
-    ai: string;
   };
 }
 
@@ -25,8 +24,6 @@ export async function getHealthStatus(): Promise<HealthPayload> {
     checks: {
       database: 'unknown',
       redis: 'unknown',
-      // AI is optional and is not probed here — calling the model would 503 load balancers and burn quota.
-      ai: 'optional',
     },
   };
 

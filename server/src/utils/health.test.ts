@@ -1,14 +1,7 @@
-import { AIService } from '../services/ai';
 import { connectToDatabase } from './mongo';
 import { connectToTestDatabase } from './testMongo';
 import { redisHealthCheck } from './redis';
 import { getHealthStatus } from './health';
-
-jest.mock('../services/ai', () => ({
-    AIService: {
-        healthCheck: jest.fn().mockRejectedValue(new Error('OpenAI unavailable')),
-    },
-}));
 
 jest.mock('./mongo', () => ({
     connectToDatabase: jest.fn(),
@@ -42,33 +35,32 @@ describe('getHealthStatus', () => {
         (redisHealthCheck as jest.Mock).mockResolvedValue(true);
     });
 
-    it('returns OK when database and redis are healthy and does not call the AI model', async () => {
+    it('returns OK when database and redis are healthy', async () => {
         const health = await getHealthStatus();
 
         expect(health.status).toBe('OK');
         expect(health.checks.database).toBe('healthy');
         expect(health.checks.redis).toBe('healthy');
-        expect(health.checks.ai).toBe('optional');
     });
 
-    it('returns DEGRADED when the database ping fails without calling AI', async () => {
+    it('returns DEGRADED when the database ping fails', async () => {
         mockPing.mockRejectedValue(new Error('db down'));
 
         const health = await getHealthStatus();
 
         expect(health.status).toBe('DEGRADED');
         expect(health.checks.database).toBe('unhealthy');
-        expect(health.checks.ai).toBe('optional');
+        expect(health.checks.redis).toBe('healthy');
     });
 
-    it('returns DEGRADED when redis is unhealthy without calling AI', async () => {
+    it('returns DEGRADED when redis is unhealthy', async () => {
         (redisHealthCheck as jest.Mock).mockResolvedValue(false);
 
         const health = await getHealthStatus();
 
         expect(health.status).toBe('DEGRADED');
         expect(health.checks.redis).toBe('unhealthy');
-        expect(health.checks.ai).toBe('optional');
+        expect(health.checks.database).toBe('healthy');
     });
 
     it('returns DEGRADED when redis health check throws', async () => {
@@ -78,5 +70,6 @@ describe('getHealthStatus', () => {
 
         expect(health.status).toBe('DEGRADED');
         expect(health.checks.redis).toBe('unhealthy');
+        expect(health.checks.database).toBe('healthy');
     });
 });

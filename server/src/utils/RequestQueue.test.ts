@@ -1,4 +1,4 @@
-import { RequestQueue } from './RequestQueue';
+import { RequestQueue } from './requestQueue';
 
 describe('RequestQueue', () => {
     it('uses default concurrency of 3 when no options are provided', async () => {
