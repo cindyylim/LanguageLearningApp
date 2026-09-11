@@ -1,4 +1,4 @@
-import { CircuitBreaker, CircuitState } from './circuitBreaker';
+import { CircuitBreaker } from './circuitBreaker';
 
 describe('CircuitBreaker', () => {
 
