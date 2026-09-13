@@ -1,103 +1,84 @@
-# Language Learning Quiz Generator
+# Language Learning App
 
-An AI-powered language learning application that generates personalized quizzes using OpenAI for adaptive learning experiences.
-Deployed with Render. Link: https://languagelearningapp-z0ca.onrender.com/login
+Full-stack TypeScript app for vocabulary study: AI-generated lists and quizzes, SM-2 spaced repetition, and progress analytics.
+
+**Live:** [languagelearningapp-z0ca.onrender.com](https://languagelearningapp-z0ca.onrender.com/login)
 
 ## Demo
-![Untitled design](https://github.com/user-attachments/assets/8bed62e6-23a9-42ea-86bf-b7406bce4ded)
-![Untitled design (1)](https://github.com/user-attachments/assets/62968178-677e-4b69-8b3d-0c9130c53e52)
 
+![Quiz and vocabulary UI](https://github.com/user-attachments/assets/8bed62e6-23a9-42ea-86bf-b7406bce4ded)
+![Progress and list UI](https://github.com/user-attachments/assets/62968178-677e-4b69-8b3d-0c9130c53e52)
 
-## Features
+## What this demonstrates
 
-- 🤖 **AI-Powered Question Generation**: Uses OpenAI to create contextual questions from vocabulary lists
-- 📝 **Contextual Sentences**: Generates real-world usage examples for vocabulary
-- 📊 **Text Analysis**: OpenAI integration for advanced text processing
-- 🎯 **Multiple Question Types**: Multiple choice, fill-in-the-blank, sentence completion
-- 📈 **Progress Tracking**: Detailed analytics and learning insights
-- 🌍 **Multi-language Support**: Support for various target languages
-- ✨ **AI-Powered Vocabulary List Generation**: Instantly generate themed vocabulary lists using OpenAI based on your chosen topic or keywords
+Built as a production-shaped product, not a thin OpenAI wrapper.
 
-## Tech Stack
+| Area | Implementation |
+| --- | --- |
+| **API** | Express + Zod validation, JWT auth, CSRF (Redis-backed), Helmet, rate limits, mongo-sanitize |
+| **Data** | MongoDB driver (aggregations, batched reads, indexes on connect), in-memory list cache with invalidation |
+| **AI** | OpenAI with Zod-parsed output, content moderation, retries, circuit breaker, and a concurrency/rate-limited request queue |
+| **Learning** | SuperMemo-2 scheduling; quiz reviews vs manual status updates use different SM-2 entry points |
+| **Reliability** | Idempotent quiz generation, connection pooling, `/api/health` (Mongo + Redis) |
+| **Frontend** | React + TypeScript, Zustand, shared types with the server, Cypress e2e |
 
-- **Frontend**: React, TypeScript, Tailwind CSS
-- **Backend**: Node.js, Express, TypeScript
-- **AI Services**: OpenAI API
-- **Authentication**: JWT tokens
+## Architecture
 
-## Setup
+```
+client (React / CRA)  →  Express API  →  MongoDB
+                         ├─ Redis (CSRF store, optional shared rate-limit counters)
+                         └─ OpenAI (queued + circuit-broken)
+```
 
-### Prerequisites
+Client and server share `shared/types` (symlinked at build time).
 
-- Node.js 18+ 
-- npm or yarn
-- OpenAI API key
+## Tests
 
-### Installation
+- **Server:** Jest + ts-jest — services, routes (Supertest), middleware, SM-2, AI helpers, circuit breaker, request queue
+- **Client:** Cypress e2e (auth, vocabulary, quiz, user journey)
 
-1. Clone the repository:
+```bash
+cd server && npm test
+cd client && npm run test:e2e:headless   # needs API + app running
+```
+
+## Stack
+
+- **Client:** React 18, TypeScript, Tailwind, Zustand, React Router, Cypress
+- **Server:** Node, Express, TypeScript, Zod, Winston, Jest
+- **Data / infra:** MongoDB, Redis, Render
+
+## Local setup
+
+**Needs:** Node 18+, MongoDB, OpenAI API key. Redis is optional (CSRF/rate-limit degrade without it).
+
 ```bash
 git clone <repository-url>
-cd LanguageLearningApp/client
+cd LanguageLearningApp
+npm run install-all
 ```
 
-2. Install dependencies:
-```bash
-npm install
-```
+**Server** (`server/.env` from `server/.env.example`):
 
-3. Set up environment variables:
-```bash
-cd ../server 
-npm install
-cp .env.example .env
 ```
-
-4. Configure your environment variables in `.env`:
-```
-OPENAI_API_KEY=your_openai_api_key
+PORT=5000
+MONGODB_URI=mongodb://localhost:27017/language-learning
+JWT_SECRET=change-me
+OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4o-mini
-JWT_SECRET=your_jwt_secret
-MONGODB_URI=
+FRONTEND_URL=http://localhost:3000
+REDIS_URL=                    # optional
 ```
 
-5. Configure your environment variables in `.env`:
+**Client** (`client/.env` from `client/.env.example`):
+
+```
+REACT_APP_API_URL=http://localhost:5000/api
+```
+
 ```bash
-cd ../client 
-cp .env.example .env
+cd server && npm run dev      # http://localhost:5000
+cd client && npm start        # http://localhost:3000
 ```
 
-```
-REACT_APP_API_URL=http://localhost:3000/api
-```
-
-6. Start the development servers:
-```bash
-cd ../server 
-npm run dev
-cd ../client
-npm run build
-npm start
-```
-
-The app will be available at:
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:5000
-
-## Usage
-
-1. **Create Vocabulary Lists**: Add words and phrases you want to learn
-2. **Generate Vocabulary Lists with AI**: Instantly create a new vocabulary list by providing a topic or keywords and letting AI generate relevant words for you
-3. **Generate Quizzes**: Use AI to create contextual questions
-4. **Practice**: Take quizzes with selected difficulty
-5. **Track Progress**: Monitor your learning journey with detailed analytics
-6. **Review**: Use spaced repetition to optimize retention
-
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+Production build: `npm run build` then `npm start` from the repo root (serves `server/dist`).
